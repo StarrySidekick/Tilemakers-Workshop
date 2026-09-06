@@ -25,10 +25,14 @@ workshop is legitimate work, unlike depth on any one mode.
 
 ## What is next
 
-**Fields.** Timothy believed fields already worked. `MODES.md` says half-edge
-connectivity was never built and that Marches works around it with banners.
-**Check the code before believing either document** — and if fields are genuinely
-not implemented, implementing them is wanted.
+**Fields: settled 2026-09-06, and Timothy was right.** They are fully built.
+`src/tiles.js` cuts the perimeter into eight half-edges with `halfPartner` as the
+joining rule; fields are ordinary components; `allFields`, `citiesFed` and
+`farmPayouts` settle the farms at the end with majority, pigs and the 3-or-4
+rate; the `fields` mechanic is `on` by default and marked `live`. `MODES.md` said
+"not built" in two places and has been corrected. Nothing to implement here.
+
+So the open question in this repo is the next one down, not this one.
 
 **Workshop feel.** How it looks, how it reads, how quickly someone can
 understand what they are looking at.
