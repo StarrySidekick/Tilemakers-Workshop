@@ -47,10 +47,19 @@ understand what they are looking at.
 
 ## A useful thing that is not code
 
-Modes are going to be cut, and he does not yet know which. **A clear-eyed
-written assessment of which of the twelve actually answered its question** — the
-one `MODES.md` states for each — would be genuinely useful. Offered as a
-proposal for him to decide on. Never as a deletion.
+Modes are going to be cut, and he does not yet know which.
+**[`docs/MODE-REVIEW.md`](docs/MODE-REVIEW.md)**, written 2026-09-06, is the
+assessment: what each mode cost, what question it was built to answer, whether
+that question is settled, and which are still earning a row in the dropdown.
+Offered as a proposal. Nothing was deleted.
+
+Its two findings worth acting on regardless of any cut:
+
+- **Soffiando is 40% of all mode code**, more than four times the next largest,
+  which is the clearest signal in the repo about where the interest actually is.
+- **Three shipped modes have no design section at all** — Classic, Expedition
+  and Adventure, 780 lines between them. A mode whose purpose is unwritten
+  cannot be fairly judged, so that gap wants closing *before* any cutting.
 
 ## Where it is going
 

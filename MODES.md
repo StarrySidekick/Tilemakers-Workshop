@@ -32,6 +32,12 @@ interesting part.
 Play them and the questions answer themselves. What's at the bottom is what the
 engine still can't do.
 
+**Twelve ship, and three of them are not on this list.** `Classic`, `Expedition`
+and `Adventure` are in the registry with no design section here, which is 780
+lines of mode with no written record of the question it was asking. That gap, and
+a proposal about which modes are still earning their row in the dropdown, are in
+[`docs/MODE-REVIEW.md`](docs/MODE-REVIEW.md).
+
 ---
 
 ## What the engine gave us for free
