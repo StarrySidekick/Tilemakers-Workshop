@@ -32,6 +32,12 @@ interesting part.
 Play them and the questions answer themselves. What's at the bottom is what the
 engine still can't do.
 
+**Twelve ship, and three of them are not on this list.** `Classic`, `Expedition`
+and `Adventure` are in the registry with no design section here, which is 780
+lines of mode with no written record of the question it was asking. That gap, and
+a proposal about which modes are still earning their row in the dropdown, are in
+[`docs/MODE-REVIEW.md`](docs/MODE-REVIEW.md).
+
 ---
 
 ## What the engine gave us for free
@@ -57,7 +63,7 @@ And the three things it couldn't do, which most of the list below depended on:
 |---|---|---|
 | Removing a tile (union-find is append-only) | Cloud kingdom, stacking, tideline, two-faced | **Done** — `Board.rebuild()` |
 | Multi-cell footprints (`place` assumed 1×1) | Polyomino mode | **Done** — `canPlacePiece` / `placePiece` |
-| Fields as real features (half-edge connectivity) | Wargame area control, farmers | **Not done** — Marches uses banners instead |
+| Fields as real features (half-edge connectivity) | Wargame area control, farmers | **Done** — eight half-edges in `tiles.js`; Marches still uses banners by choice |
 
 See [Shared engine work](#shared-engine-work) for how each was actually done.
 
@@ -1197,22 +1203,31 @@ The part the design got wrong: it assumed pieces would be **authored**. They're
 edges agree. That removes the whole class of hand-checking bugs the design was
 worried about, and it means the piece pool is effectively infinite.
 
-### 3. Fields as real features ✖
+### 3. Fields as real features ✔
 
-Not built — and the World tilesets are the evidence for why that's a *format*
-problem rather than a missing feature type. Forests, mountains, lakes and
-rivers each went in as one line in a table plus one drawing function, inheriting
-edge matching, merging and the completion counter untouched. Fields don't fit
-that mould because they need **half**-edges, not because they're new. Marches does area control by banner flood-fill instead, which needs
-no format change and gets the supply rule working today — the thing that makes
-the mode good is the *supply* rule, not the granularity of the territory.
+**Built, and built exactly as this section predicted it would be.** `src/tiles.js`
+cuts the tile perimeter into eight half-edges numbered clockwise from the
+top-left; `halfPartner` is the whole joining rule, since crossing a seam
+reverses the clockwise order. A field is an ordinary component from there on, so
+the union-find and the `open` counter did not change at all, just as predicted.
+`allFields` reads them off the board, `citiesFed` counts only the cities that
+actually closed, and `farmPayouts` settles them at the end with majority, the
+3-or-4 rate and pigs raising it for their owner alone. The `fields` mechanic is
+`on` by default and marked `live`.
 
-It's still the natural next build, and it's still a change to the tile format
-rather than an addition: features would carry **half-edges** (eight slots —
-N-left, N-right, E-top, … — instead of four sides), so a road bend can hold two
-distinct field segments. `featAt` generalises; the union-find and the `open`
-counter don't change at all. It wants doing before the tile pool grows much
-further.
+The reasoning that got it there, which still holds:
+
+The World tilesets were the evidence for why this was a *format* problem rather
+than a missing feature type. Forests, mountains, lakes and rivers each went in as
+one line in a table plus one drawing function, inheriting edge matching, merging
+and the completion counter untouched. Fields don't fit that mould because they
+need **half**-edges, not because they're new — a road running out to a tile's
+edge splits the field either side of it without the edge letter changing at all.
+
+**Marches still does area control by banner flood-fill, and that is a choice
+rather than a leftover.** The thing that makes the mode good is the *supply*
+rule, not the granularity of the territory, so it was never rewritten onto
+fields once fields existed.
 
 ### And one refactor: a mode registry ✔
 
