@@ -472,11 +472,20 @@ input[type="range"] { width: 110px; padding: 0; background: none; border: none; 
 
 footer { font-size: 10.5px; line-height: 1.6; }
 
+/* The panel sits beside the board above 760px and below it under that — same
+   split the #panel rule just below reads. Text that says "the panel on the
+   right" needs to switch with it, or it's wrong on a phone. The base state
+   (.onNarrow hidden) has to come BEFORE this query in the file, or an
+   equal-specificity rule later in the sheet always wins regardless of width. */
+.onNarrow { display: none; }
+
 @media (max-width: 760px) {
   main { grid-template-columns: 1fr; grid-template-rows: 1fr auto; }
   #panel { border-left: none; border-top: 1px solid var(--line); max-height: 48vh; }
   /* Folded away, the drawer gives its whole share of the screen back. */
   body.lean main { grid-template-rows: 1fr; }
+  .onWide { display: none; }
+  .onNarrow { display: inline; }
 }
 
 /* --- the face-up row (market modifier, Duel's pool, Cirrus's hand) -------- */

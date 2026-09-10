@@ -47,8 +47,8 @@ not evenly spread:
 |---|---:|---|---|
 | **Soffiando** | 1,966 | is a board that edits *itself* better than one you edit? | still asking |
 | **Marches** | 481 | is the board better as a contested surface than a scoring one? | partly |
-| **Expedition** | 375 | *undocumented* | — |
-| **Adventure** | 369 | *undocumented* | — |
+| **Expedition** | 375 | does placement change once landmarks race, first-come? | open (bot found an exploit) |
+| **Adventure** | 369 | does the walk-and-recruit loop work with nobody to race? | — |
 | **Descent** | 363 | does exploration hold up with a real fail state? | yes |
 | **Chronicle** | 244 | are the tiles good *prompts*? | yes |
 | **Sprawl** | 207 | does the board get more interesting when the *holes* matter? | yes |
@@ -56,7 +56,7 @@ not evenly spread:
 | **World** | 148 | what does the countryside still not have? | yes |
 | **Tesserae** | 86 | is there a version someone opens every morning? | untested |
 | **Duel** | 73 | is placing a tile fun with *nothing else* attached? | yes |
-| **Classic** | 35 | *undocumented* — it is the control | n/a |
+| **Classic** | 35 | how much of the game is left once the meeple economy is stripped off it | n/a — it is the control |
 
 **Soffiando is 40% of all mode code**, and more than four times the next
 largest. That is the clearest signal in the repo about where the interest
@@ -101,22 +101,36 @@ These four did their job. The finding is in `MODES.md` and survives the mode.
 answer intact, and taking it out of the registry.** Not deleting the file, and
 never deleting the section.
 
-### Decide what these three even are
+### Done: Classic, Expedition and Adventure now have a design section
 
-**Expedition (375 lines), Adventure (369) and Classic (35) ship, and none of them
-has a design section in `MODES.md`.**
+**Closed 2026-09-10.** `MODES.md` now carries [Three that shipped without
+one](../MODES.md#three-that-shipped-without-one) — a section for exactly the
+780 lines this review flagged, written the other way round from everything
+else in that file: read from the code, since there was no plan to check it
+against. Expedition's stated question is the racing-landmark loop against
+Adventure's uncontested one; Classic's is the control group every other mode
+deviates from. The unresolved balance finding below is now recorded *in*
+Expedition's own section rather than only in the computer-player appendix, so
+it reads as an open problem in a documented mode instead of a stray note about
+an undocumented one.
+
+The paragraph below is kept as the record of what the gap actually was and
+why it mattered, not as an outstanding task.
+
+~~**Expedition (375 lines), Adventure (369) and Classic (35) ship, and none of
+them has a design section in `MODES.md`.**~~
 
 That document opens by saying it is "the reasoning behind each one" and lists
-thirteen. Three shipped modes are not among them, which means 780 lines of mode
-code exist with no written record of what question they were asking. Expedition
-turns up in `MODES.md` exactly once, in the computer-player section, where the
-bot found that its caves are free turns and ran a two-player game from 96 turns
-to 670 — which reads like an unresolved balance problem in a mode nobody wrote
-down.
+thirteen. Three shipped modes were not among them, which meant 780 lines of
+mode code existed with no written record of what question they were asking.
+Expedition turned up in `MODES.md` exactly once, in the computer-player
+section, where the bot found that its caves are free turns and ran a
+two-player game from 96 turns to 670 — which read like an unresolved balance
+problem in a mode nobody had written down.
 
-**This is the first thing to fix, before any cutting.** A mode you cannot say
-the purpose of is one you cannot fairly judge, and two of these are larger than
-most of the modes above.
+~~**This is the first thing to fix, before any cutting.**~~ It was, and it's
+fixed. A mode you cannot say the purpose of is one you cannot fairly judge, and
+two of these were larger than most of the modes above.
 
 ### Not modes, and not cuttable
 

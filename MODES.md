@@ -32,11 +32,13 @@ interesting part.
 Play them and the questions answer themselves. What's at the bottom is what the
 engine still can't do.
 
-**Twelve ship, and three of them are not on this list.** `Classic`, `Expedition`
-and `Adventure` are in the registry with no design section here, which is 780
-lines of mode with no written record of the question it was asking. That gap, and
-a proposal about which modes are still earning their row in the dropdown, are in
-[`docs/MODE-REVIEW.md`](docs/MODE-REVIEW.md).
+**Twelve ship.** Nine are in the table above. The other three — `Classic`,
+`Expedition` and `Adventure` — shipped with no design section here, which
+`docs/MODE-REVIEW.md` named as the first gap worth closing; they have their own
+section further down, [Three that shipped without one](#three-that-shipped-without-one),
+written from the code rather than from a plan, because there wasn't one. A
+proposal about which modes are still earning their row in the dropdown is also
+in [`docs/MODE-REVIEW.md`](docs/MODE-REVIEW.md).
 
 ---
 
@@ -1097,6 +1099,121 @@ rewards committing a follower for the whole game. If one of those dominates,
 the fix is the number, not the rule.
 
 ---
+
+# Three that shipped without one
+
+`Classic`, `Expedition` and `Adventure` are three more entries in
+`src/modes/index.js` — 780 lines between them — and none of the thirteen design
+items above is theirs. `docs/MODE-REVIEW.md`, written 2026-09-06, named this
+the first thing to fix, before any cutting: *"A mode you cannot say the purpose
+of is one you cannot fairly judge."*
+
+What follows runs the other way round from everything above it. Every other
+section in this file is a plan, then a note on what shipped and where it
+diverged. These three have no plan to check against — there wasn't one — so
+each is a reading of what the mode file actually does, and the question it
+answers is inferred from that rather than quoted from a design doc.
+
+## 14. Classic — the control group
+
+**Question it answers:** how much of Carcassonne is left once every mechanic
+this document tries is stripped back off it? Every other mode is a deviation
+from this one, so it has to exist, and it has to stay this small.
+
+**The hook.** There isn't one, on purpose. `src/modes/classic.js` is 35 lines:
+place a tile; if meeples are on, optionally claim a feature; when a feature
+closes, pay the majority holder. Turn `useMeeples` off and `onClosed` pays
+whoever placed the closing tile instead — `Game.award()`'s own comment calls
+that "the closer" case, and Classic is the only mode that ever reaches it. At
+the end, anything still open with a meeple on it pays out too, same as
+everywhere else.
+
+**What it tests without meaning to.** Toggling `useMeeples` answers the "how
+much of this is the meeple economy" question from one setting, in one mode,
+rather than needing a second one built to ask it. That's likely why the file is
+only 35 lines — everything it needs already lives in `game.js` and `board.js`,
+and the mode is just the two hooks that connect scoring to the closing event.
+
+**Risk.** None worth naming. It is the yardstick, not an experiment — the only
+way it can be wrong is if it stops matching the rules everyone already knows,
+which would be a `game.js` bug wearing this mode's name.
+
+---
+
+## 15. Expedition — landmarks go to whoever gets there first
+
+**Question it answers:** what happens to placement once meeples stop sitting
+still? Everywhere else, a follower stakes a claim and waits for its feature to
+close. Expedition's pawns walk, and what they walk toward is a landmark that
+only pays the first one to arrive — which turns tile placement into something
+closer to a race: **you're laying track toward the thing you want while trying
+not to lay track toward the thing they want**, in `expedition.js`'s own words.
+
+**The hook.** Place a tile, then move a pawn — one tile per turn by default,
+breadth-first over whatever is placed (so a tile is walkable regardless of what
+is drawn on it), doubled once you have stood on a stable. Landmarks pay once,
+to whoever reaches them first, and are gone after that:
+
+- **stable** → mounted for the rest of the game, two tiles a turn from here on
+- **village** → rest a turn face-down to raise a second pawn — more legs, not
+  more turns
+- **tower** → with two standing, a pawn on one may warp to any other
+- **cave** → drops into a private `Interior` sub-board, the same primitive
+  Adventure's caves use, left by choice or through a shaft
+- **market / keep / library / armoury** → the four city landmarks; holding all
+  four pays a set bonus on top of the four scores already banked
+
+**What the computer player found that no design doc caught.** The bot audit in
+[Shared engine work](#shared-engine-work) turned up this mode's one real
+balance problem: a bot that mines caves properly runs a two-player game from 96
+turns to 670, because a cave turn doesn't spend the surface deck and every cave
+tile can carry treasure. That is exactly the shape of thing a written design
+would have had a rule for — `EXPEDITION_RULES.caveTurnLimit` exists for it and
+nothing reads it yet.
+
+**Risk.** The cave turn limit, first. Beyond that, "first to arrive wins"
+needs enough landmarks spread widely enough that the race stays a choice —
+too few, and whoever moves first simply takes the only prize on the board.
+
+---
+
+## 16. Adventure (solo) — the same walk, alone and without a clock
+
+**Question it answers:** what does the walking loop feel like with nobody to
+race? Expedition's pawns compete for landmarks against other players;
+Adventure is one hero and whoever they recruit, and every site on the map
+belongs to the party the moment it's reached — nothing is contested, because
+nobody else is there.
+
+**The hook.** Place a tile, then move: one tile always free, two along a
+finished road for free, two off-road for a spent supply. That is the whole
+reason roads matter here — nobody is building a road *at* the mode, but
+travelling one is cheaper, so the tiles laid down double as the route being
+made cheap or expensive later.
+
+- **villages** recruit a named follower who moves alongside the hero — more
+  hands, not more turns, the same trade a village makes in Expedition
+- **caves and cities** both open onto an `Interior`, the caves shared with
+  Expedition's; a city additionally needs to *close* before its road gate can
+  be walked through, so exploring one is a reward for finishing it
+- **the journal** (`makeJournal()`) is five open quests — three companions, two
+  relics, a city walked, a cave delved, twelve districts — each paying gold on
+  completion, the closest thing the mode has to a scoring model beyond loot
+- **score** is gold plus relics × 5 plus sites claimed; no follower economy and
+  no majorities, because there is one party and nothing to contest it
+
+**What settles the question.** `MODES.md` §4 already names this mode directly
+as the thing Descent was built against: *"right now Adventure is upside-only —
+nothing on the map can hurt you."* That is the clearest evidence of what
+Adventure itself was answering — is the place-then-walk loop worth building
+on at all — because Descent is the answer built on top of it, with the one
+thing left out here on purpose.
+
+**Risk.** No fail state and no clock means "is it good" can only be judged the
+way Chronicle's is — by whether you keep taking turns and want to see the
+journal fill in, not by a score curve. It's also the one mode in this document
+with `solo: true`, so its numbers never appear in a table that compares modes
+head to head.
 
 ---
 
