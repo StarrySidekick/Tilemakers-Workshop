@@ -942,7 +942,6 @@ city. And the field hatch is *crossed* rather than a single diagonal, so that
 it looks the same after the quarter turn that places the tile.
 
 ### Sound
-### Sound
 
 Placeholder effects are **synthesised at runtime** — oscillators, filtered noise
 and envelopes, no audio files. That keeps the no-assets rule and means you can
@@ -984,22 +983,25 @@ free of audio and the same events can drive animation later.
 ## What's next
 
 [MODES.md](MODES.md) has the full reasoning behind each mode, what it was built
-to find out, and what's still scoped but unbuilt. The short version of what the
-engine is still missing:
+to find out, and what's still scoped but unbuilt. The short version, starting
+with the one item on this list that's since been closed:
 
-**Fields as real features.** Farmers, and richer area control in The Marches,
-both need fields modelled as their own segments — split by roads, bounded by
-city walls, so a road-bend tile has *two* distinct fields. That means features
-carrying half-edges (eight slots, not four) rather than a new feature type. It's
-a change to the tile format, so it wants doing before the pool grows much
-further. The Marches currently does area control by banner instead, which works
-but is coarser.
+**Fields were the one thing on this list, and they're done.** Farmers score
+off real field segments now — the perimeter is cut into eight half-edges and
+`halfPartner` carries the whole joining rule, since crossing a seam reverses
+the clockwise order — so a road-bend tile really does have two distinct
+fields. See [Farms](#farms), above, for the full account.
 
-Adding forests, mountains, lakes and rivers was the test of that: each is a new
-feature type and each cost one line in a table plus one drawing function,
-because they all inherit edge matching, merging and the completion counter for
-free. Fields are the only thing that doesn't fit, and it's because they need
-*half*-edges, not because they're a new type.
+Adding forests, mountains, lakes and rivers was the test that fields would
+still fit once built: each of those is a new feature type, and each cost one
+line in a table plus one drawing function, because they all inherit edge
+matching, merging and the completion counter for free. Fields looked like the
+one thing that wouldn't fit that pattern, because they need *half*-edges
+rather than a new type — but from there, a field is an ordinary component too,
+and the union-find and the open counter never had to change. The Marches still
+does area control by banner rather than by field; that's a choice — the supply
+rule is what makes that mode work, not the granularity of the territory — not
+a leftover waiting on this.
 
 **Prompts for the auto-resolved choices.** Three rules currently take the
 obvious option because there's nowhere to ask: Marches auto-spends muster chits
