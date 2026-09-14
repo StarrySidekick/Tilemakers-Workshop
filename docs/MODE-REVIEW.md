@@ -47,8 +47,8 @@ not evenly spread:
 |---|---:|---|---|
 | **Soffiando** | 1,966 | is a board that edits *itself* better than one you edit? | still asking |
 | **Marches** | 481 | is the board better as a contested surface than a scoring one? | partly |
-| **Expedition** | 375 | *undocumented* | — |
-| **Adventure** | 369 | *undocumented* | — |
+| **Expedition** | 375 | what does placement feel like as a race instead of a claim?<sup>†</sup> | still asking |
+| **Adventure** | 369 | what does that race feel like solo, with nobody to beat?<sup>†</sup> | still asking |
 | **Descent** | 363 | does exploration hold up with a real fail state? | yes |
 | **Chronicle** | 244 | are the tiles good *prompts*? | yes |
 | **Sprawl** | 207 | does the board get more interesting when the *holes* matter? | yes |
@@ -56,7 +56,9 @@ not evenly spread:
 | **World** | 148 | what does the countryside still not have? | yes |
 | **Tesserae** | 86 | is there a version someone opens every morning? | untested |
 | **Duel** | 73 | is placing a tile fun with *nothing else* attached? | yes |
-| **Classic** | 35 | *undocumented* — it is the control | n/a |
+| **Classic** | 35 | how much of Carcassonne is the meeples?<sup>†</sup> — it is the control | n/a |
+
+<sup>†</sup> reconstructed from the code 2026-09-14, not from an original brief — see `MODES.md` §14–16.
 
 **Soffiando is 40% of all mode code**, and more than four times the next
 largest. That is the clearest signal in the repo about where the interest
@@ -103,20 +105,29 @@ never deleting the section.
 
 ### Decide what these three even are
 
-**Expedition (375 lines), Adventure (369) and Classic (35) ship, and none of them
-has a design section in `MODES.md`.**
+**Closed 2026-09-14.** Expedition (375 lines), Adventure (369) and Classic (35)
+now have design sections — `MODES.md` §14–16, reconstructed from the code
+since none of the original thirteen briefs was them. The judgement below —
+whether each is still earning its row — is unaffected; only the "you can't
+fairly judge what isn't written down" problem is fixed. The bot's finding
+about Expedition's free cave turns (96 turns to 670 in a two-player game) is
+noted in its new section too, and is still unfixed — that's balance depth on
+one mode, which `INTENT.md` says not to spend effort on.
 
-That document opens by saying it is "the reasoning behind each one" and lists
+~~**Expedition (375 lines), Adventure (369) and Classic (35) ship, and none of
+them has a design section in `MODES.md`.**~~
+
+~~That document opens by saying it is "the reasoning behind each one" and lists
 thirteen. Three shipped modes are not among them, which means 780 lines of mode
 code exist with no written record of what question they were asking. Expedition
 turns up in `MODES.md` exactly once, in the computer-player section, where the
 bot found that its caves are free turns and ran a two-player game from 96 turns
 to 670 — which reads like an unresolved balance problem in a mode nobody wrote
-down.
+down.~~
 
-**This is the first thing to fix, before any cutting.** A mode you cannot say
+~~**This is the first thing to fix, before any cutting.** A mode you cannot say
 the purpose of is one you cannot fairly judge, and two of these are larger than
-most of the modes above.
+most of the modes above.~~
 
 ### Not modes, and not cuttable
 
