@@ -987,19 +987,17 @@ free of audio and the same events can drive animation later.
 to find out, and what's still scoped but unbuilt. The short version of what the
 engine is still missing:
 
-**Fields as real features.** Farmers, and richer area control in The Marches,
-both need fields modelled as their own segments — split by roads, bounded by
-city walls, so a road-bend tile has *two* distinct fields. That means features
-carrying half-edges (eight slots, not four) rather than a new feature type. It's
-a change to the tile format, so it wants doing before the pool grows much
-further. The Marches currently does area control by banner instead, which works
-but is coarser.
-
-Adding forests, mountains, lakes and rivers was the test of that: each is a new
-feature type and each cost one line in a table plus one drawing function,
-because they all inherit edge matching, merging and the completion counter for
-free. Fields are the only thing that doesn't fit, and it's because they need
-*half*-edges, not because they're a new type.
+**Fields are done.** They were the one engine change still open — a road-bend
+tile has *two* distinct fields, which an edge-only feature can't express — and
+`src/tiles.js` now cuts every tile's perimeter into eight half-edges the way
+the "Farms" section above describes. Adding forests, mountains, lakes and
+rivers was the test of the *rest* of the engine: each is a new feature type and
+each cost one line in a table plus one drawing function, because they all
+inherit edge matching, merging and the completion counter for free. Fields
+needed the half-edge change first because they don't fit an edge-only feature
+at all — not because they're a new type. The Marches still does area control by
+banner rather than by field, which works and is coarser; that's a choice
+recorded in [MODES.md](MODES.md), not a gap.
 
 **Prompts for the auto-resolved choices.** Three rules currently take the
 obvious option because there's nowhere to ask: Marches auto-spends muster chits

@@ -6,12 +6,13 @@ mechanically**, what it cost against the engine, and — most importantly —
 **what question it answers**. A prototype that doesn't answer a question isn't
 worth building.
 
-**All twelve are built**, plus a thirteenth — World — and a mechanics menu.
-Eight became modes; four became mechanics, because a rule that works on every
-mode is worth more than one that works on its own. Each section below keeps its
+**All thirteen of the original design list are built**, plus a mechanics menu —
+eight became modes, four became mechanics, because a rule that works on every
+mode is worth more than one that works on its own. Each of §1–13 keeps its
 original design, with a note at the top recording what actually shipped and
 where the build differed from the plan — the places they diverge are the
-interesting part.
+interesting part. §14–16 are three more modes that shipped alongside these
+without ever having a plan; see the note below the table.
 
 | | Shipped as | Question it answers |
 |---|---|---|
@@ -28,15 +29,21 @@ interesting part.
 | 11. Tesserae | mode | Is there a version someone opens every morning? |
 | 12. Two-faced | mechanic | Is a tile a noun, or a state? |
 | 13. World | mode + 4 tile families | What does the countryside still not have? |
+| 14. Classic | mode | How much of Carcassonne is the meeples? |
+| 15. Expedition | mode | What does the board become when figures move across it instead of claiming and sitting still? |
+| 16. Adventure | mode | Does choosing where the world's next piece goes read as exploring rather than building? |
 
 Play them and the questions answer themselves. What's at the bottom is what the
 engine still can't do.
 
-**Twelve ship, and three of them are not on this list.** `Classic`, `Expedition`
-and `Adventure` are in the registry with no design section here, which is 780
-lines of mode with no written record of the question it was asking. That gap, and
-a proposal about which modes are still earning their row in the dropdown, are in
-[`docs/MODE-REVIEW.md`](docs/MODE-REVIEW.md).
+**The last three are read off the build, not off a plan.** `Classic`,
+`Expedition` and `Adventure` (§14–16, ["Written down after the
+build"](#written-down-after-the-build)) shipped with no design section for a
+long time — 780 lines of mode with no written record of what question they
+were asking. That gap is what [`docs/MODE-REVIEW.md`](docs/MODE-REVIEW.md)
+flagged on 2026-09-06 as the thing to close before any cutting; it's closed
+now, and that document is where the proposal about which modes are still
+earning their row in the dropdown lives.
 
 ---
 
@@ -1097,6 +1104,123 @@ rewards committing a follower for the whole game. If one of those dominates,
 the fix is the number, not the rule.
 
 ---
+
+# Written down after the build
+
+Three modes shipped with no design section here — `Classic`, `Expedition` and
+`Adventure`, 779 lines of mode code with no written record of the question
+they were asking. `docs/MODE-REVIEW.md` flagged this on 2026-09-06 as the
+thing to fix before any cutting, because a mode you can't say the purpose of
+is one you can't fairly judge. These three are read off the code that shipped
+rather than off a plan that came first — there was no plan, only the header
+comment at the top of each file, which is where most of this is lifted from.
+
+## 14. Classic — place, claim, score
+
+> **Built** — `src/modes/classic.js`, 35 lines. The baseline every other mode
+> is a deviation from, and the cheapest thing in the registry.
+
+**Question it answers:** how much of Carcassonne *is* the meeples?
+
+Place a tile, optionally claim a feature, score it when it closes — the
+printed game, straight. The interesting part is what happens when you turn
+**Followers** off in the mechanics panel: `afterPlace` stops offering the
+claim step entirely, and `onClosed` pays whoever placed the tile that closed
+the feature, full stop. No majority, no supply, no meeple economy — and the
+placement game survives completely intact. That's the answer: whatever's left
+when you strip the claiming out is still a game, which says the tile-laying
+carries more of Carcassonne than the meeples do.
+
+With meeples on, `finish()` pays out anything still open and held at game end,
+the ordinary endgame rule. With meeples off it does nothing, because there's
+nobody standing in anything to pay.
+
+Nothing here needed the engine to grow. It exists to be the thing every other
+mode is measured against, and it earns its row by costing almost nothing to
+keep.
+
+## 15. Expedition — pawns that walk instead of meeples that sit
+
+> **Built** — `src/modes/expedition.js`, 375 lines. `groups: ['base',
+> 'outposts', 'citylife']` pulls in the landmark tiles by default. The
+> computer-player work (below) found a real balance hole here that is still
+> open: see "What it can't see" at the end of this section.
+
+**Question it answers:** what does the board become when the figures move
+across it instead of staking a claim and staying put?
+
+Same place-a-tile step as Classic, but the second half of the turn is
+**move a pawn** instead of **claim a feature**. The map stops being a scoring
+grid and becomes terrain you're laying down in front of yourself as you
+travel — which is the same reframe The Marches makes for war, applied to
+racing instead.
+
+**Landmarks go to whoever gets there first.** A stable mounts your pawn for
+good (2 tiles a turn instead of 1); a village lets you rest a turn, face-down,
+to raise a second pawn where you're standing; two watchtowers let pawns warp
+between any of them; a cave mouth drops you into a private sub-map — its own
+tile pool, its own treasure, built on the same `Interior` machine the base
+engine already had for city streets. Four city landmarks (market, keep,
+library, armoury) pay a set bonus for collecting all four, which is what turns
+placement into a race: you're laying track toward the thing you want while
+trying not to lay track toward the thing they want.
+
+**What it cost.** Nothing structural — `isWalker`, `visiblePawns`,
+`reachable`, `select` and `moveSelected` are the walking-mode hooks every
+figure-on-the-map mode uses (Adventure is the other one), and the renderer
+draws pawns and move targets off those without knowing what a pawn *is*. The
+reachability search is a breadth-first walk over placed tiles up to the pawn's
+move allowance, plus tower-to-tower warps layered on top.
+
+**What it can't see.** The computer player found this in minutes: caves are
+free turns. An interior turn doesn't consume the surface deck, and every cave
+tile can carry treasure, so a bot that mines them properly ran a two-player
+game from 96 turns to 670 and from 26 points to 285. Both seats score
+similarly, so it isn't *unfair* — it's *unbounded*. `EXPEDITION_RULES
+.caveTurnLimit` was declared for exactly this (`0 = explore until you leave or
+the cave deck runs dry`) and nothing reads it. Wiring it up is the fix, and
+it's the one open item this section leaves for whoever picks the mode back up.
+
+## 16. Adventure (solo) — exploration and map-making are the same act
+
+> **Built** — `src/modes/adventure.js`, 369 lines. Solo only
+> (`Adventure.spec.solo`), so it never had to answer what a second player's
+> party looks like.
+
+**Question it answers:** if you decide what the world contains by choosing
+where the next tile goes, does that read as *exploring* rather than as
+*building*?
+
+One hero, one satchel (gold, supplies, relics), a journal of five quests that
+fill as you play ("gather three companions", "recover two relics", "discover
+twelve districts"). Every turn: lay a tile, then move a party member. **Roads
+are genuinely faster** — one step is always free, a second is free again along
+a road, and costs a supply off it (a forced march) — so the road network you
+build is also the route you get to take, not scenery next to the real
+decision.
+
+**Villages recruit**, on arrival, adding a named follower to the party at no
+cost beyond the tile you already spent to reach it. **Finished cities can be
+entered** — stand on a tile that's both a completed city and a road (the
+gate), press `E`, and the party member drops into a private street-by-street
+sub-map sized to the city (`buildCityDeck(size, …)`), same `Interior` machine
+Expedition's caves use. Caves work the same way, underground, with their own
+loot table.
+
+**What it cost.** Reuses every walking-mode hook Expedition needed
+(`isWalker`, `reachable`, `select`, `moveSelected`, `interiorArrive`,
+`leaveInterior`) and the same `Interior` sub-map primitive, so the marginal
+engine cost of a second walking mode was close to zero once the first one
+existed — the reachability search even carries the road-vs-off-road cost
+split Expedition didn't need. The genuinely new part is `cityGateAt()`,
+which asks the board for a *completed* city component with a road on the
+entry tile — the one place this mode reads the union-find scoring machinery
+Classic uses, for a question ("is this closed") that has nothing to do with
+scoring.
+
+Score is gold plus relics (worth 5 each) plus one point per landmark claimed —
+a single running number rather than a multi-colour scoreboard, because a solo
+mode has no majority to fight over.
 
 ---
 

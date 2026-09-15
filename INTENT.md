@@ -57,9 +57,15 @@ Its two findings worth acting on regardless of any cut:
 
 - **Soffiando is 40% of all mode code**, more than four times the next largest,
   which is the clearest signal in the repo about where the interest actually is.
-- **Three shipped modes have no design section at all** — Classic, Expedition
-  and Adventure, 780 lines between them. A mode whose purpose is unwritten
-  cannot be fairly judged, so that gap wants closing *before* any cutting.
+- **Three shipped modes had no design section at all** — Classic, Expedition and
+  Adventure, 780 lines between them. **Closed 2026-09-15**: `MODES.md` §14–16
+  now says what question each was asking, read off the code that shipped since
+  there was never a plan to read off instead. Expedition's carries forward one
+  real open item — its caves are unbounded free turns, and
+  `EXPEDITION_RULES.caveTurnLimit` is declared and unread — which is a bug to
+  fix, not a design question. This did not judge whether any of the three is
+  *fun*; that still wants Timothy playing them, same as everything else in
+  `docs/MODE-REVIEW.md`.
 
 ## Where it is going
 

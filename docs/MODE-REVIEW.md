@@ -47,8 +47,8 @@ not evenly spread:
 |---|---:|---|---|
 | **Soffiando** | 1,966 | is a board that edits *itself* better than one you edit? | still asking |
 | **Marches** | 481 | is the board better as a contested surface than a scoring one? | partly |
-| **Expedition** | 375 | *undocumented* | — |
-| **Adventure** | 369 | *undocumented* | — |
+| **Expedition** | 375 | does the board read differently when figures move across it instead of claiming and sitting still? | partly — the race works, but caves are unbounded free turns (open) |
+| **Adventure** | 369 | does choosing where the world's next piece goes read as *exploring* rather than *building*? | untested |
 | **Descent** | 363 | does exploration hold up with a real fail state? | yes |
 | **Chronicle** | 244 | are the tiles good *prompts*? | yes |
 | **Sprawl** | 207 | does the board get more interesting when the *holes* matter? | yes |
@@ -101,22 +101,27 @@ These four did their job. The finding is in `MODES.md` and survives the mode.
 answer intact, and taking it out of the registry.** Not deleting the file, and
 never deleting the section.
 
-### Decide what these three even are
+### Decide what these three even are — done, 2026-09-15
 
-**Expedition (375 lines), Adventure (369) and Classic (35) ship, and none of them
-has a design section in `MODES.md`.**
+**Expedition (375 lines), Adventure (369) and Classic (35) shipped with no
+design section in `MODES.md`.** That document opened by saying it is "the
+reasoning behind each one" and listed thirteen; these three weren't among
+them, which meant 780 lines of mode code with no written record of what
+question they were asking. Expedition turned up in `MODES.md` exactly once,
+in the computer-player section, where the bot found that its caves are free
+turns and ran a two-player game from 96 turns to 670 — which read like an
+unresolved balance problem in a mode nobody had written down.
 
-That document opens by saying it is "the reasoning behind each one" and lists
-thirteen. Three shipped modes are not among them, which means 780 lines of mode
-code exist with no written record of what question they were asking. Expedition
-turns up in `MODES.md` exactly once, in the computer-player section, where the
-bot found that its caves are free turns and ran a two-player game from 96 turns
-to 670 — which reads like an unresolved balance problem in a mode nobody wrote
-down.
-
-**This is the first thing to fix, before any cutting.** A mode you cannot say
-the purpose of is one you cannot fairly judge, and two of these are larger than
-most of the modes above.
+That gap is closed: [`MODES.md` §14–16](../MODES.md#14-classic--place-claim-score)
+now has a section for each, read off the code that shipped rather than off a
+plan that came first, since there was no plan. Classic's is the control-group
+argument the header comment already made; Expedition's carries the free-cave
+balance hole forward as the one open item (`EXPEDITION_RULES.caveTurnLimit` is
+still declared and still read by nothing); Adventure's is the shortest engine
+cost in the list, because it's the second walking mode and Expedition had
+already paid for the machinery. None of this is a verdict on whether any of
+the three is fun — see the note at the top of this document — only that they
+can now be judged at all.
 
 ### Not modes, and not cuttable
 
