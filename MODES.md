@@ -28,15 +28,22 @@ interesting part.
 | 11. Tesserae | mode | Is there a version someone opens every morning? |
 | 12. Two-faced | mechanic | Is a tile a noun, or a state? |
 | 13. World | mode + 4 tile families | What does the countryside still not have? |
+| 14. Classic | mode | How much of Carcassonne's feel is the meeples? |
+| 15. Expedition | mode | Is the board better as terrain to walk than a grid to claim? |
+| 16. Adventure (solo) | mode | Does placement carry weight with nobody to race or deny? |
 
 Play them and the questions answer themselves. What's at the bottom is what the
 engine still can't do.
 
-**Twelve ship, and three of them are not on this list.** `Classic`, `Expedition`
-and `Adventure` are in the registry with no design section here, which is 780
-lines of mode with no written record of the question it was asking. That gap, and
-a proposal about which modes are still earning their row in the dropdown, are in
-[`docs/MODE-REVIEW.md`](docs/MODE-REVIEW.md).
+**Sixteen ship now, all with a section.** `Classic`, `Expedition` and
+`Adventure` used to be in the registry with no design section here — 780 lines
+of mode with no written record of the question they were asking. [The other
+three](#the-other-three--built-never-written-down), below, closes that gap,
+written from the code since no design ever existed to keep. A proposal about
+which modes are still earning their row in the dropdown is in
+[`docs/MODE-REVIEW.md`](docs/MODE-REVIEW.md); that document's own numbering
+still runs 1–13; it isn't renumbered here to match, since renumbering it would
+touch a proposal that is Timothy's to accept or not.
 
 ---
 
@@ -1098,6 +1105,88 @@ the fix is the number, not the rule.
 
 ---
 
+# The other three — built, never written down
+
+These three shipped without ever going through the question-first process
+above. `docs/MODE-REVIEW.md` called that out: 780 lines of mode with no
+record of what they were for, which is not a fair position to judge them
+from. Written retroactively, from the code rather than from a plan that
+never existed — so "question it answers" here means *what the code actually
+tests*, not what somebody set out to test before writing it.
+
+## 14. Classic — the baseline
+
+> **Built** — `src/modes/classic.js`, 35 lines. It is the shortest mode in the
+> registry, because it isn't a design so much as an absence of one: place a
+> tile, optionally claim a feature, score it when it closes. Everything else
+> on this list is a deviation from it.
+
+**Question it answers:** with meeples switched off, a finished feature simply
+pays whoever closed it — no claim, no supply, no majority. That's the cheapest
+way there is to see how much of Carcassonne's feel comes from the meeple
+economy rather than from placing tiles at all. Turn meeples back on and it's
+the reference every other mode gets compared against, in this document and in
+the harness (`runMode(MODE_OF('classic'), …)` is the default host for testing
+a mechanic in isolation, precisely because it changes nothing else about the
+game underneath it).
+
+Not a prototype and not meant to prove anything on its own — it exists so the
+other twelve have something to be a deviation *from*.
+
+## 15. Expedition — pawns that walk instead of meeples that sit
+
+> **Built** — `src/modes/expedition.js`, 375 lines. Landmarks (stable,
+> village, watchtower, cave mouth, and four city landmarks worth a set bonus)
+> go to the first pawn to reach them, so laying a tile is also laying track
+> toward — or away from — whatever you or your opponent wants next.
+
+**Question it answers:** is the board more interesting as terrain to walk
+across than as a grid to claim? It is a genuinely different game from Classic
+with the same tile pool and almost the same engine hooks — `isWalker`,
+`reachable`, `select`, `moveSelected` — which says the mode registry can carry
+a placement game and a race game on the same board without either one leaking
+into the other's code.
+
+**What the bot found, and the fix that shipped with this section.** A cave
+is a private sub-map with its own tile pool, entered by walking a pawn onto
+a cave mouth. Turns spent inside it don't touch the shared surface deck, so a
+player who never leaves is spending turns nobody else can spend — not unfair
+(both seats can do it) but unbounded: a two-player game between two bots that
+mine their caves properly ran to 329 turns and a mean score of 112, against
+Classic's ~30 turns. `EXPEDITION_RULES.caveTurnLimit` existed for exactly this
+and was read by nothing. It's wired up now — five turns inside before you're
+turned back with the torches running low — which brings the same bot-vs-bot
+game back down to 211 turns, mean score 59. Five is a first guess, not a
+playtested number; `MODES.md` says the honest thing about numbers elsewhere
+in this file, which is that the fix is the number and not the rule if it
+still feels wrong at the table.
+
+## 16. Adventure (solo) — exploration and map-making as one act
+
+> **Built** — `src/modes/adventure.js`, 369 lines. One hero, no opponent. You
+> lay a tile and move a party member each turn; villages recruit followers,
+> finished cities and caves open into their own interior maps, and a five-item
+> journal pays gold for gathering companions, relics, cities, caves and
+> districts.
+
+**Question it answers:** carried over from Expedition's engine (`isWalker`,
+the same `Interior` machine for caves and city interiors) but pointed at a
+different question — does the *placement* decision carry weight when there is
+nobody to race and nothing to deny? There's no landmark competition here, so
+every tile you lay is purely "what do I want the map to contain next",
+which is Adventure's actual thesis: exploration and map-making are the same
+act because you decide what the world holds by choosing where the next piece
+of it goes.
+
+It shares Expedition's road-speed idea (two tiles along a road, one off it,
+a forced march off-road costing a supply) but answers to nobody — no other
+seat to slow down or race, so the tension is entirely against your own
+supply count and the journal clock. That makes it the one mode in the list
+that can be judged by a single player sitting down alone, which none of the
+competitive modes above it can.
+
+---
+
 ---
 
 # Mechanics — bolt onto any mode
@@ -1256,12 +1345,13 @@ one line of `game.js` or the renderer knows it exists.
 
 Two things it turned up immediately, neither of which random play could have:
 
-- **Expedition's caves are free turns.** A bot that mines them properly runs a
+- **Expedition's caves were free turns.** A bot that mines them properly ran a
   two-player game from 96 turns to 670 and from 26 points to 285, because
   interior turns don't consume the surface deck and every cave tile can carry
-  treasure. Both players score similarly, so it isn't unfair — it's unbounded.
-  `EXPEDITION_RULES.caveTurnLimit` was declared for exactly this and is read by
-  nothing; wiring it up is the fix.
+  treasure. Both players scored similarly, so it wasn't unfair — it was
+  unbounded. `EXPEDITION_RULES.caveTurnLimit` was declared for exactly this and
+  was read by nothing; it's wired up now — see [section 15](#15-expedition--pawns-that-walk-instead-of-meeples-that-sit)
+  for the number it shipped with and the before/after turn counts.
 - **The bot ladder is real.** Sharp beats Steady in 88% of decided games and
   Steady beats Careless in 86%, which says the evaluation is doing the work and
   the noise is doing what noise should.

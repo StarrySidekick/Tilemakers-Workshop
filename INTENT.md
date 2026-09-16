@@ -60,6 +60,9 @@ Its two findings worth acting on regardless of any cut:
 - **Three shipped modes have no design section at all** — Classic, Expedition
   and Adventure, 780 lines between them. A mode whose purpose is unwritten
   cannot be fairly judged, so that gap wants closing *before* any cutting.
+  **Closed 2026-09-16**: sections 14–16 in `MODES.md` cover all three, written
+  from the code since no design ever preceded them. Judging which modes still
+  earn their row is still Timothy's call, not made here.
 
 ## Where it is going
 

@@ -47,8 +47,8 @@ not evenly spread:
 |---|---:|---|---|
 | **Soffiando** | 1,966 | is a board that edits *itself* better than one you edit? | still asking |
 | **Marches** | 481 | is the board better as a contested surface than a scoring one? | partly |
-| **Expedition** | 375 | *undocumented* | — |
-| **Adventure** | 369 | *undocumented* | — |
+| **Expedition** | 375 | is the board better as terrain to walk than a grid to claim? | yes, and its free-turn cave bug is fixed |
+| **Adventure** | 369 | does placement carry weight with nobody to race or deny? | yes |
 | **Descent** | 363 | does exploration hold up with a real fail state? | yes |
 | **Chronicle** | 244 | are the tiles good *prompts*? | yes |
 | **Sprawl** | 207 | does the board get more interesting when the *holes* matter? | yes |
@@ -56,7 +56,14 @@ not evenly spread:
 | **World** | 148 | what does the countryside still not have? | yes |
 | **Tesserae** | 86 | is there a version someone opens every morning? | untested |
 | **Duel** | 73 | is placing a tile fun with *nothing else* attached? | yes |
-| **Classic** | 35 | *undocumented* — it is the control | n/a |
+| **Classic** | 35 | how much of Carcassonne's feel is the meeples? | n/a — it is the control |
+
+**2026-09-16: the design-section gap below is closed.** Classic, Expedition and
+Adventure now have sections in `MODES.md` (14, 15, 16), written from the code
+since no design ever preceded them. The questions and answers in the table
+above come from those sections. That does not settle the cutting question this
+document is about — it only means the three can now be judged fairly, which is
+what the section below asked for.
 
 **Soffiando is 40% of all mode code**, and more than four times the next
 largest. That is the clearest signal in the repo about where the interest
@@ -101,22 +108,23 @@ These four did their job. The finding is in `MODES.md` and survives the mode.
 answer intact, and taking it out of the registry.** Not deleting the file, and
 never deleting the section.
 
-### Decide what these three even are
+### Decide what these three even are — done
 
-**Expedition (375 lines), Adventure (369) and Classic (35) ship, and none of them
-has a design section in `MODES.md`.**
+**Expedition (375 lines), Adventure (369) and Classic (35) shipped, and none of
+them had a design section in `MODES.md`.**
 
-That document opens by saying it is "the reasoning behind each one" and lists
-thirteen. Three shipped modes are not among them, which means 780 lines of mode
-code exist with no written record of what question they were asking. Expedition
-turns up in `MODES.md` exactly once, in the computer-player section, where the
-bot found that its caves are free turns and ran a two-player game from 96 turns
-to 670 — which reads like an unresolved balance problem in a mode nobody wrote
-down.
+That document opens by saying it is "the reasoning behind each one" and used to
+list thirteen. Three shipped modes weren't among them, which meant 780 lines of
+mode code existed with no written record of what question they were asking.
+Expedition turned up in `MODES.md` exactly once, in the computer-player
+section, where the bot found that its caves were free turns and ran a
+two-player game from 96 turns to 670 — which read like an unresolved balance
+problem in a mode nobody wrote down. It was: `EXPEDITION_RULES.caveTurnLimit`
+existed and was read by nothing, so it's wired up now, at five turns.
 
-**This is the first thing to fix, before any cutting.** A mode you cannot say
-the purpose of is one you cannot fairly judge, and two of these are larger than
-most of the modes above.
+This was the first thing to fix, before any cutting, and it's fixed — sections
+14, 15 and 16 in `MODES.md`. A mode you cannot say the purpose of is one you
+cannot fairly judge; now all sixteen can be.
 
 ### Not modes, and not cuttable
 

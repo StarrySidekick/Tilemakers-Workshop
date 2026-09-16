@@ -27,7 +27,12 @@ export const EXPEDITION_RULES = {
   baseMoves: 1,
   mountedMoves: 2,
   setBonus: 8,            // for collecting all four city landmarks
-  caveTurnLimit: 0,       // 0 = explore until you leave or the cave deck runs dry
+  // A bot that mines a cave properly never has to touch the shared surface
+  // deck, which is unbounded rather than merely lucky: a two-player game
+  // between two such bots ran to 670 turns (see MODES.md's computer-player
+  // section). Five turns is enough to reach a couple of marks without
+  // making the cave a place to live.
+  caveTurnLimit: 5,       // 0 = explore until you leave or the cave deck runs dry
   movementRequiresRoad: false, // knob: gate movement on road connections instead
 };
 
@@ -40,6 +45,7 @@ export class Expedition extends Mode {
     this.claimed = new Set();                 // "x,y#markIndex" already scored
     this.collections = this.game.players.map(() => new Set());
     this.caves = new Map();                   // player id -> cave session
+    this.caveTurns = new Map();               // player id -> turns spent on this visit
     this.moved = false;
     for (const p of this.game.players) this.spawn(p.id, 0, 0);
   }
@@ -329,6 +335,7 @@ export class Expedition extends Mode {
     });
     pawn.inCave = true;
     this.caves.set(pawn.player, cave);
+    this.caveTurns.set(pawn.player, 0);
     this.game.say(`${this.game.players[pawn.player].name} descends into the cave.`);
     this.game.emit('caveEnter');
   }
@@ -349,6 +356,15 @@ export class Expedition extends Mode {
       }
       if (m.kind === 'shaft') this.leaveCave(cave, 'climbs out through a shaft');
     }
+    // Still down there? One more turn spent, and the limit is a turn count
+    // rather than a tile count so it doesn't care whether a turn found
+    // anything.
+    if (!this.caves.has(cave.owner.player)) return;
+    const limit = EXPEDITION_RULES.caveTurnLimit;
+    if (limit <= 0) return;
+    const used = (this.caveTurns.get(cave.owner.player) || 0) + 1;
+    this.caveTurns.set(cave.owner.player, used);
+    if (used >= limit) this.leaveCave(cave, 'runs low on torchlight and turns back');
   }
 
   leaveCave(cave, how = 'returns to the surface') {
@@ -358,6 +374,7 @@ export class Expedition extends Mode {
     pawn.x = cave.entry.x;
     pawn.y = cave.entry.y;
     this.caves.delete(pawn.player);
+    this.caveTurns.delete(pawn.player);
     this.game.say(`${this.game.players[pawn.player].name} ${how}.`);
     this.game.emit('caveExit');
   }
