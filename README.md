@@ -985,21 +985,20 @@ free of audio and the same events can drive animation later.
 
 [MODES.md](MODES.md) has the full reasoning behind each mode, what it was built
 to find out, and what's still scoped but unbuilt. The short version of what the
-engine is still missing:
+engine is still missing — corrected once already, worth reading before assuming
+the next item is still true either:
 
-**Fields as real features.** Farmers, and richer area control in The Marches,
-both need fields modelled as their own segments — split by roads, bounded by
-city walls, so a road-bend tile has *two* distinct fields. That means features
-carrying half-edges (eight slots, not four) rather than a new feature type. It's
-a change to the tile format, so it wants doing before the pool grows much
-further. The Marches currently does area control by banner instead, which works
-but is coarser.
-
-Adding forests, mountains, lakes and rivers was the test of that: each is a new
-feature type and each cost one line in a table plus one drawing function,
-because they all inherit edge matching, merging and the completion counter for
-free. Fields are the only thing that doesn't fit, and it's because they need
-*half*-edges, not because they're a new type.
+**Fields as real features are done, not missing.** This section used to say
+otherwise, which is exactly the kind of stale doc that costs a night rebuilding
+something that already exists; see [`INTENT.md`](INTENT.md) and
+[MODES.md §3](MODES.md). `src/tiles.js` cuts each tile's perimeter into eight
+half-edges, `halfPartner` is the whole joining rule, and a field is an ordinary
+union-find component from there — `allFields`, `citiesFed` and `farmPayouts` in
+`src/mechanics.js` settle the farms at the end with majority, pigs and the
+3-or-4 rate. The `fields` mechanic is on by default and marked `live`. The
+Marches still does area control by banner flood-fill, and that's a choice, not
+a leftover the fields format was supposed to replace — the supply rule is what
+makes that mode work, not the granularity of the territory.
 
 **Prompts for the auto-resolved choices.** Three rules currently take the
 obvious option because there's nowhere to ask: Marches auto-spends muster chits

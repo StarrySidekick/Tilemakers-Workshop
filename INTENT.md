@@ -57,9 +57,16 @@ Its two findings worth acting on regardless of any cut:
 
 - **Soffiando is 40% of all mode code**, more than four times the next largest,
   which is the clearest signal in the repo about where the interest actually is.
-- **Three shipped modes have no design section at all** — Classic, Expedition
-  and Adventure, 780 lines between them. A mode whose purpose is unwritten
-  cannot be fairly judged, so that gap wants closing *before* any cutting.
+  Still open.
+- ~~Three shipped modes have no design section at all — Classic, Expedition and
+  Adventure, 780 lines between them.~~ **Closed, 2026-09-17.** `MODES.md`
+  sections 14–16 write up all three, under "Shipped, never written up." Writing
+  Classic's up surfaced its actual question — how much of Carcassonne is the
+  meeples, readable straight off its `useMeeples` toggle — which the review had
+  guessed at rather than checked. Expedition's known issue (caves are unbounded
+  free turns; `EXPEDITION_RULES.caveTurnLimit` is declared and read by nothing)
+  is now written down rather than fixed — a mode-depth change, deliberately left
+  alone this pass, same as the instruction to leave Marches and relief alone.
 
 ## Where it is going
 

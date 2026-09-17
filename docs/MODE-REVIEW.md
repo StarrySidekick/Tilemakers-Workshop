@@ -47,8 +47,8 @@ not evenly spread:
 |---|---:|---|---|
 | **Soffiando** | 1,966 | is a board that edits *itself* better than one you edit? | still asking |
 | **Marches** | 481 | is the board better as a contested surface than a scoring one? | partly |
-| **Expedition** | 375 | *undocumented* | — |
-| **Adventure** | 369 | *undocumented* | — |
+| **Expedition** | 375 | is the board a scoring grid, or terrain to race across? | mostly — caves are still unbounded |
+| **Adventure** | 369 | do exploring and map-making hold up as the same act? | yes |
 | **Descent** | 363 | does exploration hold up with a real fail state? | yes |
 | **Chronicle** | 244 | are the tiles good *prompts*? | yes |
 | **Sprawl** | 207 | does the board get more interesting when the *holes* matter? | yes |
@@ -56,7 +56,7 @@ not evenly spread:
 | **World** | 148 | what does the countryside still not have? | yes |
 | **Tesserae** | 86 | is there a version someone opens every morning? | untested |
 | **Duel** | 73 | is placing a tile fun with *nothing else* attached? | yes |
-| **Classic** | 35 | *undocumented* — it is the control | n/a |
+| **Classic** | 35 | how much of Carcassonne is the meeples? | yes — it's the control |
 
 **Soffiando is 40% of all mode code**, and more than four times the next
 largest. That is the clearest signal in the repo about where the interest
@@ -101,22 +101,21 @@ These four did their job. The finding is in `MODES.md` and survives the mode.
 answer intact, and taking it out of the registry.** Not deleting the file, and
 never deleting the section.
 
-### Decide what these three even are
+### Decide what these three even are — done
 
-**Expedition (375 lines), Adventure (369) and Classic (35) ship, and none of them
-has a design section in `MODES.md`.**
+**Expedition (375 lines), Adventure (369) and Classic (35) shipped with no
+design section in `MODES.md`.** They now have one — sections 14–16, under
+*"Shipped, never written up."* Classic's real question turned out to be
+readable straight off its `useMeeples` toggle (how much of the game is the
+meeples); Expedition's and Adventure's off what `Interior` and the pawn
+movement rules actually do at the table. Expedition's caves-are-free-turns
+finding, in the computer-player section, is unchanged and still unfixed —
+`EXPEDITION_RULES.caveTurnLimit` is still declared and still read by nothing.
+That's a mode-depth fix and stays off the table for the same reason cutting
+does: this pass was documentation, not rebalancing.
 
-That document opens by saying it is "the reasoning behind each one" and lists
-thirteen. Three shipped modes are not among them, which means 780 lines of mode
-code exist with no written record of what question they were asking. Expedition
-turns up in `MODES.md` exactly once, in the computer-player section, where the
-bot found that its caves are free turns and ran a two-player game from 96 turns
-to 670 — which reads like an unresolved balance problem in a mode nobody wrote
-down.
-
-**This is the first thing to fix, before any cutting.** A mode you cannot say
-the purpose of is one you cannot fairly judge, and two of these are larger than
-most of the modes above.
+The point below stands regardless: a mode you cannot say the purpose of is
+one you cannot fairly judge, and now all sixteen sections can be.
 
 ### Not modes, and not cuttable
 
