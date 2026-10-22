@@ -1,0 +1,15 @@
+{
+  "out": "icons",
+  "apps": [
+    {
+      "id": "workshop",
+      "name": "Tilemaker's Workshop",
+      "short": "Tilemaker",
+      "art": "icons/workshop.svg",
+      "theme": "#17141d",
+      "dir": "",
+      "pages": ["index.html", "atlas.html", "relief.html"],
+      "scope": "./"
+    }
+  ]
+}

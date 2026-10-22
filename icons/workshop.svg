@@ -1,0 +1,71 @@
+<!--
+  Tilemaker's Workshop's home-screen icon, and its tab icon: one tile, in the
+  game's own palette (src/theme.js), on the night the board sits on.
+
+  It is the tile the old tab mark drew (assets/favicon.svg, which this
+  replaced): a walled city corner with a cart track bending past it. That
+  mark was drawn for sixteen pixels, and the rule it learned still holds at
+  phone size: three big blocks in three different hues (warm stone, olive
+  field, pale road) inside a gold rim, so that when the detail dissolves
+  there is still a shape left. The road here sweeps from the south edge to
+  the east one the way the game's own curve tiles draw it.
+
+  Everything that matters sits inside the middle circle (80% of the width),
+  because Android cuts a saved icon to its own shape. Every size, and the
+  manifest, is made from this file (README, "Saving it to a phone").
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <defs>
+    <radialGradient id="dusk" cx="50%" cy="46%" r="70%">
+      <stop offset="0" stop-color="#241f2c" />
+      <stop offset="1" stop-color="#0f0d14" />
+    </radialGradient>
+    <linearGradient id="sun" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#88955a" />
+      <stop offset="1" stop-color="#717d47" />
+    </linearGradient>
+    <clipPath id="tile">
+      <rect x="207" y="207" width="610" height="610" rx="104" />
+    </clipPath>
+    <filter id="cast" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="22" />
+    </filter>
+  </defs>
+
+  <!-- the night the board sits on, with the game's dusk vignette -->
+  <rect width="1024" height="1024" fill="url(#dusk)" />
+
+  <!-- the tile's shadow, thrown south-east by the one sun in the north-west -->
+  <rect x="225" y="231" width="610" height="610" rx="104" fill="#0d0b11" opacity="0.75" filter="url(#cast)" />
+
+  <g clip-path="url(#tile)">
+    <!-- field -->
+    <rect x="207" y="207" width="610" height="610" fill="url(#sun)" />
+
+    <!-- the road, from the middle of the south edge round to the middle of
+         the east: dark casing first, pale surface on top, the way the board
+         draws one -->
+    <path d="M512 840 L512 817 A305 305 0 0 1 817 512 L840 512" fill="none" stroke="#463b29" stroke-width="128" />
+    <path d="M512 840 L512 817 A305 305 0 0 1 817 512 L840 512" fill="none" stroke="#dccaa4" stroke-width="88" />
+
+    <!-- the city corner: one solid quarter of weathered stone, walled along
+         its curve (the dark foot outside, the sunlit walkway on top) -->
+    <path d="M150 150 H567 A360 360 0 0 1 207 567 V150 Z" fill="#a08f70" />
+    <path d="M567 207 A360 360 0 0 1 207 567" fill="none" stroke="#4f4433" stroke-width="60" />
+    <path d="M555 207 A348 348 0 0 1 207 555" fill="none" stroke="#c6b593" stroke-width="24" />
+
+    <!-- one house, so the stone reads as a town rather than as a blob:
+         drawn standing up, as the old tab mark did, because a gable is still
+         a house at phone size where a roof seen from above is only a block -->
+    <g transform="translate(332 340) scale(1.15) translate(-332 -340)">
+      <path d="M288 356 H412 V438 H288 Z M266 366 L350 272 L434 366 Z" fill="#2a2119" opacity="0.4" />
+      <rect x="270" y="336" width="124" height="84" fill="#ded2bb" />
+      <rect x="316" y="372" width="32" height="48" fill="#5b4530" />
+      <path d="M248 346 L332 252 L332 346 Z" fill="#c17d54" />
+      <path d="M332 252 L416 346 L332 346 Z" fill="#a05c3c" />
+    </g>
+  </g>
+
+  <!-- the gold rim: the last thing still legible at tab size -->
+  <rect x="207" y="207" width="610" height="610" rx="104" fill="none" stroke="#d4af5f" stroke-width="38" />
+</svg>

@@ -6,8 +6,8 @@
 > *mechanics* — how the code works, what was decided deliberately, the
 > invariants — this file wins.
 
-**Play it: <https://starrysidekick.github.io/tile-lab/>**
-· [tile atlas](https://starrysidekick.github.io/tile-lab/atlas.html)
+**Play it: <https://starrysidekick.github.io/Tilemakers-Workshop/>**
+· [tile atlas](https://starrysidekick.github.io/Tilemakers-Workshop/atlas.html)
 
 A sandbox for experimenting with tile mechanics and game modes, built to be
 **fast to iterate on**. No build step, no dependencies, no image assets — plain
@@ -546,6 +546,41 @@ is the one thing you actually want to know after a deploy.
 no arguments it just bumps the build number. The browser test fails if the two
 files ever fall out of step.
 
+## Saving it to a phone
+
+Saved to a phone's home screen, the workshop has its own icon: one tile, a
+walled city corner with a road bending past it, gold-rimmed on the board's
+night. The same picture is the browser tab's icon. Without one, a phone makes
+an icon up (an iPhone a shrunken screenshot, Android a letter).
+
+The workshop is one app. The atlas and Relief are its pages and share its icon:
+the atlas is its reference, and Relief is the view of your board that the panel
+opens.
+
+- `icons/workshop.svg` is the art, drawn at 1024 across. Edit that, never the
+  pictures.
+- `app-icons.json` lists the app and the pages that carry its icon.
+- The pictures in `icons/workshop/`, the manifest `app.webmanifest` (which
+  Android reads) and the four icon lines at the top of each listed page are all
+  written from those two files by the `app-icons` script, which lives in the
+  Interpersonal-Games repo at `.claude/skills/app-icons/make-icons.mjs`. Run it
+  from inside this repo; with the two cloned side by side:
+  `node ../Interpersonal-Games/.claude/skills/app-icons/make-icons.mjs --sheet`.
+  It draws with Playwright. `--sheet` also draws `.app-icons/sheet.png` (not
+  committed): the icon at phone size, square as an iPhone shows it and round as
+  Android does.
+
+**A new page goes into `app-icons.json` and the script is run again, in the
+same commit.** A page that is a game of its own, saved on its own, gets its own
+entry and its own art, and a folder of its own: the script writes one manifest
+per folder, and a saved app starts in the folder its manifest is in.
+
+Two things worth knowing on a phone. A phone keeps the icon it saved, so after
+the icon changes, remove the app from the home screen and save it again. And on
+an iPhone a saved app keeps its own storage, apart from Safari's: the settings,
+the design-console look, Descent's unlocks and the first-visit card all start
+fresh in the saved app, and do not carry between the two.
+
 ## Motion
 
 Nothing on this board teleports any more.
@@ -726,6 +761,8 @@ src/render.js      camera, canvas painting, overlays, hit-testing
 src/main.js        DOM wiring
 tools/             headless and browser test harnesses
 relief.html        the board in 3D — a monument view of any game (docs/RELIEF.md)
+icons/             the home-screen and tab icon: its art and every size (see "Saving it to a phone")
+app-icons.json     which pages carry that icon; app.webmanifest is written from it
 ```
 
 ### The core idea
