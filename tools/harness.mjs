@@ -90,6 +90,9 @@ function state(game) {
     game.tile?.id, game.usingAbbey, game.useBig, game.tilesLeft,
     game.market?.length, game.player.meeples, game.player.abbeys,
     game.river?.deck.length, game.pendingWalk ? 1 : 0,
+    // Soffiando offers walks one follower at a time, and turning one down to
+    // be offered the next moves nothing else on this list.
+    game.m.strollers?.length ?? '',
   ].join('|');
 }
 
@@ -1298,6 +1301,16 @@ function checkSoffiando() {
     if (!h.m.placeOpts().onto.has('5,5')) {
       return fail('an island you stand on is buildable', 'it was refused');
     }
+    // …but only by YOU. A rival standing out there does not open it to
+    // everyone else at the table.
+    h.current = 1;
+    if (h.m.placeOpts().onto.has('5,5')) {
+      return fail('an island only a rival stands on is out of reach', 'it was offered');
+    }
+    if (h.m.claimAllowed({ x: 5, y: 6, i: 0, f: { type: 'field' } })) {
+      return fail('you may not put a follower on an island only a rival stands on', 'it was allowed');
+    }
+    h.current = 0;
   }
 
   // A follower LYING FLAT keeps its city at the lower rate and never comes
@@ -1350,6 +1363,14 @@ function checkSoffiando() {
         spots.map((o) => `${o.x},${o.y}:${o.f.type}`).join(' ') || 'nowhere');
     }
     if (!h.m.beginStroll()) return fail('the walk is offered', 'it was not');
+    // …and the host must not paper over it. A sphere closes inside the mode's
+    // afterPlace, and whatever that hands back becomes the next phase: it
+    // used to say 'meeple' unconditionally, so the walk was overwritten the
+    // moment it opened and nobody, bot or person, ever took one.
+    h.afterPlace(b.get(1, 0));
+    if (h.phase !== 'stroll') {
+      return fail('a walk opened by your own tile survives the follower step', `the phase is ${h.phase}`);
+    }
     h.m.strollTo(1, 0);
     if (!b.get(1, 0).meeple) return fail('the follower walks on and takes the temple', 'it did not');
     if (h.players[0].meeples !== had) {

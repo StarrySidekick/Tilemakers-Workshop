@@ -736,6 +736,37 @@ kingmakes badly, and you'd blame the mechanic instead of the count.
 > up. 650ms, ×0.82 a beat, never below 220.
 
 
+> **Twenty-first pass: measuring the islands, and three bugs they were hiding.**
+>
+> Soffiando became the primary game (see `INTENT.md`), and the brief is
+> islands: make them with the wind, get followers out to them by more than one
+> route, score them. So the archipelago was instrumented, every arrival and
+> departure attributed to its cause, across about 1,500 bot games. The full
+> write-up is [`docs/SOFFIANDO-ISLANDS.md`](docs/SOFFIANDO-ISLANDS.md); the
+> short version is that islands are already 45% of the points and almost none
+> of the ways of reaching one were ever happening.
+>
+> - **The island rule counted anybody's follower.** One rival stranded on a
+>   rock opened it to the whole table: 2.5 followers a game at two players and
+>   5.8 at three walked in on somebody else's route. It counts yours now.
+> - **The walk was unreachable.** It opened inside `afterPlace`, which then
+>   told the host the next phase was the follower step, and the host
+>   overwrote it. Twenty-five walks offered in twelve games, none taken by
+>   anybody. With that fixed and the bot taught to walk, walking is
+>   immediately the commonest deliberate route onto an island, at 2.2 a game.
+> - **A full log froze the bot.** The log keeps 80 lines and the bot's
+>   "did anything happen" check read its length, which stops moving once it
+>   is full. `game.said` counts every line ever written instead.
+>
+> And a measurement bug with a long shadow: the trainer's income breakdown
+> counted the payments the bot makes while *imagining* a sphere, and came out
+> 5.7 times the real income. That is how the eleventh pass read 317 points a
+> game from green off games whose mean score was 196. The trained weights
+> stand (the trainer selects on wins), but the per-colour income figures in
+> the eleventh and twelfth passes do not. The real split is farms 46%, roads
+> 19%, cities 13%, temples 9%, everything else 12%.
+
+
 **Question it answers:** is a small board you keep *editing* better than a big
 one you keep *growing*?
 

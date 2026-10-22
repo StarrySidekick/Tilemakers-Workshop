@@ -264,6 +264,7 @@ export const SOFFIANDO_WEIGHTS = {
   gust: 1.84,        // everything a gust does, as one dial
   gustBlow: 1,       // shoving a follower — ours out, theirs off
   whale: 0,          // points of shelter before the Balena is worth a turn
+  walk: 2,           // what a walk has to be worth before it beats the supply
 };
 
 /** A seat's own weights, or the defaults. */
@@ -483,8 +484,13 @@ export class Soffiando extends Mode {
    * punishment rather than an opportunity.
    */
   reachable() {
-    const { main, isles, mainKeys } = this.land();
-    const mine = isles.filter((g) => g.some((c) => c.meeple));
+    const { isles, mainKeys } = this.land();
+    // YOUR follower, not anybody's. It used to be any figure at all, which let
+    // a rival who had been stranded on a rock open it to everyone at the table:
+    // 2.5 followers a game walked onto islands that way at two players and 5.8
+    // at three, every one of them riding on somebody else's route.
+    const seat = this.game.current;
+    const mine = isles.filter((g) => g.some((c) => c.meeple?.player === seat));
     if (!mine.length) return mainKeys;
     const out = new Set(mainKeys);
     for (const g of mine) for (const c of g) out.add(key(c));
@@ -539,7 +545,12 @@ export class Soffiando extends Mode {
     // The flight is worked out after the weather, because the weather may have
     // just rearranged everything the machine was going to fly over.
     this.flight = this.flightPath(cell);
-    return 'meeple';
+    // A sphere that just paid one of your followers has opened a WALK, and the
+    // answer here becomes the host's next phase. Returning 'meeple'
+    // unconditionally overwrote the walk the moment it was offered: 25 walks
+    // offered across twelve bot games, none of them ever reachable, by a bot
+    // or by anybody else.
+    return this.game.phase === 'stroll' ? 'stroll' : 'meeple';
   }
 
   endTurn() {
@@ -996,6 +1007,10 @@ export class Soffiando extends Mode {
   /** Stay home instead — the follower is already back in the supply. */
   skipStroll() {
     if (this.game.phase !== 'stroll') return false;
+    // Said out loud, and not only for the reader: declining one walk and being
+    // offered the next changes nothing else a watcher can see, and the
+    // computer player takes an unchanged game for a position with no move.
+    this.game.say(`${this.game.player.name}'s follower goes home.`);
     this.strollers.shift();
     this.stroll = null;
     if (this.beginStroll()) return true;
@@ -1741,6 +1756,7 @@ export class Soffiando extends Mode {
   botAction(seat) {
     const g = this.game;
     const w = weightsFor(this, seat);
+    if (g.current === seat && g.phase === 'stroll') return this.botStroll();
     if (g.current !== seat || g.phase !== 'meeple' || !this.canSwim()) return false;
     if (g.meepleOptions().length) return false;
     let best = null;
@@ -1756,6 +1772,25 @@ export class Soffiando extends Mode {
     if (!best || best.value <= w.whale) return false;
     if (!this.beginSwim()) return false;
     return this.onCellClick(best.x, best.y);
+  }
+
+  /**
+   * The walk, for a computer player. It used to be answered by the first
+   * button on offer, which is "send it home instead", so no bot ever walked
+   * and every number measured on this mode was measured without the walk.
+   * Go where the follower is worth most, if that beats having it back.
+   */
+  botStroll() {
+    const g = this.game;
+    const w = weightsFor(this, g.current);
+    let best = null;
+    for (const t of this.stroll?.targets || []) {
+      const d = g.board.featureOf(t.x, t.y, t.i);
+      const value = (d && this.valueOf(d)) || 0;
+      if (!best || value > best.value) best = { ...t, value };
+    }
+    if (best && best.value > (w.walk ?? SOFFIANDO_WEIGHTS.walk)) return this.strollTo(best.x, best.y);
+    return this.skipStroll();
   }
 
   /** What parking the whale on a square is worth: what it stops happening. */

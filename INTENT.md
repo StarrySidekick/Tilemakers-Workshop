@@ -25,6 +25,18 @@ workshop is legitimate work, unlike depth on any one mode.
 
 ## What is next
 
+**Soffiando is the primary game: stated 2026-10-22.** Timothy thinks it is the
+strongest thing in the workshop, wants it codified, fair, balanced and
+intuitive, and expects to make it a **physical** game eventually. What he named
+as the fun: making islands by blowing the board apart, getting followers out
+to those islands by a variety of routes, and scoring on the islands. He likes
+that you may not put a follower on an island unless you already have one
+there, so that reaching one is a puzzle, and floated letting anyone lay TILES
+on an island. **[`docs/SOFFIANDO-ISLANDS.md`](docs/SOFFIANDO-ISLANDS.md)** is
+the measured analysis and the proposals; read it before changing the mode.
+
+This overrides "depth on any single mode" below, for Soffiando only.
+
 **Fields: settled 2026-09-06, and Timothy was right.** They are fully built.
 `src/tiles.js` cuts the perimeter into eight half-edges with `halfPartner` as the
 joining rule; fields are ordinary components; `allFields`, `citiesFed` and
@@ -39,8 +51,8 @@ understand what they are looking at.
 
 ## Deliberately not next
 
-- **Depth on any single mode.** Modes are going to be cut and Timothy is unsure
-  about a lot of them. Do not invest in one.
+- **Depth on any single mode, except Soffiando.** Modes are going to be cut and
+  Timothy is unsure about a lot of them. Do not invest in the others.
 - **Marches.** He has not touched that mode and does not want effort spent there.
 - **Relief and the 3D tiles.** Experimental, and explicitly tabled for now.
   `docs/RELIEF.md` stays as the scoped spike it is.
