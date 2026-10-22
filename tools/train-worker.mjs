@@ -31,9 +31,17 @@ process.on('message', ({ seed, trials, weights, hero, breakdown }) => {
   const streams = weights.map(() => ({}));
   if (breakdown) {
     const realPay = game.m.pay.bind(game.m);
+    const say = game.say;
     game.m.pay = (p, pts, line, cells) => {
-      const key = (STREAM.find(([re]) => re.test(line)) || [null, 'other'])[1];
-      streams[p][key] = (streams[p][key] || 0) + pts;
+      // The bot prices a sphere by firing it for real against a scratch tally
+      // (`sphereValue`), and it mutes `say` while it does. Those payments are
+      // thinking, not points: counting them made this report 5.7× the real
+      // income, which is how a pass once read "317 from green" off games whose
+      // mean score was 196.
+      if (game.say === say) {
+        const key = (STREAM.find(([re]) => re.test(line)) || [null, 'other'])[1];
+        streams[p][key] = (streams[p][key] || 0) + pts;
+      }
       return realPay(p, pts, line, cells);
     };
   }

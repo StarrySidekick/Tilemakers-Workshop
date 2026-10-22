@@ -1575,7 +1575,7 @@ function signature() {
   const inv = game.interior;
   return [
     game.phase, game.current, game.rot, game.deck.length, game.board.size,
-    game.tile ? game.tile.id : '-', game.log.length, game.turn, game.round,
+    game.tile ? game.tile.id : '-', game.said, game.turn, game.round,
     game.market ? game.market.join('') : '-',
     inv ? `${inv.deck.length}/${inv.rot}/${inv.board.size}/${inv.pos.x},${inv.pos.y}` : '-',
     game.walker ? (game.walker.selected?.id ?? '-') : '-',

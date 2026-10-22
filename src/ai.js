@@ -129,7 +129,8 @@ export class Bot {
     // Some modes offer a move that replaces the turn rather than decorating it
     // — Soffiando sends the Balena instead of putting a follower down. Only the
     // mode can price that, so it gets asked before we start pricing squares.
-    if ((g.phase === 'market' || g.phase === 'place' || g.phase === 'meeple')
+    if ((g.phase === 'market' || g.phase === 'place' || g.phase === 'meeple'
+      || g.phase === 'stroll')
       && this.level.verbs && g.m.botAction?.(this.seat)) return;
     switch (g.phase) {
       case 'market': return this.draft();
@@ -727,7 +728,10 @@ function fingerprint(g) {
   const inv = g.interior;
   return [
     g.phase, g.turn, g.current, g.board.size, g.deck.length, g.tile?.id, g.rot,
-    g.market?.length, g.tilesLeft, g.usingAbbey, g.useBig, g.log.length,
+    // Lines ever said, not the log's length: the log keeps only the last 80,
+    // so past that its length never changes and a move whose only visible
+    // effect is a line in it read as no move at all.
+    g.market?.length, g.tilesLeft, g.usingAbbey, g.useBig, g.said,
     g.pendingWalk ? 1 : 0, g.player.meeples,
     inv ? `${inv.deck.length}/${inv.board.size}/${inv.pos.x},${inv.pos.y}` : '-',
   ].join('|');

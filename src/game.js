@@ -123,6 +123,7 @@ export class Game {
     this.rot = 0;
     this.lastPlaced = null;
     this.log = [];
+    this.said = 0;                // lines ever logged; the log itself keeps 80
     this.free = false;
     this.forcedNext = null;
     this.listeners = [];
@@ -227,6 +228,7 @@ export class Game {
   get walker() { return this.m.isWalker ? this.m : null; }
 
   say(msg) {
+    this.said++;
     this.log.unshift(msg);
     if (this.log.length > 80) this.log.pop();
   }
