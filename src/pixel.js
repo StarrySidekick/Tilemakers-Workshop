@@ -937,18 +937,19 @@ function paintCanonical(type) {
   return p;
 }
 
-/** A quarter turn clockwise, pixel for pixel: (x, y) comes from (y, 50 - x). */
+/** A quarter turn clockwise, pixel for pixel, of any square: (x, y) comes from (y, n - 1 - x). */
 function quarter(src, q) {
-  const out = surface(PX);
-  const a = src.getContext('2d').getImageData(0, 0, PX, PX).data;
+  const n = src.width;
+  const out = surface(n);
+  const a = src.getContext('2d').getImageData(0, 0, n, n).data;
   const o = out.getContext('2d');
-  const img = o.createImageData(PX, PX);
+  const img = o.createImageData(n, n);
   const b = img.data;
-  for (let y = 0; y < PX; y++) {
-    for (let x = 0; x < PX; x++) {
+  for (let y = 0; y < n; y++) {
+    for (let x = 0; x < n; x++) {
       let sx = x, sy = y;
-      for (let i = 0; i < (q & 3); i++) [sx, sy] = [sy, PX - 1 - sx];
-      const s = (sy * PX + sx) * 4, d = (y * PX + x) * 4;
+      for (let i = 0; i < (q & 3); i++) [sx, sy] = [sy, n - 1 - sx];
+      const s = (sy * n + sx) * 4, d = (y * n + x) * 4;
       b[d] = a[s]; b[d + 1] = a[s + 1]; b[d + 2] = a[s + 2]; b[d + 3] = a[s + 3];
     }
   }
@@ -1009,40 +1010,122 @@ const coasts = new Map();
 /**
  * The coast of a piece of country: a row of cloud billows standing off the
  * edge of a tile that faces open sky. Drawn for a NORTH edge, as a strip
- * 51 wide and 12 tall whose bottom row touches the tile; the renderer turns
- * it to the other sides. The UNDERSIDE (`below`) hangs heavier and shaded,
- * because that is the side a floating island is held up from.
+ * 51 wide and 12 tall whose bottom row touches the tile; it is turned to the
+ * other sides when it is laid. The UNDERSIDE (`below`) hangs heavier and
+ * shaded, because that is the side a floating island is held up from.
  *
- * Billows sit at both ends of the strip on the same radius, so two strips
- * side by side close each other's half-billows into whole ones and a straight
- * coastline reads as one bank of cloud. Islands get a warm cloud and the
- * mainland a cool one: the one thing on the board you most need to see is
- * where you may not build.
+ * Billows sit at both ends of the strip, centred ON the tile's corners, so a
+ * strip ends in half a billow and the next strip along finishes it. Where
+ * there is no next strip (the outside corner of a piece of country) a whole
+ * billow is laid on the corner instead; see `paintCoasts`.
+ *
+ * Each strip comes in three PARTS, because overlapping billows only read as
+ * one cloud if every outline goes down before any fill. Drawn whole, strip
+ * by strip, the second strip's outline lands on top of the first strip's
+ * cloud, and the corner where they meet came out as a notched step.
+ *
+ * Islands get a warm cloud and the mainland a cool one: the one thing on the
+ * board you most need to see is where you may not build.
  */
 export const COAST = 12;
-export function pixelCoast({ below = false, warm = false } = {}) {
-  const key = `${below}|${warm}`;
+const BILLOWS = { x: [0, 10.2, 20.4, 30.6, 40.8, PX], top: [5, 6.5, 5.5, 7, 6, 5], below: [6, 8, 6.5, 8.5, 7, 6] };
+
+function coastInk(warm) {
+  return warm
+    ? { fill: INK.warm, line: INK.warmLine, shade: INK.warmShade }
+    : { fill: INK.cloud, line: INK.cloudLine, shade: INK.cloudShade };
+}
+
+export function pixelCoast({ below = false, warm = false, part = 'fill' } = {}) {
+  const key = `${below}|${warm}|${part}`;
   let hit = coasts.get(key);
   if (hit) return hit;
-  const p = new Plate(PX, COAST, `coast:${key}`);
-  const fill = warm ? INK.warm : INK.cloud;
-  const line = warm ? INK.warmLine : INK.cloudLine;
-  const shade = warm ? INK.warmShade : INK.cloudShade;
+  const p = new Plate(PX, COAST, `coast:${below}|${warm}`);
+  const ink = coastInk(warm);
   const edge = below ? 0 : COAST;               // the row that touches the tile
   const out = below ? 1 : -1;
-  const xs = [0, 10.2, 20.4, 30.6, 40.8, PX];
-  const rs = below ? [6, 8, 6.5, 8.5, 7, 6] : [5, 6.5, 5.5, 7, 6, 5];
-  p.layer(line, (pen) => xs.forEach((x, i) => pen.disc(x, edge, rs[i] + 2)), { cut: 128 });
-  p.layer(fill, (pen) => xs.forEach((x, i) => pen.disc(x, edge, rs[i])), { cut: 128 });
-  if (below) {
-    p.layer(shade, (pen) => xs.forEach((x, i) => pen.arc(x, edge, rs[i] - 2, 0.35, Math.PI - 0.35, { width: 2, wobble: 0 })), { cut: 110 });
+  const xs = BILLOWS.x;
+  const rs = below ? BILLOWS.below : BILLOWS.top;
+  if (part === 'line') p.layer(ink.line, (pen) => xs.forEach((x, i) => pen.disc(x, edge, rs[i] + 2)), { cut: 128 });
+  if (part === 'fill') p.layer(ink.fill, (pen) => xs.forEach((x, i) => pen.disc(x, edge, rs[i])), { cut: 128 });
+  if (part === 'detail') {
+    if (below) {
+      p.layer(ink.shade, (pen) => xs.forEach((x, i) => pen.arc(x, edge, rs[i] - 2, 0.35, Math.PI - 0.35, { width: 2, wobble: 0 })), { cut: 110 });
+    }
+    p.layer(ink.line, (pen) => {
+      pen.spiral(20.4, edge + out * 2.5, 3.6, { dir: 1, start: below ? 4 : 1 });
+      pen.spiral(40.8, edge + out * 3, 3.8, { dir: -1, start: below ? 2 : 5 });
+    }, { cut: 110 });
   }
-  p.layer(line, (pen) => {
-    pen.spiral(20.4, edge + out * 2.5, 3.6, { dir: 1, start: below ? 4 : 1 });
-    pen.spiral(40.8, edge + out * 3, 3.8, { dir: -1, start: below ? 2 : 5 });
-  }, { cut: 110 });
   coasts.set(key, p.cv);
   return p.cv;
+}
+
+/** The billow on an outside corner, centred on the corner, `CORNER` px square. */
+export const CORNER_PX = 18;
+export function pixelCoastCorner({ r = 5, warm = false, part = 'fill' } = {}) {
+  const key = `corner|${r}|${warm}|${part}`;
+  let hit = coasts.get(key);
+  if (hit) return hit;
+  const p = new Plate(CORNER_PX, CORNER_PX, key);
+  const ink = coastInk(warm);
+  const c = CORNER_PX / 2;
+  if (part === 'line') p.layer(ink.line, (pen) => pen.disc(c, c, r + 2), { cut: 128 });
+  if (part === 'fill') p.layer(ink.fill, (pen) => pen.disc(c, c, r), { cut: 128 });
+  coasts.set(key, p.cv);
+  return p.cv;
+}
+
+/**
+ * Lay the coasts of a set of tiles. `rect(cell)` gives where a tile sits on
+ * the canvas as [x, y, size], `has(x, y)` whether a square holds a tile,
+ * `warm(cell)` whether it is out on an island, `alpha(cell)` how faded it is.
+ *
+ * Three passes over every tile (outlines, then cloud, then the curls and the
+ * shading), so billows from different strips and different tiles merge into
+ * one bank. A tile corner whose two sides both face the sky gets a whole
+ * billow of its own, sized to the larger of the half-billows that end there.
+ * Called before the tiles are drawn, so anything that spills over a tile is
+ * covered by it.
+ */
+export function paintCoasts(ctx, cells, { rect, has, warm = () => false, alpha = () => 1 }) {
+  const jobs = cells.map((cell) => {
+    const [x0, y0, w] = rect(cell);
+    const { x, y } = cell;
+    return {
+      x0, y0, w, k: w / PX, warm: !!warm(cell), a: alpha(cell),
+      open: [!has(x, y - 1), !has(x + 1, y), !has(x, y + 1), !has(x - 1, y)],
+    };
+  });
+  // Corners clockwise from the top left, and the two sides that meet at each.
+  const corners = [[0, 0, 3, 0], [1, 0, 0, 1], [1, 1, 1, 2], [0, 1, 2, 3]];
+  ctx.save();
+  for (const part of ['line', 'fill', 'detail']) {
+    for (const j of jobs) {
+      ctx.globalAlpha = j.a;
+      const depth = Math.round(COAST * j.k);
+      for (let side = 0; side < 4; side++) {
+        if (!j.open[side]) continue;
+        const strip = pixelCoast({ below: side === 2, warm: j.warm, part });
+        if (side === 0) { ctx.drawImage(strip, j.x0, j.y0 - depth, j.w, depth); continue; }
+        if (side === 2) { ctx.drawImage(strip, j.x0, j.y0 + j.w, j.w, depth); continue; }
+        ctx.save();
+        ctx.translate(j.x0 + j.w / 2, j.y0 + j.w / 2);
+        ctx.rotate(side * Math.PI / 2);
+        ctx.drawImage(strip, -j.w / 2, -j.w / 2 - depth, j.w, depth);
+        ctx.restore();
+      }
+      if (part === 'detail') continue;
+      for (const [cx, cy, a, b] of corners) {
+        if (!j.open[a] || !j.open[b]) continue;
+        const r = a === 2 || b === 2 ? BILLOWS.below[0] : BILLOWS.top[0];
+        const size = Math.round(CORNER_PX * j.k);
+        ctx.drawImage(pixelCoastCorner({ r, warm: j.warm, part }),
+          j.x0 + cx * j.w - size / 2, j.y0 + cy * j.w - size / 2, size, size);
+      }
+    }
+  }
+  ctx.restore();
 }
 
 const sails = new Map();
@@ -1076,7 +1159,225 @@ export function pixelSails(frame) {
   return p.cv;
 }
 
+// --- the figures: followers and the whale ---------------------------------
+//
+// The figures stand ON the board, so they are drawn on its grid too: a
+// follower is a sprite at the same pixel size as the tiles under it, and the
+// whale is one a little wider than a tile, because it overhangs its square.
+// Whether they are drawn this way is a switch the renderer sets each frame
+// from the mode, which lets art.js send every follower in the game (on the
+// board, in the claim panel, mid-hop across the board) through one door.
+
+let figuresOn = false;
+export function setPixelFigures(on) { figuresOn = !!on; }
+export function pixelFigures() { return figuresOn; }
+
+const figures = new Map();
+
+/** Blend a colour toward white (f > 0) or black (f < 0). */
+function shade(hex, f) {
+  const c = rgb(hex).map((v) => Math.round(f > 0 ? v + (255 - v) * f : v * (1 + f)));
+  return `#${c.map((v) => v.toString(16).padStart(2, '0')).join('')}`;
+}
+
+/**
+ * Light the edges of one colour on a finished sprite, pixel art's way: the
+ * pixels of `color` with no `color` above or to the left of them go a step
+ * lighter, those with none below or to the right a step darker. A bevel made
+ * of whole pixels, so the sprite keeps its hard edge.
+ */
+function bevel(cv, color, { light = 0.38, dark = -0.22 } = {}) {
+  const c = cv.getContext('2d');
+  const { width: w, height: h } = cv;
+  const img = c.getImageData(0, 0, w, h);
+  const d = img.data;
+  const [r, g, b] = rgb(color);
+  const is = (x, y) => {
+    if (x < 0 || y < 0 || x >= w || y >= h) return false;
+    const i = (y * w + x) * 4;
+    return d[i + 3] && d[i] === r && d[i + 1] === g && d[i + 2] === b;
+  };
+  const lit = [], dim = [];
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      if (!is(x, y)) continue;
+      if (!is(x, y - 1) || !is(x - 1, y)) lit.push((y * w + x) * 4);
+      else if (!is(x, y + 1) || !is(x + 1, y)) dim.push((y * w + x) * 4);
+    }
+  }
+  const L = rgb(shade(color, light)), D = rgb(shade(color, dark));
+  for (const i of lit) [d[i], d[i + 1], d[i + 2]] = L;
+  for (const i of dim) [d[i], d[i + 1], d[i + 2]] = D;
+  c.putImageData(img, 0, 0);
+}
+
+/**
+ * A FOLLOWER: the star person, on a 25 px square at the tiles' own density.
+ * Head at the top point, arms out, legs down, in its player's colour inside
+ * an ink line, lit at the edges, with a face. One lying down (a farmer) is
+ * the same sprite turned a quarter, which on a pixel grid is exact.
+ */
+export const MEEPLE_PX = 25;
+export function pixelMeeple(color, { lying = false } = {}) {
+  const key = `meeple|${color}|${lying}`;
+  let hit = figures.get(key);
+  if (hit) return hit;
+  if (lying) {
+    hit = quarter(pixelMeeple(color), 3);
+    figures.set(key, hit);
+    return hit;
+  }
+  const n = MEEPLE_PX;
+  const p = new Plate(n, n, key);
+  const c = n / 2, cy = c + 1;
+  // The proportions of the vector star (head 0.68, arms 0.56, waist 0.235 of
+  // a follower's size), at the size a board follower is drawn.
+  const star = (ctx) => {
+    ctx.beginPath();
+    for (let i = 0; i < 5; i++) {
+      const a = -Math.PI / 2 + i * (Math.PI * 2 / 5);
+      const r = i === 0 ? 11.6 : 10.4;
+      ctx.lineTo(c + Math.cos(a) * r, cy + Math.sin(a) * r);
+      const b = a + Math.PI / 5;
+      ctx.lineTo(c + Math.cos(b) * 4.6, cy + Math.sin(b) * 4.6);
+    }
+    ctx.closePath();
+  };
+  p.layer(INK.ink, (pen, ctx) => { star(ctx); ctx.fill(); ctx.lineWidth = 2.8; ctx.stroke(); }, { cut: 128 });
+  p.layer(color, (pen, ctx) => { star(ctx); ctx.fill(); }, { cut: 128 });
+  bevel(p.cv, color);
+  p.layer(INK.ink, (pen) => { pen.rect(c - 3.5, cy - 2, 1, 2); pen.rect(c + 2.5, cy - 2, 1, 2); }, { cut: 128 });
+  p.layer(shade(color, -0.35), (pen) => pen.rect(c - 1.5, cy + 1, 3, 1), { cut: 128 });
+  figures.set(key, p.cv);
+  return p.cv;
+}
+
+/** A follower's shadow on the ground, and the broken ring of one holding nothing. */
+function meepleShadow() {
+  let hit = figures.get('meeple-shadow');
+  if (hit) return hit;
+  const p = new Plate(MEEPLE_PX, 7, 'meeple-shadow');
+  p.layer(INK.ink, (pen, ctx) => { ctx.beginPath(); ctx.ellipse(MEEPLE_PX / 2, 3.5, 8.5, 2.6, 0, 0, Math.PI * 2); ctx.fill(); }, { cut: 128 });
+  figures.set('meeple-shadow', p.cv);
+  return p.cv;
+}
+
+function meepleRing(color) {
+  const key = `meeple-ring|${color}`;
+  let hit = figures.get(key);
+  if (hit) return hit;
+  const n = 37;
+  const p = new Plate(n, n, key);
+  p.layer(color, (pen) => {
+    for (let i = 0; i < 10; i++) {
+      const a = (i / 10) * Math.PI * 2;
+      pen.arc(n / 2, n / 2, 16, a, a + 0.36, { width: 2, wobble: 0 });
+    }
+  }, { cut: 120 });
+  figures.set(key, hit = p.cv);
+  return hit;
+}
+
+/**
+ * Draw a follower at (x, y), where `size` is what the vector follower would
+ * have been drawn at. A board follower is drawn at 0.42 of a tile, so that
+ * is the size at which one sprite pixel is one tile pixel; everything else
+ * (a claim spot, a hop across the board) scales from there.
+ */
+export function drawPixelMeeple(ctx, x, y, size, color, opts = {}) {
+  const k = size / (0.42 * PX) * (opts.big ? 1.25 : 1);
+  const smooth = k * (globalThis.devicePixelRatio || 1) < 1;
+  const sprite = pixelMeeple(color, { lying: !!opts.farmer });
+  const s = Math.max(1, Math.round(MEEPLE_PX * k));
+  ctx.save();
+  ctx.imageSmoothingEnabled = smooth;
+  if (opts.adrift) {
+    const r = Math.round(37 * k);
+    ctx.globalAlpha *= 0.85;
+    ctx.drawImage(meepleRing(color), Math.round(x - r / 2), Math.round(y - r / 2), r, r);
+    ctx.globalAlpha /= 0.85;
+  }
+  const sh = meepleShadow();
+  ctx.globalAlpha *= 0.28;
+  ctx.drawImage(sh, Math.round(x - s / 2), Math.round(y + s * (opts.farmer ? 0.22 : 0.36)), s, Math.max(1, Math.round(7 * k)));
+  ctx.globalAlpha /= 0.28;
+  ctx.drawImage(sprite, Math.round(x - s / 2), Math.round(y - s / 2), s, s);
+  ctx.restore();
+}
+
+/**
+ * THE BALENA, a sky whale the colour of evening: an ink line, a pale belly
+ * with its grooves, a flipper, a smile, and a little curl of cloud breathed
+ * out of its blowhole, because in this kingdom even the whale is weather.
+ * Nose east, two frames of tail (up, down), and a bit wider than a tile.
+ */
+export const WHALE_W = 61, WHALE_H = 43;
+const WHALE = { body: '#6a78b8', deep: '#4f5a96', belly: '#e8ecfb' };
+
+export function pixelWhale(frame = 0) {
+  const key = `whale|${frame & 1}`;
+  let hit = figures.get(key);
+  if (hit) return hit;
+  const p = new Plate(WHALE_W, WHALE_H, 'whale');
+  const cx = 32, cy = 25;
+  const body = (ctx) => {
+    ctx.beginPath();
+    ctx.moveTo(cx + 23, cy + 1);
+    ctx.bezierCurveTo(cx + 14, cy - 13, cx - 6, cy - 14, cx - 15, cy - 6);
+    ctx.bezierCurveTo(cx - 19, cy - 3, cx - 21, cy - 2, cx - 22, cy);
+    ctx.bezierCurveTo(cx - 21, cy + 3, cx - 19, cy + 4, cx - 15, cy + 6);
+    ctx.bezierCurveTo(cx - 6, cy + 13, cx + 14, cy + 12, cx + 23, cy + 1);
+    ctx.closePath();
+  };
+  const up = (frame & 1) === 0;
+  const fluke = (ctx) => {
+    const t = up ? -1 : 1;
+    ctx.beginPath();
+    ctx.moveTo(cx - 19, cy - 1);
+    ctx.lineTo(cx - 27, cy + t * 9);
+    ctx.lineTo(cx - 25, cy + t * 2);
+    ctx.lineTo(cx - 29, cy - t * 3);
+    ctx.lineTo(cx - 19, cy + 2);
+    ctx.closePath();
+  };
+  p.layer(INK.ink, (pen, ctx) => {
+    for (const shape of [body, fluke]) { shape(ctx); ctx.fill(); ctx.lineWidth = 3; ctx.stroke(); }
+  }, { cut: 128 });
+  p.layer(WHALE.body, (pen, ctx) => { body(ctx); ctx.fill(); fluke(ctx); ctx.fill(); }, { cut: 128 });
+  bevel(p.cv, WHALE.body, { light: 0.25, dark: -0.12 });
+  p.layer(WHALE.belly, (pen, ctx) => {
+    ctx.save(); body(ctx); ctx.clip();
+    ctx.beginPath(); ctx.ellipse(cx + 3, cy + 10, 21, 7, -0.05, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+  }, { cut: 128 });
+  p.layer(WHALE.deep, (pen) => {
+    for (let i = 0; i < 4; i++) pen.line(cx - 7 + i * 6, cy + 6, cx - 9 + i * 6, cy + 10, { width: 1.4, wobble: 0 });
+    pen.fill([[cx + 3, cy + 3], [cx - 6, cy + 11], [cx + 5, cy + 9]]);
+  }, { cut: 110 });
+  p.layer(INK.ink, (pen) => {
+    pen.rect(cx + 12, cy - 3, 2, 2);
+    pen.line(cx + 21, cy + 3, cx + 12, cy + 4, { width: 1, wobble: 0 });
+  }, { cut: 110 });
+  p.layer(INK.cloud, (pen) => pen.rect(cx + 12, cy - 3, 1, 1), { cut: 128 });
+  p.layer(INK.cloudLine, (pen) => {
+    pen.stalk(cx + 6, cy - 11, -Math.PI / 2 - 0.5, 6, 3.6, { dir: -1, bend: 0.2 });
+    pen.stalk(cx + 7, cy - 11, -Math.PI / 2 + 0.45, 7, 3.6, { dir: 1, bend: 0.2 });
+  }, { cut: 128 });
+  figures.set(key, p.cv);
+  return p.cv;
+}
+
+/** The whale's shadow on the country under it. */
+export function pixelWhaleShadow() {
+  let hit = figures.get('whale-shadow');
+  if (hit) return hit;
+  const p = new Plate(WHALE_W, 11, 'whale-shadow');
+  p.layer(INK.ink, (pen, ctx) => { ctx.beginPath(); ctx.ellipse(WHALE_W / 2, 5.5, 22, 4.5, 0, 0, Math.PI * 2); ctx.fill(); }, { cut: 128 });
+  figures.set('whale-shadow', p.cv);
+  return p.cv;
+}
+
 /** Throw every cached picture away (after an edit to this file, say). */
 export function clearPixels() {
-  tiles.clear(); canon.clear(); skies.clear(); coasts.clear(); sails.clear();
+  tiles.clear(); canon.clear(); skies.clear(); coasts.clear(); sails.clear(); figures.clear();
 }

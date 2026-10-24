@@ -7,6 +7,7 @@
 // ---------------------------------------------------------------------------
 
 import { SIDE_MID, SIDE_VEC } from './tiles.js';
+import { pixelFigures, drawPixelMeeple } from './pixel.js';
 import { THEME, PLAYER_COLORS, PLAYER_NAMES } from './theme.js';
 import { LIGHT, spin, shadow, noShadow } from './light.js';
 import { featureShape } from './shape.js';
@@ -2341,6 +2342,10 @@ export function meeplePath(ctx) {
 }
 
 export function drawMeeple(ctx, x, y, size, color, opts = {}) {
+  // A mode drawn in pixels draws its followers in pixels too, on the board's
+  // own grid (see pixel.js). One door, so the board, the claim panel and a
+  // follower hopping across the board can never disagree about the look.
+  if (pixelFigures()) return drawPixelMeeple(ctx, x, y, size, color, opts);
   ctx.save();
   ctx.translate(x, y);
   ctx.scale(size, size);
