@@ -826,6 +826,130 @@ kingmakes badly, and you'd blame the mechanic instead of the count.
 > one's cloud. The panel is still parchment.
 
 
+> **Twenty-third pass: cities become districts, walls stand up to the wind.**
+>
+> Timothy's rules of 2026-10-24, all of them built (his words are in
+> `INTENT.md`):
+>
+> - **The Balena is out of the default rules.** `options.balena` still plays
+>   it; without it there is no whale, no button and no line in the panel.
+> - **Cities are districts.** Every city tile is one whole square of one
+>   kind (garden, temple, residential, industrial, trade), open on the sides
+>   its city runs on through and walled on the rest. Twenty-five new tiles,
+>   five shapes of each kind; the four sfera "x" tiles and the turbine
+>   corner became districts too, and the base set's multi-sided cities are
+>   no longer dealt. The old city caps are **flat walls** now, on the tile
+>   across the seam, and a wall is not somewhere you can stand.
+> - **Walls stand up to the wind.** A tile with a wall square across a gust
+>   cannot be pushed by it; one running along the wall moves it. The rule is
+>   a `pinned` hook the mode hands `storm`, so the wind engine still knows
+>   nothing about cities, and the same test stops a whole island drifting if
+>   any of it is pinned. `wallSides` lives in `tiles.js` so the rules and
+>   the art read the same walls.
+> - **One wrong edge and a blown tile falls.** `fitsSomething` became
+>   `fitsAll`, and the Palazzo's tow checks it too.
+> - **A follower blown off a ledge keeps flying** downwind until it lands on
+>   country. Wind arrivals on islands went from 0.3 a game to 1.4.
+>
+> **The city scoring was measured before it was chosen.** The first version
+> took "compounding levels" literally: a point a district, times 1, 2, 3, 5
+> or 8 for one to five kinds, doubled when walled. Thirty bot games a side
+> against `main`:
+>
+> | scoring | mean score | cities' share |
+> |---|---|---|
+> | `main` (the old cities) | 101 | 13% |
+> | districts × 1/2/3/5/8 | 174 | 62% |
+> | districts × 1/1/2/3/5 | 121 | 47% |
+> | half the districts × 1/2/3/5/8 | 115 | 42% |
+> | **districts + 0/1/3/6/10** | **105** | **35%** |
+>
+> The multiplier made the whole game about cities and ran scores up by
+> seventy percent. The one that shipped pays a point a district plus a
+> variety bonus that grows by one more with every new kind, still doubled
+> when walled: totals stay where they were, cities are the second income
+> after farms (39%), and a five-kind city pays three times what a five-tile
+> city of one kind does. `VARIETY` in the mode is the table, if the
+> multiplier is wanted back. Gusts per game fell from 69 to 48 and tiles
+> lost rose from 8.6 to 11.1: walls pin, and one wrong edge is now enough to
+> fall.
+>
+> **The art.** Each district is its own colour and texture: gardens green
+> with trees, flower beds and a hedge curl; the temple quarter gold
+> flagstones with a columned temple, obelisks and a statue; homes the old
+> pink plaster with houses and a manor; the works brick, with a sawtooth
+> factory, a smoking stack and a shed; the market warm cobbles with striped
+> stalls, crates and barrels. Buildings are hand-placed sprites stood upright
+> after the turn and now drawn back to front, so a house lower down the tile
+> hides the foot of one behind it. A **wall** is a crenellated band flat
+> along the edge, teeth facing away from the city, half a pier at each end so
+> two tiles make one across a seam, and a round pink tower where two walls
+> meet. **Crossroads are towns**: a cobbled round square with a fountain,
+> well, statue, maypole, tree or pair of lamps in it, and houses, stalls,
+> hay and trees in the corners, drawn one of eight ways by the tile's place
+> in the order of play (`cell.seq`, passed as `look`), so two crossroads on
+> one board are rarely the same town. The tile in hand is drawn as the town
+> it will become.
+
+
+> **Twenty-fourth pass: a cloud each, an edge to the sky, and no lone walls.**
+>
+> Four more of Timothy's, the same day (his words are in `INTENT.md`):
+>
+> - **Every player has a cloud.** A whole cloud the size of a tile, with a
+>   face, cheeks in its player's colour, breathing a stream of wind curls the
+>   way it faces. It starts in hand. Instead of a follower you may set it
+>   down on open sky beside the country, facing any way (R turns it), and it
+>   blows as it lands. To the wind engine it is a **spirit**: a zephyr that
+>   stands on a square instead of a tile (`spirits` in `gust` and `storm`).
+>   A gust reaching one that blows its way is absorbed and hardens past it;
+>   one that blows any other way is woken and the storm turns down its lane,
+>   a power harder; and its own gust is hardened by the zephyrs it crosses.
+>   A storm a cloud starts carries that cloud's spirit, so it can never wake
+>   itself. The wind never moves a cloud, and tiles slide under one as under
+>   the sky. Two decisions that were mine: you choose the facing each time
+>   you set it down, and it may only be set down beside the country, since a
+>   cloud further out in the same lane blows exactly the same country.
+> - **The map is 16 x 16**, `bounds` on the spec, one off the middle because
+>   the board is even. Outside it is the aether, deep and starry, and the
+>   squares of it facing the map carry the border. A tile the wind carries
+>   over the edge is **gone for good** (`why: 'aether'`): not back on the
+>   deck, not caught and thrown back. A cannon fired at nothing goes over the
+>   edge now too. And testing it found an old bug: a gust whose ONLY effect
+>   was to lose tiles returned before its losses were handled, so a cannon
+>   that fired its loose end at nothing never put the tile back on the deck.
+> - **No lone walls, for now.** Every tile whose wall is the point of it is
+>   out of the pool (plain walls, two walls, a wall over a road, the walled
+>   town, the tower turbine); the sfera halves and the winds that carried a
+>   wall are dealt as their twins without one, so there are as many spheres
+>   and zephyrs as before. The base set tops the deck back up to 112.
+>   `options.capWalls` deals them all again.
+> - **The Abbazia is drawn walled on all four sides**, with a tower in each
+>   corner, like a district. Only drawn: it is still a cap, not a city, and
+>   its walls do not pin it.
+>
+> Thirty bot games a side, two players:
+>
+> | | before | edge, no lone walls | and the clouds |
+> |---|---|---|---|
+> | tiles on the board at the end | 84 | 77 | 65 |
+> | tiles blown off the map a game | 0 | 9.5 | 15.7 |
+> | gusts a game | 49 | 44 | 84 |
+> | clouds set down / woken a game | | | 20 / 13 |
+> | spheres closed a game | 3.3 | 3.1 | 2.5 |
+> | walled share of city payouts | 17% | 10% | 9% |
+> | mean score | 105 | 103 | 105 |
+>
+> The clouds nearly double the weather: the bot sets its cloud down about
+> one turn in four and other storms wake a cloud thirteen times a game. The
+> edge takes ten tiles a game on its own and sixteen with the clouds, so the
+> board ends a quarter smaller. Without lone walls a city is harder to close,
+> and walled cities fall from 17% of city payouts to 10%. Scores did not
+> move. The bot's cloud is priced by the same `gustValue` it uses for a
+> zephyr in hand (`bestCloud`), and it blows it when nothing is worth
+> claiming or when the gust is worth four times the bar.
+
+
 **Question it answers:** is a small board you keep *editing* better than a big
 one you keep *growing*?
 

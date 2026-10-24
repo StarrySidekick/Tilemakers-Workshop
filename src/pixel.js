@@ -20,13 +20,14 @@
 // off, so a tile on screen is the same picture at every zoom.
 //
 // THE CONNECTORS ARE FIXED, as the tubes are in Composer's Key. A road crosses
-// its edge on columns 21 to 29 (a 5 px bed between 2 px kerbs), a city covers
-// its side corner to corner (shape.js), and a half-sphere is centred on the
-// middle of its edge. Anything that meets a neighbour meets it on the same
-// pixels every time, so a run of tiles reads as one piece of country.
+// its edge on columns 21 to 29 (a 5 px bed between 2 px kerbs), a district
+// covers its whole square, a wall lies flat along the edge 7 px deep, and a
+// half-sphere is centred on the middle of its edge. Anything that meets a
+// neighbour meets it on the same pixels every time, so a run of tiles reads
+// as one piece of country.
 // ---------------------------------------------------------------------------
 
-import { featureShape } from './shape.js';
+import { wallSides } from './tiles.js';
 
 export const PX = 51;
 const MID = PX / 2;                 // 25.5: the middle of pixel 25
@@ -47,7 +48,9 @@ export const INK = {
   gold: '#f3c24f', goldDeep: '#b9861f',
   marble: '#fdf8ef', stone: '#ece4f6',
   water: '#7fc3f0',
+  hedge: '#3f8a63', leaf: '#79c49b', slate: '#6a6390',
   sky: '#a9d5f5', skyDot: '#8fc1ea', skyCloud: '#c3e3fa', skySwirl: '#d9eefd',
+  aether: '#2b2752', aetherDot: '#6f68b0', aetherSwirl: '#3d3770',
 };
 
 /** Each sfera colour as [body, rim and ring, highlight]. */
@@ -241,12 +244,7 @@ class Plate {
    */
   stand(at, r, draw) {
     this.upright.push({ at, draw });
-    const [x, y] = at;
-    for (let j = Math.max(0, Math.floor(y - r)); j <= Math.min(this.h - 1, Math.ceil(y + r)); j++) {
-      for (let i = Math.max(0, Math.floor(x - r)); i <= Math.min(this.w - 1, Math.ceil(x + r)); i++) {
-        if (Math.hypot(i + 0.5 - x, j + 0.5 - y) <= r) this.busy[j * this.w + i] = 1;
-      }
-    }
+    this.reserve(at[0], at[1], r);
   }
 
   /**
@@ -280,6 +278,15 @@ class Plate {
     return this.last.slice();
   }
 
+  /** Keep a disc clear for something drawn later, without drawing anything. */
+  reserve(x, y, r) {
+    for (let j = Math.max(0, Math.floor(y - r)); j <= Math.min(this.h - 1, Math.ceil(y + r)); j++) {
+      for (let i = Math.max(0, Math.floor(x - r)); i <= Math.min(this.w - 1, Math.ceil(x + r)); i++) {
+        if (Math.hypot(i + 0.5 - x, j + 0.5 - y) <= r) this.busy[j * this.w + i] = 1;
+      }
+    }
+  }
+
   /** Is a disc of radius `r` round (x, y) clear of everything but ground? */
   free(x, y, r, margin = 3) {
     if (x - r < margin || y - r < margin || x + r > this.w - margin || y + r > this.h - margin) return false;
@@ -304,51 +311,6 @@ function turn([x, y], q) {
   let px = x - MID, py = y - MID;
   for (let i = 0; i < (q & 3); i++) [px, py] = [-py, px];
   return [px + MID, py + MID];
-}
-
-/**
- * Record what shape.js draws (moveTo / lineTo / bezierCurveTo) as polylines,
- * so a city's outline can be stroked by the wobbling pen rather than by a
- * ruler.
- */
-function trace(draw) {
-  const polys = [];
-  let cur = null;
-  let at = [0, 0];
-  const rec = {
-    moveTo(x, y) { cur = [[x, y]]; polys.push(cur); at = [x, y]; },
-    lineTo(x, y) { if (!cur) { cur = [at.slice()]; polys.push(cur); } cur.push([x, y]); at = [x, y]; },
-    bezierCurveTo(ax, ay, bx, by, x, y) {
-      if (!cur) { cur = [at.slice()]; polys.push(cur); }
-      const [x0, y0] = at;
-      for (let i = 1; i <= 20; i++) {
-        const t = i / 20, u = 1 - t;
-        cur.push([u * u * u * x0 + 3 * u * u * t * ax + 3 * u * t * t * bx + t * t * t * x,
-          u * u * u * y0 + 3 * u * u * t * ay + 3 * u * t * t * by + t * t * t * y]);
-      }
-      at = [x, y];
-    },
-    closePath() { if (cur) cur.push(cur[0].slice()); },
-  };
-  draw(rec);
-  return polys.map((pts) => pts.map(([x, y]) => [x * PX, y * PX]));
-}
-
-/** A polyline as a function of t in [0, 1], by distance along it. */
-function along(pts) {
-  const acc = [0];
-  for (let i = 1; i < pts.length; i++) {
-    acc.push(acc[i - 1] + Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]));
-  }
-  const total = acc[acc.length - 1] || 1;
-  return (t) => {
-    const d = t * total;
-    let i = 1;
-    while (i < acc.length - 1 && acc[i] < d) i++;
-    const seg = acc[i] - acc[i - 1] || 1;
-    const k = (d - acc[i - 1]) / seg;
-    return [pts[i - 1][0] + (pts[i][0] - pts[i - 1][0]) * k, pts[i - 1][1] + (pts[i][1] - pts[i - 1][1]) * k];
-  };
 }
 
 /**
@@ -433,6 +395,8 @@ function paintRoads(p, type, cityMask) {
 
 const SPRITE_INK = {
   o: 'wall', R: 'roof', r: 'roofDeep', W: 'marble', D: 'roofDeep', k: 'ink', G: 'gold', w: 'plaster',
+  h: 'hedge', l: 'leaf', t: 'timber', b: 'bronze', s: 'stone', c: 'cloud', n: 'cloudLine',
+  y: 'goldDeep', a: 'water', f: 'slate',
 };
 
 const HOUSE = [
@@ -455,24 +419,263 @@ const COTTAGE = [
   '.ooooo.',
 ];
 
-const TOWER = [
+const TALL = [
   '...o...',
-  '..oRo..',
   '..oRo..',
   '.oRRRo.',
   'oRRRRRo',
-  'ooooooo',
+  'orrrrro',
   '.oWWWo.',
-  '.oWkWo.',
+  '.oWaWo.',
   '.oWWWo.',
-  '.oWWWo.',
+  '.oWDWo.',
   '.ooooo.',
 ];
 
-const PENNANT = [
-  '.kGG',
-  '.kGGG',
-  '.k',
+const SHRINE = [
+  '....o....',
+  '...oGo...',
+  '..oGGGo..',
+  '.oGGGGGo.',
+  'ooooooooo',
+  '.oWoWoWo.',
+  '.oWoWoWo.',
+  '.oWoWoWo.',
+  'ooooooooo',
+];
+
+const OBELISK = [
+  '..G..',
+  '.oWo.',
+  '.oWo.',
+  '.oWo.',
+  '.oWo.',
+  'ooooo',
+];
+
+// The works: a sawtooth roof with its glass facing one way, and a chimney.
+const FACTORY = [
+  '..........oo.',
+  '..........rr.',
+  '....a....arr.',
+  '...fa...farr.',
+  '..ffa..ffarr.',
+  '.fffa.fffarr.',
+  'ooooooooooooo',
+  'ossssssssssso',
+  'osasasasasaso',
+  'osssssssDDsso',
+  'ooooooooooooo',
+];
+
+const STALL = [
+  '.ooooooo.',
+  'oRcRcRcRo',
+  'oRcRcRcRo',
+  '.R.R.R.R.',
+  '.k.....k.',
+  '.kGyGyGk.',
+  '.ktttttk.',
+  '.k.....k.',
+];
+
+const CRATES = [
+  '..ttt..',
+  '..tbt..',
+  'ttttttt',
+  'tbt.tbt',
+  'ttt.ttt',
+];
+
+const TREE = [
+  '..hhh..',
+  '.hllhh.',
+  'hllhhhh',
+  'hlhhhhh',
+  'hhhhhhh',
+  '.hhhhh.',
+  '..hhh..',
+  '...t...',
+  '...t...',
+];
+
+const BUSH = [
+  '.hhh.',
+  'hlhhh',
+  'hhhhh',
+  '.hhh.',
+  '..t..',
+  '.ttt.',
+];
+
+const BLOOMS = [
+  '.R...c.',
+  'RyR.cyc',
+  '.R.h.c.',
+  '..hhh..',
+];
+
+const HAY = [
+  '..yyy..',
+  '.yGGGy.',
+  'yGGyGGy',
+  'yGGGGGy',
+  'yyyyyyy',
+];
+
+const WELL = [
+  '...o...',
+  '..oRo..',
+  '.oRRRo.',
+  'ooooooo',
+  '.t.k.t.',
+  '.t.b.t.',
+  'ooooooo',
+  'osasaso',
+  'ooooooo',
+];
+
+const STATUE = [
+  '..G..',
+  '.GGG.',
+  '..G..',
+  '.GGG.',
+  '.G.G.',
+  'ooooo',
+  'osyso',
+  'ooooo',
+];
+
+const MAYPOLE = [
+  '....G....',
+  '...RkB...',
+  '..R.k.B..',
+  '.R..k..B.',
+  'R...k...B',
+  '....k....',
+  '....k....',
+  '....k....',
+  '...ooo...',
+];
+
+const LAMP = [
+  '.o.',
+  'oGo',
+  '.o.',
+  '.k.',
+  '.k.',
+  '.k.',
+  '.k.',
+  'kkk',
+];
+
+const MANOR = [
+  '......o......',
+  '.....oRo.....',
+  '....oRRRo....',
+  '...oRRRRRo...',
+  '..oRRRRRRRo..',
+  '.oRRRRRRRRRo.',
+  'orrrrrrrrrrro',
+  '.oWWWWWWWWWo.',
+  '.oWaaWWWaaWo.',
+  '.oWWWWDWWWWo.',
+  '.oWWWWDWWWWo.',
+  '.ooooooooooo.',
+];
+
+const TEMPLE = [
+  '.......o.......',
+  '.....ooGoo.....',
+  '...ooGGGGGoo...',
+  '.ooGGGGGGGGGoo.',
+  'ooooooooooooooo',
+  '.WkWkWkWkWkWkW.',
+  '.WkWkWkWkWkWkW.',
+  '.WkWkWkWkWkWkW.',
+  '.WkWkWkWkWkWkW.',
+  'ooooooooooooooo',
+  'oyyyyyyyyyyyyyo',
+  'ooooooooooooooo',
+];
+
+const SHED = [
+  '..fffffff..',
+  '.fffffffff.',
+  'fffffffffff',
+  'ooooooooooo',
+  'ossssssssso',
+  'osstttttsso',
+  'osstttttsso',
+  'ooooooooooo',
+];
+
+const STACK = [
+  'oooooo',
+  '.orro.',
+  '.orro.',
+  '.orro.',
+  '.oooo.',
+  '.orro.',
+  '.orro.',
+  '.orro.',
+  '.oooo.',
+  '.orro.',
+  '.orro.',
+  'orrrro',
+  'oooooo',
+];
+
+const BARRELS = [
+  '.ttt..ttt.',
+  'tbbbttbbbt',
+  'tttttttttt',
+  'tbbbttbbbt',
+  '.ttt..ttt.',
+];
+
+const OAK = [
+  '...hhhhh...',
+  '..hlllhhh..',
+  '.hllhhhhhh.',
+  'hllhhhhhhhh',
+  'hlhhhhhhhhh',
+  'hhhhhhhhhhh',
+  'hhhhhhhhhhh',
+  '.hhhhhhhhh.',
+  '..hhhhhhh..',
+  '....ttt....',
+  '.....t.....',
+  '.....t.....',
+  '....ttt....',
+];
+
+const BIG_STATUE = [
+  '...G...',
+  '..GGG..',
+  '...G...',
+  '.GGGGG.',
+  '..GGG..',
+  '..G.G..',
+  '..G.G..',
+  'ooooooo',
+  '.osyso.',
+  '.osyso.',
+  'ooooooo',
+];
+
+const BIG_MAYPOLE = [
+  '.....G.....',
+  '....RkB....',
+  '...R.k.B...',
+  '..R..k..B..',
+  '.R...k...B.',
+  'R....k....B',
+  '.....k.....',
+  '.....k.....',
+  '.....k.....',
+  '.....k.....',
+  '....ooo....',
 ];
 
 /** Lay a hand-drawn sprite with its bottom middle at (x, y). */
@@ -498,72 +701,210 @@ function house(p, x, y, { small = false, deep = false } = {}) {
   stamp(p, small ? COTTAGE : HOUSE, x, y, deep ? { R: 'roofDeep', r: 'roof' } : {});
 }
 
-/** A tower standing on the wall, its foot on (x, y), maybe flying a pennant. */
-function tower(p, x, y, { pennant = false } = {}) {
-  stamp(p, TOWER, x, y + 4);
-  if (pennant) stamp(p, PENNANT, x + 1, y + 4 - TOWER.length);
+
+// --- districts and their walls ------------------------------------------------
+//
+// A city is made of DISTRICTS (Timothy, 2026-10-24), each a whole square of
+// one kind, told apart the way a map legend tells things apart: by colour
+// first, then by texture, then by what stands on it. Gardens are green and
+// planted, the temple quarter is paved in gold flagstones, homes are the old
+// pink plaster, the works are brick, and the market is cobbles and awnings.
+//
+// A WALL IS FLAT: a crenellated band lying along the tile's edge, where a cap
+// used to be a curve. A district's own walls stand on its closed sides with
+// their teeth facing out; a cap is the same wall on the tile across the seam,
+// teeth facing away from the city it closes. Where two walls meet in a corner
+// a round tower stands on it, and a wall that runs on into the next tile ends
+// in half a pier, so two halves make one across the seam.
+
+const DISTRICT_INK = {
+  garden: { ground: '#a6dcb8', deep: '#79c49b' },
+  temple: { ground: '#f6e6b0', deep: '#e3c982' },
+  residential: { ground: INK.plaster, deep: '#efc6dc' },
+  industrial: { ground: '#cdc6e0', deep: '#b3abcf' },
+  trade: { ground: '#fbd3a8', deep: '#eab585' },
+};
+
+/** The kind of district a tile is, or null. */
+const districtKind = (type) => type.feats.find((f) => f.district)?.district || null;
+
+/** A rect given for side N, turned to side `side`: quarter turns send pixel edges to pixel edges. */
+function onSide(side, [x, y, w, h]) {
+  const [ax, ay] = turn([x, y], side), [bx, by] = turn([x + w, y + h], side);
+  return [Math.min(ax, bx), Math.min(ay, by), Math.abs(bx - ax), Math.abs(by - ay)];
+}
+
+const TEETH = [3, 9, 15, 21, 27, 33, 39, 45];   // 3 wide, a crenel of 3 between, piers at both ends
+
+/**
+ * The wall on one side, as rects for side N: `dark` is the masonry, `light`
+ * the walk along its top. `out` puts the teeth on the edge (a district's own
+ * wall, facing the country) rather than on the inside (a cap, facing away
+ * from the city across the seam).
+ */
+function wallRects(out) {
+  const walk = out ? 3 : 0, teeth = out ? 0 : 4;
+  return {
+    dark: [[0, walk, PX, 4], ...TEETH.map((t) => [t, teeth, 3, 3]), [0, 0, 3, 7], [PX - 3, 0, 3, 7]],
+    light: [[3, walk + 1, PX - 6, 2]],
+  };
+}
+
+/** The wall pixels of a tile, and its corner towers. Returns the mask of what it covered. */
+function paintWalls(p, type) {
+  const walls = wallSides(type);
+  if (!walls.size) return null;
+  return drawWalls(p, walls, !!districtKind(type));
+}
+
+/** Walls on the given sides, teeth out (`out`) or in, and a tower in every walled corner. */
+function drawWalls(p, walls, out) {
+  const { dark, light } = wallRects(out);
+  const mask = p.layer(INK.wall, (pen) => {
+    for (const s of walls) for (const r of dark) pen.rect(...onSide(s, r));
+  }, { cut: 128 });
+  p.layer(INK.stone, (pen) => {
+    for (const s of walls) for (const r of light) pen.rect(...onSide(s, r));
+  }, { cut: 128 });
+  // A round tower wherever two walls meet: the corner between side s and the next one round.
+  const corners = [0, 1, 2, 3].filter((s) => walls.has(s) && walls.has((s + 1) & 3));
+  const at = (s) => turn([PX - 5.5, 5.5], s);
+  if (corners.length) {
+    p.layer(INK.wall, (pen) => corners.forEach((s) => pen.disc(...at(s), 6.5)), { cut: 128 });
+    p.layer(INK.roof, (pen) => corners.forEach((s) => pen.disc(...at(s), 4.6)), { cut: 128 });
+    p.layer(INK.roofDeep, (pen) => corners.forEach((s) => { const [x, y] = at(s); pen.hook(x, y, 2.6, { dir: 1, start: s * Math.PI / 2 }); }), { cut: 110 });
+  }
+  for (let i = 0; i < mask.length; i++) if (p.last[i]) mask[i] = 1;
+  return mask;
+}
+
+/** A district's ground and its texture, laid edge to edge so a city runs on across seams. */
+function districtGround(p, kind) {
+  const { ground, deep } = DISTRICT_INK[kind];
+  p.layer(ground, (pen) => pen.rect(0, 0, PX, PX), { cut: 128, busy: false });
+  if (kind === 'temple') {
+    // Flagstones on a grid symmetric about the middle, so every turn lays the same.
+    p.layer(deep, (pen) => { for (const v of [1, 9, 17, 25, 33, 41, 49]) { pen.rect(v, 0, 1, PX); pen.rect(0, v, PX, 1); } }, { cut: 128, busy: false });
+  } else if (kind === 'industrial') {
+    // Brick: courses five high, the joints stepping half a brick each course.
+    p.layer(deep, (pen) => {
+      for (let k = 0, y = 0; y < PX; k++, y += 5) {
+        pen.rect(0, y + 4, PX, 1);
+        for (let x = k % 2 ? 1 : 6; x < PX; x += 10) pen.rect(x, y, 1, 4);
+      }
+    }, { cut: 128, busy: false });
+  } else if (kind === 'trade') {
+    // Cobbles, staggered.
+    p.layer(deep, (pen) => {
+      for (let k = 0, y = 2; y < PX; k++, y += 5) for (let x = k % 2 ? 0 : 3; x < PX; x += 6) pen.rect(x, y, 3, 2);
+    }, { cut: 128, busy: false });
+  } else if (kind === 'residential') {
+    // Garden paths between the houses: a pale dot here and there.
+    p.layer(deep, (pen) => {
+      for (let k = 0, y = 3; y < PX; k++, y += 8) for (let x = k % 2 ? 1 : 5; x < PX; x += 8) pen.rect(x, y, 2, 1);
+    }, { cut: 128, busy: false });
+  }
 }
 
 /**
- * A city: plaster, a wall where it meets the country, towers where the wall
- * bulges, and a few houses inside. A city that reaches a side covers that
- * side corner to corner, so the plaster runs straight on into the next tile.
+ * A hand-placed sprite as a thing to stand somewhere: `r` is about how far it
+ * reaches from its middle, which is where it is placed, so the picture's foot
+ * is half its height below that.
  */
-function paintCities(p, type, keep = []) {
-  const mask = new Uint8Array(PX * PX);
-  let pennants = type.shields || 0;
-  const cities = type.feats.filter((f) => f.type === 'city');
-  const shapes = cities.map((f) => featureShape(f.sides)).filter(Boolean);
-  if (!shapes.length) return null;
-  // Plaster first, all of it, so walls and houses can be laid over it.
-  for (const shape of shapes) {
-    const fill = trace((r) => shape.path(r));
-    const got = p.layer(INK.plaster, (pen, c) => {
-      c.beginPath();
-      for (const pts of fill) pts.forEach(([x, y], i) => (i ? c.lineTo(x, y) : c.moveTo(x, y)));
-      c.fill();
-    }, { cut: 128 });
-    for (let i = 0; i < got.length; i++) if (got[i]) mask[i] = 1;
-  }
-  // Where the towers will stand, so no house is built under one.
-  const towers = shapes.flatMap((s) => s.towers.map(([x, y]) => [x * PX, y * PX]));
-  // Houses where a whole house fits inside the plaster, well clear of the wall.
-  const spots = [];
-  for (let y = 7; y < PX - 7; y += 2) {
-    for (let x = 7; x < PX - 7; x += 2) {
-      let inside = true;
-      for (const [dx, dy] of [[-7, -6], [7, -6], [-7, 6], [7, 6], [0, -8], [0, 7], [-8, 0], [8, 0]]) {
-        if (!mask[(y + dy) * PX + (x + dx)]) { inside = false; break; }
+function thing(rows, recolor = {}, after = null) {
+  const h = rows.length, w = Math.max(...rows.map((row) => row.length));
+  return {
+    r: Math.ceil(Math.max(w, h) / 2),
+    draw: (q, x, y) => {
+      const foot = y + Math.floor(h / 2);
+      stamp(q, rows, x, foot, recolor);
+      after?.(q, Math.round(x - (w - 1) / 2), foot - h + 1);
+    },
+  };
+}
+
+/** A swirl in a tree's crown: the sky's curl, grown in leaves. */
+const crown = (dx, dy, r) => (q, x0, y0) => q.layer(INK.leaf, (pen) => pen.hook(x0 + dx, y0 + dy, r, { dir: 1, start: 3, width: 1.5 }), { cut: 120 });
+
+/** Smoke off a chimney whose top middle is (dx, dy) in the sprite: a little cloud and its curl. */
+const smoke = (dx, dy) => (q, x0, y0) => {
+  const cx = x0 + dx, cy = y0 + dy - 3;
+  q.layer(INK.cloudLine, (pen) => { pen.disc(cx, cy, 3); pen.disc(cx + 3, cy - 2.5, 2.6); }, { cut: 128 });
+  q.layer(INK.cloud, (pen) => { pen.disc(cx, cy, 2); pen.disc(cx + 3, cy - 2.5, 1.6); }, { cut: 128 });
+};
+
+const T = {
+  manor: thing(MANOR), manorDeep: thing(MANOR, { R: 'roofDeep', r: 'roof' }),
+  house: thing(HOUSE), houseDeep: thing(HOUSE, { R: 'roofDeep', r: 'roof' }),
+  tall: thing(TALL), cottage: thing(COTTAGE), cottageDeep: thing(COTTAGE, { R: 'roofDeep', r: 'roof' }),
+  temple: thing(TEMPLE), shrine: thing(SHRINE), obelisk: thing(OBELISK), statue: thing(BIG_STATUE),
+  factory: thing(FACTORY, {}, smoke(11, 0)), shed: thing(SHED), stack: thing(STACK, {}, smoke(3, 0)),
+  crates: thing(CRATES), barrels: thing(BARRELS),
+  stall: thing(STALL), stallBlue: thing(STALL, { R: 'wind' }), stallGold: thing(STALL, { R: 'gold' }),
+  oak: thing(OAK, {}, crown(5, 4, 2.6)), tree: thing(TREE, {}, crown(3, 3, 1.8)), bush: thing(BUSH),
+  hay: thing(HAY), well: thing(WELL), lamp: thing(LAMP), maypole: thing(BIG_MAYPOLE), blooms: thing(BLOOMS),
+};
+
+/** What stands on each kind of district, biggest first, as many as fit. */
+const FURNISH = {
+  garden: [T.oak, T.tree, T.oak, T.tree, T.bush, T.tree, T.bush],
+  temple: [T.temple, T.statue, T.obelisk, T.shrine, T.obelisk, T.bush],
+  residential: [T.manor, T.house, T.tall, T.houseDeep, T.manorDeep, T.cottageDeep, T.tall, T.cottage, T.house],
+  industrial: [T.factory, T.stack, T.shed, T.crates, T.barrels, T.shed, T.crates],
+  trade: [T.stall, T.stallBlue, T.stallGold, T.stall, T.crates, T.stallBlue, T.barrels, T.crates],
+};
+
+/**
+ * Stand things on the free ground of a plate, in the order given, each where
+ * it is farthest from what already stands (with a little chance in it), so a
+ * tile fills evenly rather than in a clump. A thing needs a free disc of most
+ * of its reach: neighbours may overlap a little, and are drawn back to front,
+ * so a house in front hides the foot of the one behind. What will not fit is
+ * left out.
+ */
+function standAll(p, items, r = p.r) {
+  const placed = [];
+  for (const it of items) {
+    let best = null, top = -Infinity;
+    for (let y = 2.5; y < PX - 2; y++) {
+      for (let x = 2.5; x < PX - 2; x++) {
+        if (!p.free(x, y, it.r * 0.8, 1)) continue;
+        const room = placed.length
+          ? Math.min(...placed.map(([px, py]) => Math.hypot(px - x, py - y)))
+          : 20 - Math.hypot(x - MID, y - MID) * 0.4;
+        const score = room + r() * 5;
+        if (score > top) { top = score; best = [x, y]; }
       }
-      if (inside && towers.every(([tx, ty]) => Math.hypot(tx - x, ty - y) >= 11)
-        && keep.every(([kx, ky, kr]) => Math.hypot(kx - x, ky - y) >= kr + 6)) spots.push([x, y]);
     }
+    if (!best) continue;
+    placed.push(best);
+    p.stand(best, it.r, it.draw);
   }
-  const area = mask.reduce((n, v) => n + v, 0);
-  const want = Math.max(1, Math.min(4, Math.round(area / 300)));
-  const chosen = [];
-  for (let i = spots.length - 1; i > 0; i--) {
-    const j = Math.floor(p.r() * (i + 1));
-    [spots[i], spots[j]] = [spots[j], spots[i]];
+  return placed.length;
+}
+
+/**
+ * A district's furniture: the buildings of its kind standing upright, and for
+ * a garden, flower beds and a hedge curl on what is left.
+ */
+function furnishDistrict(p, kind) {
+  standAll(p, FURNISH[kind]);
+  if (kind !== 'garden') return;
+  let curls = 0;
+  for (let tries = 0; tries < 60 && curls < 2; tries++) {
+    const x = 10 + p.r() * (PX - 26), y = 12 + p.r() * (PX - 24);
+    if (!p.free(x + 6, y - 2, 7, 6)) continue;
+    const dir = p.r() < 0.5 ? 1 : -1;
+    p.layer(INK.hedge, (pen) => pen.stalk(x, y, -0.15 * dir, 8, 3.8, { dir: -dir, bend: 0.2 }), { cut: 128 });
+    curls++;
   }
-  for (const s of spots) {
-    if (chosen.length >= want) break;
-    if (chosen.every((c) => Math.hypot(c[0] - s[0], c[1] - s[1]) >= 12)) chosen.push(s);
+  let beds = 0;
+  for (let tries = 0; tries < 120 && beds < 5; tries++) {
+    const x = 7 + p.r() * (PX - 14), y = 7 + p.r() * (PX - 14);
+    if (!p.free(x, y, 4, 4)) continue;
+    stamp(p, BLOOMS, x, y + 2);
+    beds++;
   }
-  chosen.forEach(([x, y], i) => p.stand([x, y], 6, (q, X, Y) => house(q, X, Y + 4, { deep: i % 2 === 1, small: i === 3 })));
-  // The wall, wobbling, then a tower on each stretch of it.
-  for (const shape of shapes) {
-    const rims = trace((r) => shape.rim(r));
-    p.layer(INK.wall, (pen) => rims.forEach((pts) => pen.path(along(pts), { width: 3, wobble: 0.6 })));
-    for (const [tx, ty] of shape.towers) {
-      // A tower would stand in the way of the tile's landmark: leave it out.
-      if (keep.some(([kx, ky, kr]) => Math.hypot(kx - tx * PX, ky - ty * PX) < kr + 4)) continue;
-      const pennant = pennants > 0;
-      p.stand([tx * PX, ty * PX], 6, (q, X, Y) => tower(q, X, Y, { pennant }));
-      if (pennants > 0) pennants--;
-    }
-  }
-  return mask;
 }
 
 /** Half of a sphere on side `side`. Its rings close into full rings across the seam. */
@@ -803,14 +1144,7 @@ function paintVane(p) {
   }, { cut: 110 });
 }
 
-/** A village: three houses huddled where the roads meet. */
-function paintVillage(p) {
-  p.stand([MID - 5.5, MID - 3], 6, (q, x, y) => house(q, x, y + 4));
-  p.stand([MID + 5.5, MID - 3], 6, (q, x, y) => house(q, x, y + 4, { deep: true }));
-  p.stand([MID, MID + 5], 5, (q, x, y) => house(q, x, y + 3, { small: true }));
-}
-
-/** A crossroads with nothing on it gets a fountain. */
+/** A crossroads fountain, seen from above. */
 function paintFountain(p) {
   p.layer(INK.ink, (pen) => pen.disc(MID, MID, 7.5), { cut: 128 });
   p.layer(INK.marble, (pen) => pen.disc(MID, MID, 5.6), { cut: 128 });
@@ -818,25 +1152,61 @@ function paintFountain(p) {
   p.layer(INK.marble, (pen) => pen.disc(MID, MID, 1.2), { cut: 100 });
 }
 
+// --- towns ----------------------------------------------------------------------
+//
+// Where three or four roads meet there is a town (Timothy, 2026-10-24: "cute
+// little towns that have different little visual features"): a round square
+// where the roads cross with something in the middle of it, and houses and
+// odds and ends in the corners between the roads. Each laid tile picks its
+// own (`look`, from its place in the order of play), so no two crossroads on
+// a board need be the same town.
+
+export const TOWN_LOOKS = 8;
+
+/** Is this tile a town: three or more roads ending in its middle, with nothing else there? */
+export const isTown = (type) => !type.swing
+  && type.feats.filter((f) => f.type === 'road' && f.sides.length === 1).length >= 3;
+
+/** What can stand in the middle of the square. */
+const CENTRES = [
+  (p) => paintFountain(p),
+  (p) => p.stand([MID, MID - 1], T.well.r, T.well.draw),
+  (p) => p.stand([MID, MID - 2], T.statue.r, T.statue.draw),
+  (p) => p.stand([MID, MID - 2], T.maypole.r, T.maypole.draw),
+  (p) => p.stand([MID, MID - 3], T.oak.r, T.oak.draw),
+  (p) => p.stand([MID, MID - 1], 6, (q, x, y) => { T.lamp.draw(q, x - 4, y); T.lamp.draw(q, x + 4, y); T.blooms.draw(q, x, y + 3); }),
+];
+
+/** Somewhere to live. */
+const DWELLINGS = [T.manor, T.manorDeep, T.house, T.houseDeep, T.tall, T.cottage, T.cottageDeep];
+
+/** Everything else a town keeps by its houses. */
+const ODDMENTS = [T.tree, T.oak, T.hay, T.stall, T.stallBlue, T.stallGold, T.crates, T.barrels, T.well, T.bush, T.blooms, T.lamp];
+
+function paintTown(p, type, look) {
+  const r = rng(`town:${type.id}:${look}`);
+  const pick = (list) => list[Math.floor(r() * list.length)];
+  // The square: kerb, then cobbles, over the ends of the roads.
+  p.layer(INK.kerb, (pen) => pen.disc(MID, MID, 10.5), { cut: 128 });
+  p.layer(INK.road, (pen) => pen.disc(MID, MID, 8.5), { cut: 128 });
+  p.layer('#f3dfae', (pen) => { for (let a = 0; a < 8; a++) pen.rect(MID - 0.5 + Math.round(Math.cos(a * 0.785) * 6.5), MID - 0.5 + Math.round(Math.sin(a * 0.785) * 6.5), 1, 1); }, { cut: 128 });
+  pick(CENTRES)(p);
+  // Then the town round it: houses first, so there are always some, then
+  // whatever else fits in the corners between the roads.
+  const items = [pick(DWELLINGS), pick(DWELLINGS), pick(DWELLINGS)];
+  for (let i = 0; i < 6; i++) items.push(r() < 0.4 ? pick(DWELLINGS) : pick(ODDMENTS));
+  standAll(p, items, r);
+}
+
 /**
- * The Abbazia: walled edge to edge (it caps everything it touches), a curl
- * tucked into each corner the way Composer's Key finishes a wall, and a bell
- * tower in the middle.
+ * The Abbazia: walled on all four edges with the same flat castle walls a
+ * district has (Timothy, 2026-10-24), a tower in each corner, stone inside,
+ * and a bell tower in the middle. It caps everything it touches, and now it
+ * looks it. The walls are only drawn: it is not a city, and they do not pin it.
  */
 function paintAbbazia(p) {
   p.layer(INK.stone, (pen) => pen.rect(0, 0, PX, PX), { cut: 128, busy: false });
-  p.layer(INK.wall, (pen) => {
-    pen.line(3.5, 4.5, 47.5, 4.5, { wobble: 0.4 });
-    pen.line(3.5, 46.5, 47.5, 46.5, { wobble: 0.4 });
-    pen.line(4.5, 3.5, 4.5, 47.5, { wobble: 0.4 });
-    pen.line(46.5, 3.5, 46.5, 47.5, { wobble: 0.4 });
-  }, { cut: 110 });
-  p.layer(INK.wall, (pen) => {
-    pen.curlAt(10, 4.5, 0, 4, { dir: 1 });
-    pen.curlAt(41, 46.5, Math.PI, 4, { dir: 1 });
-    pen.curlAt(46.5, 10, Math.PI / 2, 4, { dir: 1 });
-    pen.curlAt(4.5, 41, -Math.PI / 2, 4, { dir: 1 });
-  }, { cut: 110 });
+  drawWalls(p, new Set([0, 1, 2, 3]), true);
   p.stand([MID, MID], 13, abbey);
 }
 
@@ -894,31 +1264,31 @@ function paintMeadow(p, type, roads) {
   }
 }
 
-/** Paint a tile type, unrotated. */
-function paintCanonical(type) {
+/** Paint a tile type, unrotated. A town paints the `look` it was given. */
+function paintCanonical(type, look = 0) {
   const p = new Plate(PX, PX, `soffiando:${type.id}`);
   const marks = type.marks;
   if (type.wild || has(type, 'abbazia')) {
     paintAbbazia(p);
     return p;
   }
-  p.layer(INK.meadow, (pen) => pen.rect(0, 0, PX, PX), { cut: 128, busy: false });
-  // Room for the tile's landmark, kept clear of the city's towers and houses.
-  const keep = [];
-  if (centred(type) || type.feats.some((f) => f.type === 'temple')) keep.push([MID, MID, 14]);
-  marks.forEach((m, i) => {
-    const [x, y] = type.markSpots[i];
-    if (m.kind === 'turbine') keep.push([x * PX, y * PX - 4, 10]);
-    if (m.kind === 'palazzo') keep.push([MID, Math.min(20, Math.round(y * PX) + 3) - 8, 16]);
-  });
-  const cityMask = paintCities(p, type, keep);
+  const kind = districtKind(type);
+  if (kind) districtGround(p, kind);
+  else p.layer(INK.meadow, (pen) => pen.rect(0, 0, PX, PX), { cut: 128, busy: false });
+  const cityMask = paintWalls(p, type);
   const roads = paintRoads(p, type, cityMask);
   for (const f of type.feats) if (f.type === 'sfera') paintSfera(p, f.sides[0], f.hue);
+  // Room for the tile's landmark, kept clear of houses and trees.
+  if ((centred(type) && !isTown(type)) || type.feats.some((f) => f.type === 'temple')) p.reserve(MID, MID, 14);
+  marks.forEach((m, i) => {
+    const [x, y] = type.markSpots[i];
+    if (m.kind === 'turbine') p.reserve(x * PX, y * PX - 4, 10);
+    if (m.kind === 'palazzo') p.reserve(MID, Math.min(20, Math.round(y * PX) + 3) - 8, 16);
+  });
   if (type.feats.some((f) => f.type === 'temple')) p.stand([MID, MID], 14, paintTemple);
   if (type.swing) paintVane(p);
-  if (has(type, 'village')) paintVillage(p);
-  const stubs = type.feats.filter((f) => f.type === 'road' && f.sides.length === 1).length;
-  if (stubs >= 4 && !centred(type)) paintFountain(p);
+  if (kind) furnishDistrict(p, kind);
+  if (isTown(type)) paintTown(p, type, look);
   const mill = marks.findIndex((m) => m.kind === 'turbine');
   if (mill >= 0) {
     const [x, y] = type.markSpots[mill];
@@ -933,7 +1303,7 @@ function paintCanonical(type) {
     if (m.kind === 'flier') paintFlier(p, m);
     if (m.kind === 'zephyr') { if (m.blast) paintCannon(p, m); else paintZephyr(p, m); }
   }
-  paintMeadow(p, type, roads);
+  if (!kind) paintMeadow(p, type, roads);
   return p;
 }
 
@@ -960,17 +1330,25 @@ function quarter(src, q) {
 const tiles = new Map();
 const canon = new Map();
 
-/** The 51 x 51 picture of a tile at a rotation. Built once, then shared. */
-export function pixelTile(type, rot = 0) {
-  const key = `${type.id}|${rot & 3}`;
+/**
+ * The 51 x 51 picture of a tile at a rotation. Built once, then shared. A
+ * town is drawn one of TOWN_LOOKS ways, chosen by `look` (any number: a
+ * cell's `seq` will do), and every other tile ignores it.
+ */
+export function pixelTile(type, rot = 0, look = 0) {
+  const v = isTown(type) ? hash(`look:${look | 0}`) % TOWN_LOOKS : 0;
+  const key = `${type.id}|${rot & 3}|${v}`;
   let hit = tiles.get(key);
   if (hit) return hit;
-  let base = canon.get(type.id);
-  if (!base) { base = paintCanonical(type); canon.set(type.id, base); }
+  let base = canon.get(`${type.id}|${v}`);
+  if (!base) { base = paintCanonical(type, v); canon.set(`${type.id}|${v}`, base); }
   // Turn the ground, then stand the buildings up on it where they now are.
   hit = quarter(base.cv, rot);
   const up = new Plate(PX, PX, `soffiando:${type.id}:upright`, hit);
-  for (const { at, draw } of base.upright) draw(up, ...turn(at, rot));
+  // Back to front, so whatever stands lower down the picture is in front.
+  base.upright.map(({ at, draw }) => ({ at: turn(at, rot), draw }))
+    .sort((a, b) => a.at[1] - b.at[1])
+    .forEach(({ at, draw }) => draw(up, ...at));
   tiles.set(key, hit);
   return hit;
 }
@@ -1002,6 +1380,53 @@ export function pixelSky(x, y) {
     p.layer(INK.skySwirl, (pen) => pen.stalk(x0, y0, -0.2, 12, 4, { dir: 1, bend: 0.2 }), { cut: 110 });
   }
   skies.set(v, p.cv);
+  return p.cv;
+}
+
+const aethers = new Map();
+
+/**
+ * One square of the AETHER: what lies past the edge of the map, where a tile
+ * the wind carries over the edge is gone for good. Deep and starry, so it
+ * reads as nowhere at all beside the day sky. `edges` is a bit per side
+ * (1 N, 2 E, 4 S, 8 W) facing the map, and on those sides the square carries
+ * the map's border: a pale rule with a row of cloud curls hanging off it.
+ */
+export function pixelAether(x, y, edges = 0) {
+  const v = hash(`aether:${x},${y}`) % 6;
+  const k = `${v}|${edges}`;
+  let hit = aethers.get(k);
+  if (hit) return hit;
+  const p = new Plate(PX, PX, `aether:${v}`);
+  p.layer(INK.aether, (pen) => pen.rect(0, 0, PX, PX), { cut: 128, busy: false });
+  p.layer(INK.aetherDot, (pen) => {
+    for (let i = 0; i < 7; i++) pen.rect(Math.floor(p.r() * PX), Math.floor(p.r() * PX), 1, 1);
+  }, { cut: 128 });
+  p.layer(INK.cloud, (pen) => {
+    for (let i = 0; i < 2; i++) {
+      const sx = 4 + Math.floor(p.r() * (PX - 8)), sy = 4 + Math.floor(p.r() * (PX - 8));
+      pen.rect(sx, sy, 1, 1);
+      if (v % 2 === 0) { pen.rect(sx - 1, sy, 3, 1); pen.rect(sx, sy - 1, 1, 3); }
+    }
+  }, { cut: 128 });
+  if (v === 0) {
+    const x0 = 12 + p.r() * 20, y0 = 14 + p.r() * 20;
+    p.layer(INK.aetherSwirl, (pen) => pen.stalk(x0, y0, -0.2, 11, 4, { dir: 1, bend: 0.2 }), { cut: 110 });
+  }
+  // The border: on each side facing the map, a pale rule a few pixels in and
+  // a curl every third of the way along it, the way the chart's frame is drawn.
+  for (let s = 0; s < 4; s++) {
+    if (!(edges & (1 << s))) continue;
+    p.layer(INK.cloudLine, (pen) => pen.rect(...onSide(s, [0, 0, PX, 4])), { cut: 128 });
+    p.layer(INK.cloud, (pen) => pen.rect(...onSide(s, [0, 1, PX, 2])), { cut: 128 });
+    p.layer(INK.cloudLine, (pen) => {
+      for (const t of [12.5, 38.5]) {
+        const [cx, cy] = turn([t, 9.5], s);
+        pen.hook(cx, cy, 3.6, { dir: 1, start: s * Math.PI / 2 - Math.PI / 2, width: 2 });
+      }
+    }, { cut: 120 });
+  }
+  aethers.set(k, p.cv);
   return p.cv;
 }
 
@@ -1311,6 +1736,60 @@ export function drawPixelMeeple(ctx, x, y, size, color, opts = {}) {
  * out of its blowhole, because in this kingdom even the whale is weather.
  * Nose east, two frames of tail (up, down), and a bit wider than a tile.
  */
+/**
+ * A PLAYER'S CLOUD: a whole cloud the size of a tile with a face on it,
+ * cheeks puffed, blowing a stream of wind curls the way it faces, like the
+ * wind-heads in the corners of an old chart. Its outline and its cheeks are
+ * its player's colour. The body sits back from the way it blows and the face
+ * stays upright whichever way that is, looking where it blows.
+ */
+const spiritPics = new Map();
+export function pixelCloudSpirit(color, dir = 0) {
+  const k = `${color}|${dir}`;
+  let hit = spiritPics.get(k);
+  if (hit) return hit;
+  const p = new Plate(PX, PX, `spirit:${dir}`);
+  const [cx, cy] = turn([MID, 31.5], dir).map((v) => Math.round(v - 0.5) + 0.5);
+  const S = 1.5;
+  const blobs = [[0, 1.5, 7], [-6.5, 3, 4.5], [6.5, 3, 4.5], [-3.5, -3.5, 5], [3.5, -3.5, 4.5]]
+    .map(([dx, dy, r]) => [cx + dx * S, cy + dy * S, r * S]);
+  const line = shade(color, -0.25);
+  p.layer(line, (pen) => blobs.forEach(([x, y, r]) => pen.disc(x, y, r + 2)), { cut: 128 });
+  p.layer(INK.cloud, (pen) => blobs.forEach(([x, y, r]) => pen.disc(x, y, r)), { cut: 128 });
+  p.layer(INK.cloudShade, (pen) => {
+    pen.c.save();
+    pen.c.beginPath(); blobs.forEach(([x, y, r]) => { pen.c.moveTo(x + r, y); pen.c.arc(x, y, r, 0, Math.PI * 2); });
+    pen.c.clip();
+    blobs.forEach(([x, y, r]) => pen.disc(x, y + r * 0.75, r * 0.7));
+    pen.c.restore();
+  }, { cut: 128 });
+  // The breath, out over the cloud's edge to the side of the tile it blows
+  // at: the one thing on it that has to read at a glance.
+  const out = SIDE_ANGLE[dir];
+  const reach = dir % 2 ? 15 : 12;
+  p.layer(INK.wind, (pen) => {
+    [-0.45, 0, 0.45].forEach((da) => {
+      const a = out + da;
+      const x = cx + Math.cos(a) * reach, y = cy + Math.sin(a) * reach;
+      pen.stalk(x, y, a, da ? 6 : 8, 3.6, { dir: da < 0 ? -1 : 1, bend: 0.12 });
+    });
+  }, { cut: 128 });
+  // The face, upright, its eyes and mouth leaning the way it blows.
+  const [lx, ly] = [[0, -1], [1, 0], [0, 1], [-1, 0]][dir];
+  const fx = cx + lx * 3, fy = cy - 1 + ly * 2;
+  p.layer(shade(color, 0.25), (pen) => { pen.disc(fx - 7.5, fy + 3, 3.3); pen.disc(fx + 7.5, fy + 3, 3.3); }, { cut: 128 });
+  p.layer(INK.ink, (pen) => {
+    pen.rect(Math.round(fx - 6 + lx), Math.round(fy - 4), 2, 3);
+    pen.rect(Math.round(fx + 4 + lx), Math.round(fy - 4), 2, 3);
+  }, { cut: 128 });
+  p.layer(INK.ink, (pen) => {
+    const mx = fx + lx * 5, my = fy + 4 + ly * 2;
+    pen.arc(mx, my, 2.2, 0, Math.PI * 2, { width: 1.5, wobble: 0 });
+  }, { cut: 110 });
+  spiritPics.set(k, p.cv);
+  return p.cv;
+}
+
 export const WHALE_W = 61, WHALE_H = 43;
 const WHALE = { body: '#6a78b8', deep: '#4f5a96', belly: '#e8ecfb' };
 

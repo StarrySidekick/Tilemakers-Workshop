@@ -514,6 +514,45 @@ for (const [what, mode, mech, kind] of [
   else console.log(`  ✓ soffiando wind      ${wind.gusts} gust(s), ${wind.moved} tiles moved or lost`);
 }
 
+// Soffiando's player cloud, by hand: the button in the claim panel takes it
+// up, R turns it, and a click on a highlighted square of sky sets it down,
+// blows it, and passes the turn.
+{
+  errors.length = 0;
+  await page.selectOption('#mode', 'soffiando');
+  await page.click('#newGame');
+  await page.evaluate(() => {
+    const g = window.LAB.game;
+    for (const { x, y } of g.board.candidates(g.placeOpts())) {
+      for (let r = 0; r < 4; r++) { g.rot = r; if (g.canPlaceAt(x, y)) { g.cellClick(x, y); return; } }
+    }
+  });
+  const problems = [];
+  const button = page.locator('#claimActions').getByRole('button', { name: 'Set your cloud down and blow' });
+  if (!(await button.count())) problems.push('no cloud button at the follower step');
+  else {
+    await button.click();
+    const was = await page.evaluate(() => ({ phase: window.LAB.game.phase, dir: window.LAB.game.m.myCloud().dir }));
+    await page.keyboard.press('r');
+    const t = await page.evaluate(() => {
+      const g = window.LAB.game, r = window.LAB.renderer;
+      const q = g.m.cloudTargets()[0];
+      const [sx, sy] = r.toScreen(q.x + 0.5, q.y + 0.5);
+      const rect = r.canvas.getBoundingClientRect();
+      return { q, x: rect.left + sx, y: rect.top + sy, dir: g.m.myCloud().dir };
+    });
+    await page.mouse.click(t.x, t.y);
+    const after = await page.evaluate(() => ({ cloud: window.LAB.game.m.clouds[0], current: window.LAB.game.current }));
+    if (was.phase !== 'cloud') problems.push(`the button led to "${was.phase}"`);
+    if (t.dir === was.dir) problems.push('R did not turn the cloud');
+    if (after.cloud.x !== t.q.x || after.cloud.y !== t.q.y) problems.push('the click did not set the cloud down');
+    if (after.current !== 1) problems.push('the turn did not pass');
+  }
+  if (errors.length) problems.push(errors[0].split('\n')[0]);
+  if (problems.length) { failures++; console.log(`  ✗ soffiando cloud: ${problems.join(' · ')}`); }
+  else console.log('  ✓ soffiando cloud     taken up, turned, set down, blown');
+}
+
 // The endgame tally: many features settle in one frame, and they have to be
 // shown one at a time or the result is a number changing.
 {

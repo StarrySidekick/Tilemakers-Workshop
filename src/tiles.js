@@ -70,6 +70,41 @@ export const HALF_MID = [
 export const sideOfHalf = (h) => h >> 1;
 
 const city = (sides, shield = false) => ({ type: 'city', sides, shield });
+
+/**
+ * A DISTRICT: Soffiando's city tile. The whole square is city, and every side
+ * it does not open onto is a flat wall standing on the tile's edge. `sides`
+ * are the open ones, where the city carries on into the next tile; the rest
+ * are walls, presenting the country outside them to the neighbour. A city is
+ * made of districts of five kinds, and pays more the more kinds it has.
+ */
+const district = (sides, kind) => ({ type: 'city', sides, shield: false, district: kind });
+
+/** The five kinds of district, and the letter each one's tile id ends in. */
+export const DISTRICTS = {
+  garden: 'g', temple: 't', residential: 'r', industrial: 'i', trade: 'm',
+};
+
+/**
+ * Every side of a tile with a wall standing on it, in the tile's own frame: a
+ * district's walls are the sides it does not open onto (and nothing else
+ * holds: a sfera half on a district tile is a sfera, not a wall), and a city
+ * cap is a flat wall on the side it caps. The rules pin a tile by these and
+ * the pixel art draws them, so the two always agree.
+ */
+export function wallSides(type) {
+  if (type.walls) return type.walls;
+  const out = new Set();
+  const held = new Set(type.feats.flatMap((f) => f.sides || []));
+  for (const f of type.feats) {
+    if (f.type !== 'city') continue;
+    if (f.district) { for (let s = 0; s < 4; s++) if (!held.has(s)) out.add(s); }
+    else for (const s of f.sides) out.add(s);
+  }
+  type.walls = out;
+  return out;
+}
+
 const road = (sides) => ({ type: 'road', sides });
 const abbey = () => ({ type: 'monastery', sides: [] });
 
@@ -316,8 +351,9 @@ export const TILE_TYPES = [
   // Soffiando's pool. Most of these exist to make the board MOVE rather than to
   // score: the zephyr blows a lane, the windvane re-points itself in the wind
   // and re-cuts what runs through it, and the turbine is paid for every gust
-  // that arrives. Nothing here is ever nailed down — the only thing in the
-  // mode that stops a tile moving is the Balena lying on top of it.
+  // that arrives. Nothing here is ever nailed down: the only thing in the
+  // mode that stops a tile moving is a city wall standing square across the
+  // wind (and the Balena, in a game that still has one).
   //
   // Every one of them carries FIELDS, worked out the same way the base set's
   // are: the ground between the roads and the walls. They matter because the
@@ -375,7 +411,7 @@ export const TILE_TYPES = [
   // makes a city something you want the weather to keep visiting rather than
   // something you want it to leave alone.
   { id: 'Ktb', n: 3, group: 'cloud', name: 'Tower turbine',  feats: [city([N])],    marks: [mark('turbine', 0)], fields: [[2, 3, 4, 5, 6, 7]] },
-  { id: 'Ktc', n: 2, group: 'cloud', name: 'Turbine corner', feats: [city([N, W])], marks: [mark('turbine', 0)], fields: [[2, 3, 4, 5]] },
+  { id: 'Ktc', n: 2, group: 'cloud', name: 'Turbine industrial district', feats: [district([N, W], 'industrial')], marks: [mark('turbine', 0)], fields: [[2, 3, 4, 5]] },
   // …and on a road, which is the same bargain on the other kind of feature: a
   // mill wants the weather to keep arriving, and a road is the thing the
   // weather most reliably arrives at.
@@ -398,27 +434,44 @@ export const TILE_TYPES = [
   { id: 'Kso', n: 1, group: 'cloud', name: 'Green sfera',       feats: [sfera(N, 'green')], fields: [[2, 3, 4, 5, 6, 7]] },
   { id: 'Ksr', n: 1, group: 'cloud', name: 'Green sfera road',  feats: [sfera(N, 'green'), road([E, W])], fields: [[2, 7], [3, 4, 5, 6]] },
   { id: 'Ksc', n: 1, group: 'cloud', name: 'Green sfera wall',  feats: [sfera(N, 'green'), city([S])], fields: [[2, 3], [6, 7]] },
-  { id: 'Ksx', n: 1, group: 'cloud', name: 'Green sfera span',  feats: [sfera(N, 'green'), city([E, W])], fields: [[4, 5]] },
+  { id: 'Ksx', n: 1, group: 'cloud', name: 'Green sfera garden district',  feats: [sfera(N, 'green'), district([E, W], 'garden')], fields: [[4, 5]] },
 
   { id: 'Kbo', n: 1, group: 'cloud', name: 'Blue sfera',        feats: [sfera(N, 'blue')], fields: [[2, 3, 4, 5, 6, 7]] },
   { id: 'Kbr', n: 1, group: 'cloud', name: 'Blue sfera road',   feats: [sfera(N, 'blue'), road([E, W])], fields: [[2, 7], [3, 4, 5, 6]] },
   { id: 'Kbc', n: 1, group: 'cloud', name: 'Blue sfera wall',   feats: [sfera(N, 'blue'), city([S])], fields: [[2, 3], [6, 7]] },
-  { id: 'Kbx', n: 1, group: 'cloud', name: 'Blue sfera span',   feats: [sfera(N, 'blue'), city([E, W])], fields: [[4, 5]] },
+  { id: 'Kbx', n: 1, group: 'cloud', name: 'Blue sfera residential district',   feats: [sfera(N, 'blue'), district([E, W], 'residential')], fields: [[4, 5]] },
 
   { id: 'Kro', n: 1, group: 'cloud', name: 'Red sfera',         feats: [sfera(N, 'red')], fields: [[2, 3, 4, 5, 6, 7]] },
   { id: 'Krr', n: 1, group: 'cloud', name: 'Red sfera road',    feats: [sfera(N, 'red'), road([E, W])], fields: [[2, 7], [3, 4, 5, 6]] },
   { id: 'Krc', n: 1, group: 'cloud', name: 'Red sfera wall',    feats: [sfera(N, 'red'), city([S])], fields: [[2, 3], [6, 7]] },
-  { id: 'Krx', n: 1, group: 'cloud', name: 'Red sfera span',    feats: [sfera(N, 'red'), city([E, W])], fields: [[4, 5]] },
+  { id: 'Krx', n: 1, group: 'cloud', name: 'Red sfera temple district',    feats: [sfera(N, 'red'), district([E, W], 'temple')], fields: [[4, 5]] },
 
   { id: 'Kyo', n: 1, group: 'cloud', name: 'Yellow sfera',      feats: [sfera(N, 'yellow')], fields: [[2, 3, 4, 5, 6, 7]] },
   { id: 'Kyr', n: 1, group: 'cloud', name: 'Yellow sfera road', feats: [sfera(N, 'yellow'), road([E, W])], fields: [[2, 7], [3, 4, 5, 6]] },
   { id: 'Kyc', n: 1, group: 'cloud', name: 'Yellow sfera wall', feats: [sfera(N, 'yellow'), city([S])], fields: [[2, 3], [6, 7]] },
-  { id: 'Kyx', n: 1, group: 'cloud', name: 'Yellow sfera span', feats: [sfera(N, 'yellow'), city([E, W])], fields: [[4, 5]] },
+  { id: 'Kyx', n: 1, group: 'cloud', name: 'Yellow sfera trade district', feats: [sfera(N, 'yellow'), district([E, W], 'trade')], fields: [[4, 5]] },
 
   // End caps. A city has to be able to stop somewhere, and in a country that
   // keeps being rearranged it needs to be able to stop more often than the
   // base set allows.
-  { id: 'Kce', n: 5, group: 'cloud', name: 'Cloud city cap', feats: [city([N])], fields: [[2, 3, 4, 5, 6, 7]] },
+  { id: 'Kce', n: 5, group: 'cloud', name: 'City wall', feats: [city([N])], fields: [[2, 3, 4, 5, 6, 7]] },
+
+  // DISTRICTS (2026-10-24). Cities are made of whole-square districts now,
+  // five kinds in five shapes: open all round, open on three sides, a corner,
+  // straight through, and an end. Every side a district does not open onto is
+  // a flat wall on the tile's edge, and a city cap is a flat wall too, on the
+  // tile across the seam: a city is finished when every way out of it has met
+  // a wall. See the district notes in src/modes/soffiando.js.
+  ...Object.entries(DISTRICTS).flatMap(([kind, k]) => {
+    const name = kind[0].toUpperCase() + kind.slice(1);
+    return [
+      { id: `DX${k}`, n: 1, group: 'cloud', name: `${name} district, all round`, feats: [district([N, E, S, W], kind)], fields: [] },
+      { id: `DT${k}`, n: 1, group: 'cloud', name: `${name} district, three ways`, feats: [district([N, E, W], kind)], fields: [[4, 5]] },
+      { id: `DL${k}`, n: 1, group: 'cloud', name: `${name} district, corner`, feats: [district([N, W], kind)], fields: [[2, 3, 4, 5]] },
+      { id: `DI${k}`, n: 1, group: 'cloud', name: `${name} district, through`, feats: [district([E, W], kind)], fields: [[0, 1], [4, 5]] },
+      { id: `DE${k}`, n: 1, group: 'cloud', name: `${name} district, end`, feats: [district([N], kind)], fields: [[2, 3, 4, 5, 6, 7]] },
+    ];
+  }),
 
   // The windvane: four ways in, only two of them joined, and the wind decides
   // which two. Every edge matches, so it always fits — what changes is what

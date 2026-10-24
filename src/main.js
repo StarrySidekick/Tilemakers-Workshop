@@ -266,7 +266,10 @@ function newGame() {
   shownScores = [];
   bumping.clear();
   renderer.centerOn(0, 0);
-  renderer.cam.zoom = spec(mode)?.bounds ? 78 : 96;
+  // A board small enough to see whole starts zoomed out to show it; a big
+  // map like Soffiando's 16 x 16 starts at the usual size on the middle.
+  const b = spec(mode)?.bounds;
+  renderer.cam.zoom = b && b.maxX - b.minX < 12 ? 78 : 96;
   syncPanel();
 }
 
@@ -1015,7 +1018,7 @@ function renderClaim() {
   claimCtx.rotate(cell.rot * Math.PI / 2);
   claimCtx.translate(-size / 2, -size / 2);
   claimCtx.scale(size, size);
-  drawTileInked(claimCtx, cell.type, { rot: cell.rot });
+  drawTileInked(claimCtx, cell.type, { rot: cell.rot, look: cell.seq });
   claimCtx.restore();
 
   // The dots start where the follower itself would stand, turned with the tile.
@@ -1235,7 +1238,8 @@ function drawTileInked(ctx2, type, opts = {}) {
     ctx2.rotate(-rot * Math.PI / 2);
     ctx2.translate(-0.5, -0.5);
     ctx2.imageSmoothingEnabled = false;
-    ctx2.drawImage(pixelTile(type, rot), 0, 0, 1, 1);
+    // A town is drawn as the one it will be once laid (the next place in the order).
+    ctx2.drawImage(pixelTile(type, rot, opts.look ?? game?.board?.seq ?? 0), 0, 0, 1, 1);
     ctx2.restore();
     return;
   }
@@ -1265,6 +1269,7 @@ const PHASE_TEXT = {
   crop: 'A crop circle — choose what everyone does',
   rob: 'Post your robber on an opponent',
   balena: 'Send the Balena — click any tile on the board',
+  cloud: 'Set your cloud down beside the country — R turns it',
   flight: 'Click one of your followers on the flight to pick it up',
   stroll: 'Walk the follower on down the road, or send it home',
   flat: 'Click one of your followers in a city to lay it flat',
