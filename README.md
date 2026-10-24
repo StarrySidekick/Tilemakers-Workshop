@@ -717,6 +717,7 @@ src/light.js       where the light comes from — one sun for the whole board
 src/shape.js       area silhouettes — the corner-to-corner rule that makes tiles match
 src/sprites.js     tile sprite cache, so the art is drawn once and then blitted
 src/wind.js        Soffiando's weather: one gust, and everything it moved
+src/pixel.js       Soffiando's pixel art: 51 x 51 tiles, sky and coastlines
 src/game.js        the host: turn flow, deck, players, modifiers
 src/modes/         one file per mode, behind a small set of hooks
 src/ai.js          the computer player — one class, one action at a time
@@ -823,6 +824,7 @@ node tools/harness.mjs marches 200  # one mode, 200 seeded games
 node tools/smoke.mjs                # each mode booted in a real browser
 node tools/smoke.mjs --shots        # …and screenshotted to tools/shots/
 node tools/relief.mjs --shots       # the 3D spike, posed and screenshotted
+node tools/pixel.mjs                # Soffiando's pixel tiles, sheet + board, to tools/shots/
 node tools/train.mjs                # tune Soffiando's bot by self-play
 node tools/train.mjs --report       # …or just measure what it does now
 node tools/stamp.mjs -m "what's new"  # bump the build stamp before pushing

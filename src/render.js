@@ -8,6 +8,7 @@
 
 import { drawTile, drawMeeple, drawPig, drawIngots, drawBuilding, PLAYER_COLORS } from './art.js';
 import { tileSprite, spriteFrame } from './sprites.js';
+import { pixelTile, pixelSky, pixelCoast, pixelSails, COAST, PX, SAIL_FRAMES, turbineHub } from './pixel.js';
 import { LIGHT } from './light.js';
 import { THEME, applyDusk, usePalette } from './theme.js';
 import { DESIGN, rgba } from './design.js';
@@ -152,6 +153,18 @@ export class Renderer {
    * baked in, so it must NOT be applied again here.
    */
   paintTile(x, y, rot, type, terrain = 'surface', zoom = this.cam.zoom, origin = null) {
+    // A mode drawn in pixels gets its 51 x 51 picture, scaled with smoothing
+    // off and snapped to whole pixels at both edges, so two neighbours share
+    // their seam exactly and no tile is ever a pixel wider than the next.
+    if (this.pixel) {
+      const [sx, sy] = origin ? origin(x, y) : this.toScreen(x, y);
+      const x0 = Math.round(sx), y0 = Math.round(sy);
+      const ctx = this.ctx;
+      ctx.imageSmoothingEnabled = this.shrinking(zoom);
+      ctx.drawImage(pixelTile(type, rot), x0, y0, Math.round(sx + zoom) - x0, Math.round(sy + zoom) - y0);
+      ctx.imageSmoothingEnabled = true;
+      return;
+    }
     const dpr = window.devicePixelRatio || 1;
     const sprite = tileSprite(type, rot, terrain, zoom * dpr);
     if (!sprite) {
@@ -197,8 +210,12 @@ export class Renderer {
     // On top of that, a hairline of ink round every tile turns the board from
     // a set of models into a plate. Set before ANY tile is drawn this frame —
     // the hand preview and claim panel draw through the same global.
-    const antique = game.m?.backdrop === 'sky';
+    // A mode drawn in PIXELS (Soffiando) is neither: its tiles, its sky and
+    // its coastlines come from pixel.js, on the same 51 px grid.
+    this.pixel = !!game.spec?.pixel;
+    const antique = !this.pixel && game.m?.backdrop === 'sky';
     usePalette(antique ? 'chart' : 'twilight');
+    if (this.pixel) this.drawCoasts(game, fog);
 
     for (const cell of game.board.cells.values()) {
       if (!this.onScreen(cell.x, cell.y)) continue;
@@ -251,7 +268,7 @@ export class Renderer {
     // A chart is not lit at dusk — it is a sheet on a table. The vignette that
     // frames every other mode would only fight the stain already painted round
     // the edge of the paper, and two vignettes are a smudge rather than a frame.
-    if (!antique) applyDusk(ctx, this.w, this.h);
+    if (!antique && !this.pixel) applyDusk(ctx, this.w, this.h);
 
     // Effects sit above the dusk wash. A score you can't read is not a score
     // you can read dimly — it's one you miss.
@@ -276,6 +293,7 @@ export class Renderer {
    */
   drawBackdrop(game) {
     const ctx = this.ctx;
+    if (game?.spec?.pixel) return this.drawPixelSky();
     if (game?.m?.backdrop !== 'sky') {
       ctx.fillStyle = THEME.night;
       ctx.fillRect(0, 0, this.w, this.h);
@@ -741,7 +759,7 @@ export class Renderer {
     // you cannot walk a follower onto it — and everything that closes out
     // there is worth half again as much. That is the single most consequential
     // thing about a square in the mode, so it gets a rim of its own.
-    if (overlay.island) {
+    if (overlay.island && !this.pixel) {
       ctx.save();
       ctx.strokeStyle = 'rgba(212,175,95,0.55)';
       ctx.lineWidth = 3;
@@ -750,7 +768,7 @@ export class Renderer {
       ctx.restore();
     }
 
-    if (overlay.cloud) {
+    if (overlay.cloud && !this.pixel) {
       const haze = ctx.createLinearGradient(sx, sy, sx, sy + z);
       haze.addColorStop(0, 'rgba(206,222,240,0.20)');
       haze.addColorStop(0.55, 'rgba(186,204,228,0.10)');
@@ -762,7 +780,10 @@ export class Renderer {
     // The turbine's sails. They can't live in the tile sprite — a sprite is
     // one picture, and these turn — so the sprite draws the tower and the hub
     // and the renderer puts the sails on every frame.
-    if (overlay.turbine) this.drawSails(cell, sx, sy, z);
+    if (overlay.turbine) {
+      if (this.pixel) this.drawPixelSails(cell, sx, sy, z);
+      else this.drawSails(cell, sx, sy, z);
+    }
 
     // A ship flies its owner's colours. The sprite is the hull and the mast;
     // the sail is the half that says whose it is, so it's painted here.
@@ -772,6 +793,93 @@ export class Renderer {
     // than on it, so it is drawn last and drawn big — it overhangs its square,
     // because a thing that shelters a whole lee ought to look like it could.
     if (overlay.balena) this.drawBalena(sx, sy, z);
+  }
+
+  /**
+   * Pixel art is scaled up with smoothing OFF, which is what keeps it pixel
+   * art. Scaled DOWN, nearest neighbour drops whole pixels and the board
+   * sparkles as it pans, so below one screen pixel per art pixel it is
+   * smoothed instead: zoomed that far out, nobody is reading single pixels.
+   */
+  shrinking(zoom) {
+    return zoom * (window.devicePixelRatio || 1) < PX;
+  }
+
+  /**
+   * Open sky in pixels: one 51 px square of it per grid square, in world
+   * space, so it pans and zooms with the board. Each square picks one of a
+   * few variants by its position, so the sky has weather in it without ever
+   * repeating in a pattern the eye can find, and a dot at every corner of the
+   * grid, which is what you count a wind's lane by.
+   */
+  drawPixelSky() {
+    const ctx = this.ctx;
+    const z = this.cam.zoom;
+    const [wx0, wy0] = this.toWorld(0, 0);
+    const [wx1, wy1] = this.toWorld(this.w, this.h);
+    ctx.imageSmoothingEnabled = this.shrinking(z);
+    for (let y = Math.floor(wy0); y <= Math.floor(wy1); y++) {
+      for (let x = Math.floor(wx0); x <= Math.floor(wx1); x++) {
+        const [sx, sy] = this.toScreen(x, y);
+        const x0 = Math.round(sx), y0 = Math.round(sy);
+        ctx.drawImage(pixelSky(x, y), x0, y0, Math.round(sx + z) - x0, Math.round(sy + z) - y0);
+      }
+    }
+    ctx.imageSmoothingEnabled = true;
+  }
+
+  /**
+   * The coast of every piece of country: a bank of cloud standing off each
+   * tile edge that faces open sky, drawn before the tiles so it sits behind
+   * them. The underside hangs heavier, because a floating island is held up
+   * from below. Islands get a warm cloud and the mainland a cool one, which
+   * is the island rule (you may not build there unless you stand there)
+   * said in the picture instead of in a dashed rim.
+   */
+  drawCoasts(game, fog) {
+    const ctx = this.ctx;
+    const z = this.cam.zoom;
+    const k = z / PX;
+    const board = game.board;
+    ctx.imageSmoothingEnabled = this.shrinking(z);
+    for (const cell of board.cells.values()) {
+      if (!this.onScreen(cell.x, cell.y)) continue;
+      if (this.fx?.veiled(`tile:${cell.x},${cell.y}`)) continue;
+      const warm = !!game.m.onIsland?.(cell);
+      const [sx, sy] = this.toScreen(cell.x, cell.y);
+      const x0 = Math.round(sx), y0 = Math.round(sy), w = Math.round(sx + z) - x0;
+      const depth = Math.round(COAST * k);
+      ctx.save();
+      if (fog && !fog.has(`${cell.x},${cell.y}`)) ctx.globalAlpha = 0.26;
+      if (!board.get(cell.x, cell.y - 1)) ctx.drawImage(pixelCoast({ warm }), x0, y0 - depth, w, depth);
+      if (!board.get(cell.x, cell.y + 1)) ctx.drawImage(pixelCoast({ below: true, warm }), x0, y0 + w, w, depth);
+      for (const [dx, q] of [[1, 1], [-1, 3]]) {
+        if (board.get(cell.x + dx, cell.y)) continue;
+        ctx.save();
+        ctx.translate(x0 + w / 2, y0 + w / 2);
+        ctx.rotate(q * Math.PI / 2);
+        ctx.drawImage(pixelCoast({ warm }), -w / 2, -w / 2 - depth, w, depth);
+        ctx.restore();
+      }
+      ctx.restore();
+    }
+    ctx.imageSmoothingEnabled = true;
+  }
+
+  /**
+   * A turbine's sails in pixels: eight frames across a quarter turn, on the
+   * tile's own 51 px grid, centred on the hub the tile drew.
+   */
+  drawPixelSails(cell, sx, sy, z) {
+    const hub = turbineHub(cell.type, cell.rot);
+    if (!hub) return;
+    const [hx, hy] = [hub[0] / PX, hub[1] / PX];
+    const frame = Math.floor(performance.now() / 175) % SAIL_FRAMES;
+    const ctx = this.ctx;
+    const x0 = Math.round(sx + hx * z - z / 2), y0 = Math.round(sy + hy * z - z / 2);
+    ctx.imageSmoothingEnabled = this.shrinking(z);
+    ctx.drawImage(pixelSails(frame), x0, y0, Math.round(z), Math.round(z));
+    ctx.imageSmoothingEnabled = true;
   }
 
   /**

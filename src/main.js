@@ -24,6 +24,7 @@ import { DESIGN, onDesignChange, loadCommitted, apply, reset } from './design.js
 import { Designer } from './designer.js';
 import { THEME, usePalette } from './theme.js';
 import { clearSprites, setSpriteCap } from './sprites.js';
+import { pixelTile } from './pixel.js';
 import { TILE_TYPES, TILES, GROUPS, rotPoint } from './tiles.js';
 import { Sfx, SOUND_NAMES } from './audio.js';
 import { Effects } from './fx.js';
@@ -305,6 +306,10 @@ function onModeChange() {
   // the panel has to agree with the board or the whole thing looks like two
   // games in one window. One class, and the palette variables do the rest.
   document.body.classList.toggle('parchment', !!s?.antique);
+  // Pixel tiles in the panel too: the hand, the claim view and the market
+  // all draw through drawTileInked, and a tile that changes style between
+  // your hand and the board is two games in one window again.
+  document.body.classList.toggle('pixel', !!s?.pixel);
 }
 
 /**
@@ -1220,6 +1225,20 @@ function drawPreview() {
  * preview is redrawn, which is on events rather than frames.
  */
 function drawTileInked(ctx2, type, opts = {}) {
+  // The caller has already turned the context to the tile's rotation, but a
+  // pixel tile is turned already and its buildings stand upright on it, so
+  // the turn is taken back off and the finished picture goes in unsmoothed.
+  if (document.body.classList.contains('pixel')) {
+    const rot = opts.rot || 0;
+    ctx2.save();
+    ctx2.translate(0.5, 0.5);
+    ctx2.rotate(-rot * Math.PI / 2);
+    ctx2.translate(-0.5, -0.5);
+    ctx2.imageSmoothingEnabled = false;
+    ctx2.drawImage(pixelTile(type, rot), 0, 0, 1, 1);
+    ctx2.restore();
+    return;
+  }
   if (!document.body.classList.contains('parchment')) return drawTile(ctx2, type, opts);
   drawTile(ctx2, type, { ...opts, only: 'ground' });
   roughen(ctx2.canvas, WOBBLE(ctx2.canvas.width));
@@ -1228,6 +1247,7 @@ function drawTileInked(ctx2, type, opts = {}) {
 }
 
 function inkUp(canvas) {
+  if (document.body.classList.contains('pixel')) return;
   if (document.body.classList.contains('parchment')) roughen(canvas, TOOTH(canvas.width));
 }
 
