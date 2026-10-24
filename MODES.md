@@ -767,6 +767,49 @@ kingmakes badly, and you'd blame the mechanic instead of the count.
 > 19%, cities 13%, temples 9%, everything else 12%.
 
 
+> **Twenty-second pass: the cloud kingdom in pixels.**
+>
+> Timothy asked for Soffiando's tiles in the hand he draws Composer's Key in:
+> a 51 x 51 grid, line work at 3 px for structure and 2 px for ornament, a
+> slow wobble on every stroke, open spirals that grow out of the end of a
+> stalk, hard pixels, and this time in colour, for a swirly kingdom in the
+> clouds. Composer's Key's art skill had already turned his style into
+> measured rules (its `references/style-card.md`), so this pass followed them
+> rather than guessing, and ported its pen.
+>
+> **`src/pixel.js` draws every tile, the sky and the coastlines.** Each colour
+> is one layer, drawn white, thresholded to hard pixels and tinted, which is
+> how Unity tints a white sprite and why no edge ever gets a blended colour.
+> The ground is drawn once and turned by moving pixels, not resampling them;
+> the BUILDINGS are then stood upright on the turned ground, because a house
+> drawn front on and turned with its tile lies on its side and reads as an
+> arrow. Every connector is fixed (a road crosses its edge on columns 21 to
+> 29, a half-sphere is centred on its edge, a city covers its side corner to
+> corner as shape.js already insists), so a run of tiles is one picture.
+>
+> Three things on the board are new, and all three are about islands. The
+> **sky** is pixel too, in 51 px squares with a dot at every grid corner,
+> which is how you count a wind's lane. Every tile edge facing open sky gets a
+> **coast**, a bank of cloud standing off it, heavier underneath because a
+> floating island is held up from below. And the coast is **warm on an island
+> and cool on the mainland**, which says the rule you most need to know
+> (you may not build there unless you stand there) in the picture rather than
+> in the dashed rim it replaces.
+>
+> Two lessons from the contact sheet, both already in the Composer's Key style
+> card and both learned again anyway. A spiral under about r 4.5 at 2 px fills
+> in to a solid teardrop, so the curls are open hooks: one turn, ending at
+> half their radius, each turning AWAY from the middle of its fan (turned
+> inward, a curl winds back over its own stalk). And below ten pixels a path
+> stops being a drawing: thresholded houses came out as hearts and mushrooms,
+> so houses and towers are placed by hand, a pixel at a time.
+>
+> `node tools/pixel.mjs` renders the sheet (every tile at 6x, all four turns,
+> and at play size) and a small assembled board. The meeples, the Balena and
+> the panel are still the old vector and parchment; they are the next things
+> to bring onto the grid.
+
+
 **Question it answers:** is a small board you keep *editing* better than a big
 one you keep *growing*?
 

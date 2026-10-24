@@ -492,6 +492,10 @@ for (const [what, mode, mech, kind] of [
         if (o.length) g.placeMeeple(o[0].i, o[0]); else g.skipMeeple();
       } else if (g.phase === 'lift') {
         g.m.cancelLift();
+      } else if (g.phase === 'stroll') {
+        // A sphere paid one of our followers and offered it a walk; decline.
+        // Walks only became reachable once the host stopped overwriting them.
+        g.m.skipStroll();
       } else break;
       if (gusts && moved) break;
       // Let the render loop breathe now and then — the effects are made

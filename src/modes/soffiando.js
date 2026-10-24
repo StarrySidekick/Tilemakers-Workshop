@@ -1981,6 +1981,10 @@ Soffiando.spec = {
   // zephyrs are the wind-heads drawn in its corners, and the panel has to be
   // the same sheet as the board.
   antique: true,
+  // …and its tiles, sky and coastlines are pixel art on a 51 px grid, in the
+  // hand Timothy draws Composer's Key in, coloured for a kingdom in the
+  // clouds. See src/pixel.js. The chart stays as the backdrop of nothing.
+  pixel: true,
   meeples: true,
   minPlayers: 1,
   maxPlayers: 4,
