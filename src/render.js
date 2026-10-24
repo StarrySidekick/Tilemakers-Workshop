@@ -155,7 +155,7 @@ export class Renderer {
    * done. Note the rotation is handled differently in each: the sprite has it
    * baked in, so it must NOT be applied again here.
    */
-  paintTile(x, y, rot, type, terrain = 'surface', zoom = this.cam.zoom, origin = null) {
+  paintTile(x, y, rot, type, terrain = 'surface', zoom = this.cam.zoom, origin = null, look = 0) {
     // A mode drawn in pixels gets its 51 x 51 picture, scaled with smoothing
     // off and snapped to whole pixels at both edges, so two neighbours share
     // their seam exactly and no tile is ever a pixel wider than the next.
@@ -164,7 +164,7 @@ export class Renderer {
       const x0 = Math.round(sx), y0 = Math.round(sy);
       const ctx = this.ctx;
       ctx.imageSmoothingEnabled = this.shrinking(zoom);
-      ctx.drawImage(pixelTile(type, rot), x0, y0, Math.round(sx + zoom) - x0, Math.round(sy + zoom) - y0);
+      ctx.drawImage(pixelTile(type, rot, look), x0, y0, Math.round(sx + zoom) - x0, Math.round(sy + zoom) - y0);
       ctx.imageSmoothingEnabled = true;
       return;
     }
@@ -229,7 +229,7 @@ export class Renderer {
       if (lift) this.drawStackShadow(cell, lift);
       ctx.save();
       if (fog && !fog.has(`${cell.x},${cell.y}`)) ctx.globalAlpha = 0.26;
-      this.paintTile(cell.x, cell.y - lift, cell.rot, cell.type);
+      this.paintTile(cell.x, cell.y - lift, cell.rot, cell.type, 'surface', this.cam.zoom, null, cell.seq);
       ctx.restore();
       if (antique) this.drawFoxedTile(cell.x, cell.y - lift);
       if (overlay) this.drawCellOverlay(cell, overlay, lift);
@@ -1162,7 +1162,7 @@ export class Renderer {
     if (p) {
       const [px, py] = this.toScreen(p.x, p.y);
       const z = this.cam.zoom;
-      this.paintTile(p.x, p.y, p.rot, game.tile);
+      this.paintTile(p.x, p.y, p.rot, game.tile, 'surface', this.cam.zoom, null, game.board.seq);
       ctx.save();
       ctx.lineWidth = 3.5;
       ctx.strokeStyle = THEME.gold;
@@ -1189,7 +1189,7 @@ export class Renderer {
     if (covering && !ok) return;              // don't smear a ghost over the board
     ctx.save();
     ctx.globalAlpha = ok ? 0.92 : 0.32;
-    this.paintTile(h.x, h.y, game.rot, game.tile);
+    this.paintTile(h.x, h.y, game.rot, game.tile, 'surface', this.cam.zoom, null, game.board.seq);
     ctx.restore();
 
     const [sx, sy] = this.toScreen(h.x, h.y);
@@ -1757,7 +1757,7 @@ export class Renderer {
           // A tile flying in from the panel fades in; one the WIND is moving
           // was already on the board and stays solid, waiting for its beat.
           ctx.globalAlpha = e.solid ? 1 : Math.min(1, 0.35 + t * 3);
-          this.paintTile(0, 0, e.rot, e.type, 'surface', s, () => [sx - (s - z) / 2, sy - (s - z) / 2]);
+          this.paintTile(0, 0, e.rot, e.type, 'surface', s, () => [sx - (s - z) / 2, sy - (s - z) / 2], e.look);
           break;
         }
 
@@ -1783,7 +1783,7 @@ export class Renderer {
           ctx.save();
           ctx.translate(sx + z / 2, sy + z / 2);
           ctx.rotate(e.spin * k);
-          this.paintTile(0, 0, e.rot, e.type, 'surface', shrink, () => [-shrink / 2, -shrink / 2]);
+          this.paintTile(0, 0, e.rot, e.type, 'surface', shrink, () => [-shrink / 2, -shrink / 2], e.look);
           if (sink) {
             ctx.fillStyle = `rgba(48,84,110,${0.25 + k * 0.55})`;
             ctx.fillRect(-shrink / 2, -shrink / 2, shrink, shrink);

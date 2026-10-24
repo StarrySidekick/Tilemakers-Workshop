@@ -1015,7 +1015,7 @@ function renderClaim() {
   claimCtx.rotate(cell.rot * Math.PI / 2);
   claimCtx.translate(-size / 2, -size / 2);
   claimCtx.scale(size, size);
-  drawTileInked(claimCtx, cell.type, { rot: cell.rot });
+  drawTileInked(claimCtx, cell.type, { rot: cell.rot, look: cell.seq });
   claimCtx.restore();
 
   // The dots start where the follower itself would stand, turned with the tile.
@@ -1235,7 +1235,8 @@ function drawTileInked(ctx2, type, opts = {}) {
     ctx2.rotate(-rot * Math.PI / 2);
     ctx2.translate(-0.5, -0.5);
     ctx2.imageSmoothingEnabled = false;
-    ctx2.drawImage(pixelTile(type, rot), 0, 0, 1, 1);
+    // A town is drawn as the one it will be once laid (the next place in the order).
+    ctx2.drawImage(pixelTile(type, rot, opts.look ?? game?.board?.seq ?? 0), 0, 0, 1, 1);
     ctx2.restore();
     return;
   }

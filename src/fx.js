@@ -130,9 +130,9 @@ export class Effects {
    * Strata tile rises onto the stack it just covered instead of appearing on
    * top of it.
    */
-  flyTile({ from, to, type, rot, lift = 0, from_lift = null, delay = 0, life = LIFE.tile, solid = false }) {
+  flyTile({ from, to, type, rot, look = 0, lift = 0, from_lift = null, delay = 0, life = LIFE.tile, solid = false }) {
     const e = this.add({
-      kind: 'tile', from: from || to, to, type, rot, solid,
+      kind: 'tile', from: from || to, to, type, rot, look, solid,
       lift0: from_lift == null ? lift : from_lift, lift1: lift,
       delay, life,
     });
@@ -152,7 +152,7 @@ export class Effects {
     if (!cells?.length) return;
     cells.forEach((c, i) => {
       this.add({
-        kind: 'fall', x: c.x, y: c.y, type: c.type, rot: c.rot, how,
+        kind: 'fall', x: c.x, y: c.y, type: c.type, rot: c.rot, look: c.look ?? c.seq ?? 0, how,
         spin: how === 'blow' ? (i % 2 ? 0.5 : -0.5) : 0.08,
         drift: how === 'blow' ? 1.6 : 0,
         delay: delay + i * 45,
@@ -250,6 +250,7 @@ export class Effects {
             to,
             type: cell.type,
             rot: cell.rot,
+            look: cell.seq,
             lift: (cell.h || 0) * 0.08,
             from_lift: 0,               // …and rises onto whatever it covered
             delay: i * 70,
@@ -308,7 +309,7 @@ export class Effects {
         // rather than a single instantaneous rearrangement.
         const at = data.delay || 0;
         for (const m of data.moves || []) {
-          this.flyTile({ from: m.from, to: m.at, type: m.type, rot: m.rot, delay: at, life: DESIGN.storm.tileGlide, solid: true });
+          this.flyTile({ from: m.from, to: m.at, type: m.type, rot: m.rot, look: m.look, delay: at, life: DESIGN.storm.tileGlide, solid: true });
         }
         if (data.fell?.length) this.fall(data.fell, 'blow', at);
         return;

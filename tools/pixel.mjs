@@ -74,20 +74,22 @@ const out = await page.evaluate(async (only) => {
     c.fillText(`${id}  ${TILES[id].name}`, x, y + PX * Z + PX + 26);
     // Ink: every pixel that is not plain meadow, road bed or plaster.
     const d = t.getContext('2d').getImageData(0, 0, PX, PX).data;
-    const plain = new Set(['196,231,176', '255,241,201', '246,218,234', '236,228,246']);
+    const plain = new Set(['196,231,176', '255,241,201', '246,218,234', '236,228,246',
+      '166,220,184', '246,230,176', '205,198,224', '251,211,168']);
     let ink = 0;
     for (let k = 0; k < d.length; k += 4) if (!plain.has(`${d[k]},${d[k + 1]},${d[k + 2]}`)) ink++;
     coverage[id] = Math.round((100 * ink) / (PX * PX));
   });
 
   // --- a board: tiles on the sky, coasts on every edge that faces it ---
+  // A city of four districts in four kinds, walled all round by its own
+  // walls and by caps; three towns at crossroads; the weather beside them.
   const plan = [
-    [0, 0, 'Kso', 2], [1, 0, 'E', 2], [2, 0, 'Kt', 0],
-    [0, 1, 'Ksr', 0], [1, 1, 'Kpz', 0], [2, 1, 'Kzr', 0], [3, 1, 'U', 1], [4, 1, 'Kfl', 1],
-    [1, 2, 'Kw', 0], [2, 2, 'Ktr', 0], [3, 2, 'Kg', 1],
-    [1, 3, 'J', 2], [2, 3, 'R', 2],
-    [6, 1, 'Kab', 0], [6, 2, 'Kzb', 0], [7, 2, 'Kgg', 3],
-    [6, 4, 'Kzq', 0], [5, 0, 'V', 0],
+    [0, 0, 'Kt', 0], [7, 0, 'Ksx', 0], [5, 0, 'Kzc', 2],
+    [1, 1, 'DLg', 2], [2, 1, 'DTr', 2], [3, 1, 'DEm', 3], [7, 1, 'Ktc', 0],
+    [1, 2, 'DLi', 1], [2, 2, 'DTt', 0], [3, 2, 'E', 3], [5, 2, 'Kpz', 0], [6, 2, 'Kzb', 0], [7, 2, 'Kgg', 3],
+    [0, 3, 'V', 1], [1, 3, 'X', 0, 7], [2, 3, 'U', 1], [3, 3, 'Gw', 0, 3], [4, 3, 'U', 1], [5, 3, 'X', 0, 2],
+    [3, 4, 'Gl', 2, 5], [6, 1, 'Kab', 0], [5, 4, 'U', 0],
   ];
   const W = 9, H = 6, S = 2;                       // squares, and 2x pixels
   const board = document.createElement('canvas');
@@ -95,16 +97,16 @@ const out = await page.evaluate(async (only) => {
   const b = board.getContext('2d');
   b.imageSmoothingEnabled = false;
   for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) b.drawImage(pixelSky(x, y), x * PX * S, y * PX * S, PX * S, PX * S);
-  const at = new Map(plan.map(([x, y, id, r]) => [`${x},${y}`, { x, y, id, r }]));
+  const at = new Map(plan.map(([x, y, id, r, look = 0]) => [`${x},${y}`, { x, y, id, r, look }]));
   const island = (x, y) => x >= 6;                 // the right-hand group stands in for an island
   paintCoasts(b, [...at.values()], {
     rect: ({ x, y }) => [x * PX * S, y * PX * S, PX * S],
     has: (x, y) => at.has(`${x},${y}`),
     warm: ({ x, y }) => island(x, y),
   });
-  for (const { x, y, id, r } of at.values()) b.drawImage(pixelTile(TILES[id], r), x * PX * S, y * PX * S, PX * S, PX * S);
+  for (const { x, y, id, r, look } of at.values()) b.drawImage(pixelTile(TILES[id], r, look), x * PX * S, y * PX * S, PX * S, PX * S);
   // The figures on top: followers of every colour standing, a farmer lying in
-  // a field, one adrift in its broken ring, and the whale over its square.
+  // a field, one adrift in its broken ring, and the whale.
   const T = PX * S;
   const people = [
     [1.5, 1.3, 0], [2.5, 0.55, 1], [0.35, 1.75, 2, { farmer: true }], [3.5, 1.8, 3],
@@ -114,9 +116,10 @@ const out = await page.evaluate(async (only) => {
   const whale = pixelWhale(0);
   b.globalAlpha = 0.22;
   const sh = pixelWhaleShadow();
-  b.drawImage(sh, 2.5 * T - (sh.width / 2) * S, 2.5 * T + 10 * S, sh.width * S, sh.height * S);
+  // Out in the sky: the whale is off by default now, so it is only here to be looked at.
+  b.drawImage(sh, 7.5 * T - (sh.width / 2) * S, 4.5 * T + 10 * S, sh.width * S, sh.height * S);
   b.globalAlpha = 1;
-  b.drawImage(whale, 2.5 * T - 32 * S, 2.5 * T - 28 * S, whale.width * S, whale.height * S);
+  b.drawImage(whale, 7.5 * T - 32 * S, 4.5 * T - 28 * S, whale.width * S, whale.height * S);
   return { sheet: sheet.toDataURL(), board: board.toDataURL(), coverage };
 }, only);
 

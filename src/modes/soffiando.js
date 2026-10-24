@@ -4,7 +4,7 @@
 // You place tiles and claim features like Carcassonne, and then the wind
 // rearranges the country underneath you. Nothing in the sky is nailed down:
 // every tile on the board can be pushed, finished or not, and the only thing
-// that has ever stopped one is the whale lying on top of it.
+// that stops one is a city wall standing square across the wind.
 //
 // THE ZEPHYR is the engine — twenty-two of them in the deck. Play one and it
 // blows down its lane, and what it does there is not what you would guess: it
@@ -74,18 +74,18 @@
 //     somebody standing on is somewhere you may lay a tile — so the wind makes
 //     the seed and the players grow it.
 //
-// WHAT FALLS IS A TILE THAT NO LONGER FITS. One the wind MOVED that lands
-// beside country it cannot legally join is touching the kingdom and holding on
-// to none of it: a road jammed against a city wall. That one falls, and it does
-// not come back — nobody collects it, nobody plays it again. A tile with no
-// neighbours at all has nothing to disagree with, so it floats. One legal
-// connection is enough to stay in the sky; none, with something beside you, is
-// the end of the tile.
+// WHAT FALLS IS A TILE THAT NO LONGER FITS. One the wind MOVED that comes to
+// rest with ANY edge against country it cannot meet falls (Timothy,
+// 2026-10-24: "roads can no longer mismatch in any way and still stay
+// together"): a road jammed against a field, a field against a city. It used
+// to take every edge being wrong; one is enough now. A tile with no neighbours
+// at all has nothing to disagree with, so it floats.
 //
 // FOLLOWERS ARE BLOWN LIKE TILES, WHICH IS NOT WHAT HAPPENS TO THE TILES. One
 // standing on the raft rides it and never notices. Every other follower in the
-// lane is picked up and put down downwind, on whatever is there — somebody
-// else's feature, or nothing at all. Nothing at all means it goes home.
+// lane is picked up and put down downwind, on whatever is there. One blown off
+// a ledge KEEPS FLYING downwind until it lands on country; only one with no
+// country anywhere ahead of it goes home.
 //
 // A FEATURE THAT SCORES IS EMPTIED. Farms, cities, roads, temples: a colour
 // firing over a thing you are standing in pays you, and then hands the figure
@@ -110,7 +110,7 @@
 //
 //   GREEN  the farms — a point for every two tiles of field, to the majority
 //            farmer; a field a rival is already farming is closed to you
-//   BLUE   the cities — 1 a tile for one still open, 2 a tile once it has closed
+//   BLUE   the cities — by districts and kinds (see CITIES below)
 //   RED    the temples — 1 for every tile standing in the eight around one
 //   YELLOW the roads — 1 a tile, plus 1 for each city the road reaches and 2
 //            if that city has closed, whoever owns the far end
@@ -150,12 +150,21 @@
 // flying machine. And when the wind gets hold of the PALAZZO ITSELF, every
 // island in the sky slides one square the way the seat went.
 //
-// THE BALENA is a sky whale the size of a district. Whatever tile it is lying
-// on cannot be moved by any wind, and no gust passes through it — a run backed
-// up against the whale has no loose end, so nothing comes off it and its lee
-// is untouched. On your turn, INSTEAD of placing a follower, you may send it
-// ANYWHERE on the board. It is the only brake in the mode, and it is a brake
-// anybody can pick up.
+// CITIES ARE DISTRICTS (Timothy, 2026-10-24). Every city tile is one whole
+// square of one kind: GARDEN, TEMPLE, RESIDENTIAL, INDUSTRIAL or TRADE, each
+// its own colour and texture. A district opens onto the sides its city runs
+// on through and is WALLED on the rest; the old city caps are those same
+// walls, lying flat on the tile across the seam. A city pays a point per
+// district plus a bonus that compounds with the number of DIFFERENT kinds in
+// it (0, 1, 3, 6, 10), doubled once walls close it all round. And a wall stands up
+// to the wind: a tile with a wall square across the way a gust is blowing
+// cannot be pushed by it. A wind running along the wall moves it like
+// anything else.
+//
+// THE BALENA, a sky whale the size of a district, is OUT of the default rules
+// (Timothy, 2026-10-24) and plays only with `options.balena`. Whatever tile it
+// lies on cannot be moved by any wind, and on your turn, instead of placing a
+// follower, you may send it anywhere on the board.
 //
 // THE WINDVANE has four ways in and only two of them joined, and the wind picks
 // which two. It is the ONLY tile the weather re-cuts — a straight road used to
@@ -193,19 +202,19 @@
 // The thesis is in one line: NOTHING IS SETTLED AND NOTHING IS BANKED. A city
 // is finished until the weather says otherwise, the mainland is wherever the
 // Palazzo happens to be this turn, what you hold is only worth anything at the
-// moment somebody closes a sphere, and the only permanent thing on the board is
-// a whale that anyone can move.
+// moment somebody closes a sphere, and the only thing that stands against the
+// wind is a wall, and only when the wind hits it square.
 // ---------------------------------------------------------------------------
 
 import { Mode } from './mode.js';
 import {
-  TILE_TYPES, CENTRE_FEATURES, SIDE_STEP, opposite, buildDeck,
+  TILE_TYPES, TILES, CENTRE_FEATURES, SIDE_STEP, opposite, buildDeck, wallSides,
 } from '../tiles.js';
 import { PLAYER_COLORS } from '../theme.js';
 import { DESIGN } from '../design.js';
 import { claimableFeatures, citiesFed, hasMark } from '../mechanics.js';
 import {
-  storm, zephyrDirs, zephyrPush, isCannon, worldDir, turbineOn, isTemple, MAX_STRENGTH,
+  storm, zephyrDirs, zephyrPush, isCannon, worldDir, turbineOn, isTemple, MAX_STRENGTH, fitsAll,
 } from '../wind.js';
 
 /**
@@ -214,7 +223,7 @@ import {
  * 72 and the base tiles that carry the ordinary cities, roads and fields came
  * to seven, which is a board with nothing on it for three of the four colours.
  */
-const DECK_SIZE = 88;
+const DECK_SIZE = 112;
 /**
  * The backstop, in tiles laid rather than rounds played. Counting placements
  * is the only clock that means the same thing at every player count, and this
@@ -282,6 +291,26 @@ const SUPPLY = 8;            // …which is what the panel draws
  * out on an island pays exactly DOUBLE. Nothing here is paid for finishing;
  * it is all paid by a sphere closing, over the whole board at once.
  */
+/**
+ * A CITY pays a point a district, plus a VARIETY bonus for how many kinds of
+ * district it has (garden, temple, residential, industrial, trade) that
+ * compounds: nothing for one kind, then 1, 3, 6, 10, each new kind worth one
+ * more than the last. A city WALLED all round pays double on top, and out on
+ * an island double again.
+ *
+ * It was a multiplier first (a point a district, times 1, 2, 3, 5 or 8 for
+ * the kinds), and in 30 bot games a side that multiplier made cities 62% of
+ * all the points and ran the mean score from 101 to 174. As a bonus, cities
+ * are 35% and the mean is 105: the second income after farms, and up from
+ * 13% under the old city rules. See MODES.md, twenty-third pass.
+ */
+const VARIETY = [0, 0, 1, 3, 6, 10];
+const WALLED = 2;
+
+/** The city feature on a tile that is a district, if it has one. */
+const districtOf = (type) => type.feats.find((f) => f.district) || null;
+
+
 const RATE = {
   farm: { main: 1, isle: 2, per: 2 },     // per `per` tiles of field
   cityOpen: { main: 1, isle: 2 },         // per tile, unfinished
@@ -369,13 +398,19 @@ export class Soffiando extends Mode {
       if (t.group !== 'cloud') continue;
       for (let i = 0; i < t.n; i++) cloud.push(t.id);
     }
-    const base = buildDeck(['base'], rng, 'D');
+    // The base set tops the deck up with roads, fields and city walls, but
+    // never with its own curved multi-sided cities: a city here is made of
+    // districts, and a base tile city that spans two sides of a tile would
+    // be a city with no kind.
+    const base = buildDeck(['base'], rng, 'D')
+      .map((id) => SWAPS[id] || id)
+      .filter((id) => !TILES[id].feats.some((f) => f.type === 'city' && !f.district && f.sides.length > 1));
     const deck = [...cloud, ...base.slice(0, Math.max(0, DECK_SIZE - cloud.length))];
     for (let i = deck.length - 1; i > 0; i--) {
       const j = Math.floor(rng() * (i + 1));
       [deck[i], deck[j]] = [deck[j], deck[i]];
     }
-    return deck.map((id) => SWAPS[id] || id);
+    return deck;
   }
 
   setup() {
@@ -404,7 +439,12 @@ export class Soffiando extends Mode {
     // The whale starts asleep over the seat of government. Nothing else is on
     // the board yet for it to lie on, and the first player who wants the
     // Palazzo blowable has only to move it.
-    this.balena = { x: 0, y: 0 };
+    //
+    // OUT OF THE DEFAULT RULES (Timothy, 2026-10-24: "for now, remove the
+    // balena in the default rules"). It is still all here, and a game with
+    // `options.balena` plays it; without, there is no whale, no button for
+    // it and nothing in the panel about it. City walls are now the brake.
+    this.balena = this.game.options?.balena ? { x: 0, y: 0 } : null;
     this.settleBalena();
   }
 
@@ -513,6 +553,10 @@ export class Soffiando extends Mode {
     const cell = board.get(x, y);
     if (!cell) return false;
     if (this.onIsland(cell) && !this.reachable().has(key(cell))) return false;
+    // A WALL IS NOT A CITY TO STAND IN. A city is claimed in one of its
+    // districts; the city feature on a wall tile is only there so the wall
+    // closes the city it faces.
+    if (f.type === 'city' && !cell.type.feats[i]?.district) return false;
     const d = board.featureOf(x, y, i);
     if (!d) return false;
     const seat = this.game.current;
@@ -592,8 +636,10 @@ export class Soffiando extends Mode {
     switch (d.type) {
       case 'field':
         return Math.floor(d.tiles.size / RATE.farm.per) * per('farm') * w.farm;
-      case 'city':
-        return d.tiles.size * per(d.open === 0 ? 'cityDone' : 'cityOpen') * w.city;
+      case 'city': {
+        const { n, kinds } = this.districtsIn(d);
+        return (n + VARIETY[kinds]) * (d.open === 0 ? WALLED : 1) * (isle ? 2 : 1) * w.ahead * w.city;
+      }
       case 'road':
         return d.tiles.size * per('road') * w.road;
       case 'temple':
@@ -718,10 +764,11 @@ export class Soffiando extends Mode {
   }
 
   /**
-   * BLUE — the cities. 1 a tile for one still open, 2 a tile for one that has
-   * closed, doubled on an island. Finishing a city no longer pays anything by
-   * itself; what it does is put the city on the higher rate for every blue
-   * sphere that closes afterwards, which is a much longer bet.
+   * BLUE — the cities, by their districts: a point a district, plus the
+   * variety bonus for its kinds (0, 1, 3, 6, 10 for one to five); a city
+   * walled all round pays double, and one out on an island double again. Finishing a city pays nothing by itself;
+   * what walls it in is a higher rate on every blue sphere still to come, and
+   * a city the wind can no longer push about.
    */
   scoreCities() {
     const board = this.game.board;
@@ -729,18 +776,38 @@ export class Soffiando extends Mode {
       if (d.type !== 'city' || !d.meeples.length) continue;
       const cells = board.cellsOf(d);
       if (!cells.length) continue;
-      const done = d.open === 0;
-      // A city held by a figure LYING FLAT pays the lower rate forever: the
-      // retired follower keeps the city but not the full income, which is the
+      const { n, kinds } = this.districtsIn(d);
+      // A city held by a figure LYING FLAT pays as an open one forever: the
+      // retired follower keeps the city but not the walled rate, which is the
       // whole of the trade you make when you lay one down.
       const flat = d.meeples.every((m) => m.flat);
-      const kind = flat || !done ? 'cityOpen' : 'cityDone';
-      const per = this.rate(kind, cells);
-      this.payHolders(d, per * d.tiles.size,
-        `${flat ? 'A city kept by a retired follower' : done ? 'A finished city' : 'An unfinished city'}`
-        + ` of ${d.tiles.size} tile${d.tiles.size === 1 ? '' : 's'}`
-        + `${per > RATE[kind].main ? ' out on an island' : ''}`, cells);
+      const walled = d.open === 0 && !flat;
+      const isle = this.onIsland(cells[0]);
+      const pts = (n + VARIETY[kinds]) * (walled ? WALLED : 1) * (isle ? 2 : 1);
+      this.payHolders(d, pts,
+        `${flat ? 'A city kept by a retired follower' : walled ? 'A walled city' : 'An open city'}`
+        + ` of ${n} district${n === 1 ? '' : 's'} in ${kinds} kind${kinds === 1 ? '' : 's'}`
+        + `${isle ? ' out on an island' : ''}`, cells);
     }
+  }
+
+  /**
+   * How many districts a city has, and of how many kinds. Walls are part of
+   * the city's component (they are what closes it) but they are not
+   * districts, and pay nothing.
+   */
+  districtsIn(d) {
+    const board = this.game.board;
+    const kinds = new Set();
+    let n = 0;
+    for (const cell of board.cellsOf(d)) {
+      const i = board.featIndexOn(cell, d);
+      const kind = i == null ? null : cell.type.feats[i].district;
+      if (!kind) continue;
+      n++;
+      kinds.add(kind);
+    }
+    return { n, kinds: kinds.size };
   }
 
   /**
@@ -941,6 +1008,7 @@ export class Soffiando extends Mode {
         if (c.meeple) continue;                       // one figure a tile
         for (const o of claimableFeatures(c.type, { fields: g.has('fields') })) {
           if (o.f.type === 'field' || o.f.type === 'road') continue;
+          if (o.f.type === 'city' && !o.f.district) continue;   // a wall, not a district
           const d = board.featureOf(c.x, c.y, o.i);
           if (!d || d.meeples.length) continue;
           if (back && board.parent.has(`${c.x},${c.y}#${o.i}`)
@@ -1223,6 +1291,7 @@ export class Soffiando extends Mode {
       if (!board.get(cell.x, cell.y) || cell.meeple) return;
       for (const { i, f } of claimableFeatures(cell.type, { fields: this.game.has('fields') })) {
         if (!board.featureOf(cell.x, cell.y, i)) continue;
+        if (f.type === 'city' && !f.district) continue;          // a wall, not a district
         out.push({ x: cell.x, y: cell.y, i, f, flying: true });
       }
     });
@@ -1312,7 +1381,8 @@ export class Soffiando extends Mode {
         // under; it is recomputed per gust because the storm keeps changing
         // what the mainland IS.
         const rooted = () => this.land().mainKeys;
-        for (const report of storm(this.game.board, job[0], { rooted })) this.applyGust(report);
+        const pinned = (c, d) => this.pinned(c, d);
+        for (const report of storm(this.game.board, job[0], { rooted, pinned })) this.applyGust(report);
         this.settleBalena();
         this.reopen();
         this.settle(job[1]);
@@ -1380,9 +1450,9 @@ export class Soffiando extends Mode {
       moves: r.moved.map((m) => ({
         from: { x: m.from.x + 0.5, y: m.from.y + 0.5 },
         at: { x: m.cell.x + 0.5, y: m.cell.y + 0.5 },
-        type: m.cell.type, rot: m.cell.rot,
+        type: m.cell.type, rot: m.cell.rot, look: m.cell.seq,
       })),
-      fell: r.fell.map((f) => ({ x: f.x, y: f.y, type: f.type, rot: f.rot })),
+      fell: r.fell.map((f) => ({ x: f.x, y: f.y, type: f.type, rot: f.rot, look: f.cell?.seq })),
     });
     if (r.strength > 1) {
       g.say(`The gust picks up — ${r.strength} tiles off the end, ${r.strength} squares each.`);
@@ -1466,8 +1536,11 @@ export class Soffiando extends Mode {
     const [dx, dy] = SIDE_STEP[dir];
     const { isles } = this.land();
     const moves = [];
+    const towed = [];
     for (const group of isles) {
-      if (group.some((c) => c.balena)) continue;
+      // The whale holds an island down, and so does a wall standing across
+      // the way it would go.
+      if (group.some((c) => c.balena || this.pinned(c, dir))) continue;
       const mine = new Set(group.map(key));
       const clear = group.every((c) => {
         const to = board.get(c.x + dx, c.y + dy);
@@ -1481,19 +1554,51 @@ export class Soffiando extends Mode {
       for (const c of order) {
         const from = { x: c.x, y: c.y };
         if (!board.shift(from, { x: c.x + dx, y: c.y + dy })) continue;
+        towed.push(c);
         moves.push({
           from: { x: from.x + 0.5, y: from.y + 0.5 },
           at: { x: c.x + 0.5, y: c.y + 0.5 },
-          type: c.type, rot: c.rot,
+          type: c.type, rot: c.rot, look: c.seq,
         });
       }
     }
     if (!moves.length) return;
+    // A towed tile is a blown tile: if it has come to rest against an edge it
+    // cannot meet, it falls, exactly as one the wind moved would.
+    const fell = [];
+    for (const c of towed) {
+      if (board.get(c.x, c.y) !== c || c.balena || !board.degree(c.x, c.y) || fitsAll(board, c)) continue;
+      if (c.meeple) {
+        this.game.players[c.meeple.player].meeples++;
+        c.meeple = null;
+      }
+      fell.push({ x: c.x, y: c.y, type: c.type, rot: c.rot, look: c.seq });
+      this.game.deck.unshift(c.type.id);
+      board.remove(c.x, c.y, { quiet: true });
+    }
+    if (fell.length) {
+      this.fallen += fell.length;
+      this.game.say(`${fell.length} tile${fell.length > 1 ? 's' : ''} towed against country ${fell.length > 1 ? 'they' : 'it'} cannot meet, and fall${fell.length > 1 ? '' : 's'}.`);
+    }
     board.rebuild();
     this.drifts++;
     this.settleBalena();
     this.game.say(`The Palazzo goes with the wind, and the islands go with the Palazzo — ${moves.length} tile${moves.length > 1 ? 's' : ''} adrift.`);
-    this.game.emit('gust', { dir, moves, fell: [] });
+    this.game.emit('gust', { dir, moves, fell });
+  }
+
+  /**
+   * WALLS STAND ACROSS THE WIND (Timothy, 2026-10-24). A tile with a city
+   * wall on it cannot be pushed by a wind blowing straight at that wall or
+   * straight away from it; a wind running along the wall moves it as it
+   * would anything else. So a city walled all round has a wall across every
+   * wind and stays where it is built, and an open one goes with the weather.
+   */
+  pinned(cell, dir) {
+    const walls = wallSides(cell.type);
+    if (!walls.size) return false;
+    const b = this.game.board;
+    return walls.has(b.canonSide(cell, dir)) || walls.has(b.canonSide(cell, opposite(dir)));
   }
 
   /**
@@ -1520,8 +1625,10 @@ export class Soffiando extends Mode {
       // been holding the thing when the weather got to it.
       if (d.type !== 'city' || !d.meeples.length) continue;
       const cells = board.cellsOf(d);
+      const { n } = this.districtsIn(d);
+      if (!n) continue;
       for (const p of board.majority(d)) {
-        this.pay(p, -REOPENED * d.tiles.size,
+        this.pay(p, -REOPENED * n,
           `${this.game.players[p].name}'s city is blown open — a point a tile`,
           cells.map((c) => ({ x: c.x, y: c.y })));
       }
@@ -1913,11 +2020,11 @@ export class Soffiando extends Mode {
       return [{ label: 'Leave them where they are', fn: () => this.cancelLift() }];
     }
     if (g.phase !== 'meeple') return [];
-    const out = [{
+    const out = this.balena ? [{
       label: 'Send the Balena (anywhere)',
       fn: () => this.beginSwim(),
       disabled: !this.canSwim(),
-    }];
+    }] : [];
     if (this.canLift()) {
       out.unshift({ label: 'Fly out and pick a follower up', fn: () => this.beginLift() });
     }
@@ -1965,10 +2072,10 @@ export class Soffiando extends Mode {
           <span class="pscore">${p.score}</span>
         </div>`;
     }).join('');
-    const whale = this.balena ? `The Balena rests at (${this.balena.x}, ${this.balena.y}).` : 'The Balena is nowhere.';
+    const whale = this.balena ? ` · The Balena rests at (${this.balena.x}, ${this.balena.y}).` : '';
     const closed = ['green', 'blue', 'red'].filter((h) => this.hues[h])
       .map((h) => `${this.hues[h]} ${h}`).join(', ');
-    return `${rows}<p class="hint">${this.gusts} gust${this.gusts === 1 ? '' : 's'} · ${this.fallen} tile${this.fallen === 1 ? '' : 's'} lost for good · ${this.spheres ? `spheres harvested: ${closed}` : 'no sphere closed yet'} · ${whale}</p>`;
+    return `${rows}<p class="hint">${this.gusts} gust${this.gusts === 1 ? '' : 's'} · ${this.fallen} tile${this.fallen === 1 ? '' : 's'} lost for good · ${this.spheres ? `spheres harvested: ${closed}` : 'no sphere closed yet'}${whale}</p>`;
   }
 }
 
@@ -1997,9 +2104,10 @@ Soffiando.spec = {
     + 'A tile the wind shakes loose of everything HANGS THERE, and every fragment off the biggest landmass is an ISLAND, down to one tile. Anything that does fall goes back on top of the deck, and you may throw one of them straight back down — once a turn. '
     + 'The mainland is the only country too big for the wind to get under: everything else adrift sails whole, and slides until it comes to rest against something — so islands meet and merge. '
     + 'Nothing is paid for being finished: closing a SPHERE is the scoring round, and both its halves fire a pass over the whole board. '
-    + 'Green scores the farms (1 per two tiles of field), blue the cities (1 a tile open, 2 finished), red the temples (1 per tile around one), yellow the roads (1 a tile plus what each city it reaches is worth). '
+    + 'Green scores the farms (1 per two tiles of field), blue the cities, red the temples (1 per tile around one), yellow the roads (1 a tile plus what each city it reaches is worth). '
+    + 'A city is made of DISTRICTS (garden, temple, residential, industrial, trade) and pays a point per district, plus 1, 3, 6 or 10 for having two, three, four or five different kinds; walled all round, double that. '
+    + 'A wall square across the wind holds its tile still; a wind along it does not. A tile the wind moves falls if ANY of its edges no longer meets its neighbour. '
     + 'Any half fits any other, so the pairing is the decision. '
     + 'You may only build onto the mainland, or an island you are already standing on; islands pay double. '
-    + 'A follower blown onto a zephyr rides it, and again, and again. A feature that scores hands its followers back — or they walk on down a road, out over any amount of open air as long as a road points off the cliff on both sides. '
-    + 'Instead of a follower, send the Balena anywhere on the board — nothing under the whale can be moved by any wind.',
+    + 'A follower blown onto a zephyr rides it, and again, and again; one blown off a ledge flies on until it lands on country. A feature that scores hands its followers back — or they walk on down a road, out over any amount of open air as long as a road points off the cliff on both sides.',
 };

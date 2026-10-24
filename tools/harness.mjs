@@ -833,17 +833,31 @@ function checkWind() {
     }
   }
 
-  // Blown over open sky, it goes back to its owner's hand — the only way off.
+  // Blown off a ledge into open sky, it KEEPS FLYING downwind and comes down
+  // on the next country in its lane. It used to go home.
   {
     const b = new Board();
     lay(b, 0, 0, 'Kz');
     lay(b, 0, -1, 'B');
     b.addMeeple(0, -1, 0, 2);
-    lay(b, 0, -2, 'B');
-    lay(b, 1, -3, 'B');                     // the loose end lands here, leaving a hole
+    lay(b, 0, -2, 'B');                     // the loose end, blown on to (0, -3)
     const r = gust(b, { dir: 0, from: { x: 0, y: 0 } });
+    if (r.homed.length || b.get(0, -3)?.meeple?.player !== 2) {
+      const where = [...b.cells.values()].filter((c) => c.meeple).map((c) => `${c.x},${c.y}`);
+      return fail('a follower blown off a ledge flies on to the next country', `homed ${r.homed.length}, at ${where.join(' ') || 'nowhere'}`);
+    }
+  }
+
+  // …and only one with NOTHING downwind of it goes back to its owner's hand.
+  {
+    const b = new Board();
+    lay(b, 0, 0, 'Kg');                     // a cannon fires the loose end out of the sky
+    lay(b, 0, -1, 'B');
+    b.addMeeple(0, -1, 0, 2);
+    lay(b, 0, -2, 'B');
+    const r = gust(b, { dir: 0, from: { x: 0, y: 0 }, blast: true });
     if (r.homed.length !== 1 || r.homed[0].player !== 2 || r.homed[0].why !== 'sky') {
-      return fail('a follower blown into open sky comes home', JSON.stringify(r.homed));
+      return fail('a follower with nothing downwind comes home', JSON.stringify(r.homed));
     }
   }
 
@@ -861,6 +875,34 @@ function checkWind() {
     if (!r.homed.some((m) => m.player === 3 && m.why === 'fell')) {
       return fail('its follower comes home rather than going down with it', JSON.stringify(r.homed));
     }
+  }
+
+  // ONE good edge no longer holds a tile up. Blown into place with a road
+  // meeting road on one side and a road running into its grass on the
+  // other, it falls: no mismatch of any kind stays together.
+  {
+    const b = new Board();
+    lay(b, 0, 0, 'Kz');
+    lay(b, 0, -1, 'U');                     // a straight road, the loose end
+    lay(b, 0, -3, 'U');                     // road meets road above where it lands
+    lay(b, -1, -2, 'U', 1);                 // …and a road runs into its west side
+    const r = gust(b, { dir: 0, from: { x: 0, y: 0 } });
+    if (at(b, 0, -2)) return fail('a tile with one edge wrong falls, whatever else agrees', 'it stayed up');
+    if (!r.fell.some((f) => f.why === 'mismatch')) {
+      return fail('…and it is a mismatch', JSON.stringify(r.fell.map((f) => f.why)));
+    }
+  }
+
+  // A tile the mode PINS against this wind does not move, and nothing behind
+  // it can move into its square: the lane has no loose end there.
+  {
+    const b = new Board();
+    lay(b, 0, 0, 'Kz');
+    lay(b, 0, -1, 'B');
+    const end = lay(b, 0, -2, 'B');
+    gust(b, { dir: 0, from: { x: 0, y: 0 }, pinned: (c, d) => c === end && d === 0 });
+    if (!at(b, 0, -2) || at(b, 0, -3)) return fail('a pinned loose end stays put', 'it moved');
+    if (!at(b, 0, -1)) return fail('…and the tile behind it stays too', 'it moved');
   }
 
   // A temple is blown about like anything else — parish, keeper and all.
@@ -962,13 +1004,15 @@ function checkSoffiando() {
   }
 
   // NOTHING is paid for being finished any more. Closing a city puts it on the
-  // higher rate for the next blue sphere and pays its windmills, and that is
-  // the whole of what closing anything does.
+  // walled rate for the next blue sphere and pays its windmills, and that is
+  // the whole of what closing anything does. A city is DISTRICTS now: whole
+  // squares of city, closed by flat walls.
   {
     const h = fresh(4);
     const b = h.board;
-    lay(b, 0, 0, 'Ktb');                      // a turbine in a city facing north
-    lay(b, 0, -1, 'E', 2);                    // …capped from the north
+    lay(b, 0, 0, 'Ktc');                      // an industrial district with a turbine, open N and W
+    lay(b, 0, -1, 'Kce', 2);                  // …a wall to the north
+    lay(b, -1, 0, 'Kce', 1);                  // …and one to the west
     b.addMeeple(0, 0, 0, 1);                  // seat 1 garrisons it
     b.rebuild();
     h.m.settle(0);                            // seat 0 laid the closing tile
@@ -980,22 +1024,81 @@ function checkSoffiando() {
     if (h.players[1].score !== 2) {
       return fail('a windmill pays 2 to whoever holds its city', `paid ${h.players[1].score}`);
     }
-    h.players[1].score = 0;
     if (!b.get(0, 0).meeple) return fail('a follower stays in the city it finished', 'it went home');
 
-    // …and a BLUE sphere is what actually pays it: 2 a tile now that it has
-    // closed — and then it hands the follower back, because a FINISHED feature
-    // that has been paid for is a feature you get your piece out of.
+    // …and a BLUE sphere is what actually pays it: one district of one kind
+    // is a point, walled all round it is two — and then it hands the follower
+    // back.
     h.players[1].score = 0;
     h.players[1].meeples = 4;
     h.m.fire('blue');
     h.m.sweep();
-    if (h.players[1].score !== 4) {
-      return fail('blue pays 2 a tile for a finished city', `paid ${h.players[1].score} for two tiles`);
+    if (h.players[1].score !== 2) {
+      return fail('blue pays a walled city double', `paid ${h.players[1].score} for one district`);
     }
     if (b.get(0, 0).meeple) return fail('a finished city hands its follower back', 'it stayed put');
     if (h.players[1].meeples !== 5) {
       return fail('the returned follower reaches the supply', `${h.players[1].meeples} in hand`);
+    }
+  }
+
+  // VARIETY COMPOUNDS. A point a district, plus a bonus for the kinds a city
+  // has that grows by one more with each new kind: 0, 1, 3, 6, 10.
+  {
+    const h = fresh(48);
+    const b = h.board;
+    lay(b, 0, 0, 'DXg');                      // garden, open all round
+    lay(b, 1, 0, 'DXt');                      // temple
+    lay(b, 0, 1, 'DXr');                      // residential
+    b.addMeeple(0, 0, 0, 0);
+    b.rebuild();
+    h.m.fire('blue');
+    h.m.sweep();
+    if (h.players[0].score !== 6) {
+      return fail('three districts of three kinds pay 3 and a bonus of 3', `paid ${h.players[0].score}`);
+    }
+    h.players[0].score = 0;
+    lay(b, 1, 1, 'DXi');
+    lay(b, 2, 0, 'DXm');
+    b.addMeeple(0, 0, 0, 0);
+    b.rebuild();
+    h.m.fire('blue');
+    h.m.sweep();
+    if (h.players[0].score !== 15) {
+      return fail('five districts of five kinds pay 5 and a bonus of 10', `paid ${h.players[0].score}`);
+    }
+  }
+
+  // A WALL IS NOT A CITY TO STAND IN: a city is claimed in a district.
+  {
+    const h = fresh(49);
+    const b = h.board;
+    lay(b, 0, 0, 'DEg');
+    lay(b, 0, -1, 'Kce', 2);
+    b.rebuild();
+    h.current = 0;
+    if (h.m.claimAllowed({ x: 0, y: -1, i: 0, f: TILES.Kce.feats[0] })) {
+      return fail('a city wall cannot be claimed', 'it was allowed');
+    }
+    if (!h.m.claimAllowed({ x: 0, y: 0, i: 0, f: TILES.DEg.feats[0] })) {
+      return fail('a district can be claimed', 'it was refused');
+    }
+  }
+
+  // WALLS STAND ACROSS THE WIND. A tile with a city wall is not moved by wind
+  // blowing straight at that wall or away from it, and is by wind running
+  // along it. A city walled all round cannot be moved at all.
+  {
+    const h = fresh(50);
+    const b = h.board;
+    lay(b, 0, 0, 'Kz');                       // blowing north
+    lay(b, 0, -1, 'Kce');                     // a wall on its north side: across the wind
+    h.m.weather([{ dir: 0, from: { x: 0, y: 0 } }], 0);
+    if (!b.get(0, -1) || b.get(0, -2)) return fail('a wall across the wind is not pushed', 'it moved');
+    lay(b, 3, -1, 'Kz', 3);                   // blowing west, along the wall
+    h.m.weather([{ dir: 3, from: { x: 3, y: -1 } }], 0);
+    if (b.get(0, -1)?.type.id === 'Kce' && !b.get(-1, -1)) {
+      return fail('a wall along the wind is pushed like anything else', 'it stayed');
     }
   }
 
@@ -1006,14 +1109,14 @@ function checkSoffiando() {
   {
     const h = fresh(41);
     const b = h.board;
-    lay(b, 0, 0, 'Ktb');                      // a city facing north, open
+    lay(b, 0, 0, 'Ktc');                      // a district open north and west
     b.addMeeple(0, 0, 0, 0);
     b.rebuild();
     h.players[0].meeples = 4;
     h.m.fire('blue');
     h.m.sweep();
     if (h.players[0].score !== 1) {
-      return fail('blue pays 1 a tile for an unfinished city', `paid ${h.players[0].score}`);
+      return fail('blue pays an open city of one district 1', `paid ${h.players[0].score}`);
     }
     if (b.get(0, 0).meeple) return fail('scoring a city empties it, finished or not', 'the follower stayed');
     if (h.players[0].meeples !== 5) {
@@ -1022,23 +1125,23 @@ function checkSoffiando() {
   }
 
   // …and a city you were HOLDING, finished, that the wind blows open again
-  // costs its owner a point a tile.
+  // costs its owner a point a district.
   {
     const h = fresh(42);
     const b = h.board;
-    lay(b, 0, 0, 'Ktb');                      // city north…
-    lay(b, 0, -1, 'Ca');                      // …carried on north, two tiles
-    lay(b, 0, -2, 'Kab');                     // …and an Abbazia capping it shut
+    lay(b, 0, 0, 'DEg', 1);                   // a garden end, open east…
+    lay(b, 1, 0, 'DIt');                      // …into a temple district, through…
+    lay(b, 2, 0, 'Kce', 3);                   // …walled off on the far side
     b.addMeeple(0, 0, 0, 1);
     b.rebuild();
     h.m.settle(0);
     h.players[1].score = 0;
-    b.shift({ x: 0, y: -2 }, { x: 4, y: -4 });   // the cap blows away
+    b.shift({ x: 2, y: 0 }, { x: 6, y: 4 });  // the wall blows away
     b.rebuild();
     h.m.reopen();
     if (h.players[1].score !== -2) {
-      return fail('a held city blown open costs a point a tile',
-        `it cost ${-h.players[1].score} for two tiles`);
+      return fail('a held city blown open costs a point a district',
+        `it cost ${-h.players[1].score} for two districts`);
     }
   }
 
@@ -1318,8 +1421,8 @@ function checkSoffiando() {
   {
     const h = fresh(47);
     const b = h.board;
-    lay(b, 0, 0, 'Ktb');
-    lay(b, 0, -1, 'E', 2);                    // capped, so the city is finished
+    lay(b, 0, 0, 'DEr');                      // a residential end, open north…
+    lay(b, 0, -1, 'Kce', 2);                  // …walled, so the city is finished
     b.addMeeple(0, 0, 0, 0);
     b.rebuild();
     h.phase = 'meeple';
@@ -1329,8 +1432,8 @@ function checkSoffiando() {
     h.m.flatAt(0, 0);
     h.m.fire('blue');
     h.m.sweep();
-    if (h.players[0].score !== 2) {
-      return fail('a flat follower holds its city at 1 a tile', `paid ${h.players[0].score} for two tiles`);
+    if (h.players[0].score !== 1) {
+      return fail('a flat follower holds its city at the open rate', `paid ${h.players[0].score} for one district`);
     }
     if (!b.get(0, 0).meeple) return fail('a flat follower stays put', 'it went home');
   }
@@ -1433,17 +1536,28 @@ function checkSoffiando() {
     const b = h.board;
     lay(b, 0, 0, 'Kpz');                      // the mainland, far away…
     lay(b, 0, -1, 'Kz'); lay(b, 0, -2, 'Kz'); // …and big enough to BE the mainland
-    lay(b, 5, 5, 'Ktb');                      // a two-tile city, adrift
-    lay(b, 5, 4, 'E', 2);
+    lay(b, 5, 5, 'DEg', 1);                   // a two-district city, adrift and walled
+    lay(b, 6, 5, 'DEt', 3);
     b.addMeeple(5, 5, 0, 0);
     b.rebuild();
-    h.m.settle(1);                            // closes it — pays the windmill only
+    h.m.settle(1);
     h.players[0].score = 0;
     h.players[1].score = 0;
     h.m.fire('blue');
     h.m.sweep();
-    if (h.players[0].score !== 8) {
-      return fail('a finished city on an island pays 4 a tile', `paid ${h.players[0].score} for two tiles`);
+    // Two districts and a bonus of 1 for two kinds, walled (x2), on an island (x2).
+    if (h.players[0].score !== 12) {
+      return fail('a walled city on an island pays double', `paid ${h.players[0].score} for two districts`);
+    }
+  }
+
+  // The whale is OUT of the default rules, and in with `options.balena`.
+  {
+    if (new Game({ mode: 'soffiando', players: 2, seed: 3 }).m.balena) {
+      return fail('there is no whale by default', 'there was one');
+    }
+    if (!new Game({ mode: 'soffiando', players: 2, seed: 3, options: { balena: true } }).m.balena) {
+      return fail('options.balena brings the whale back', 'it did not');
     }
   }
 
@@ -1521,7 +1635,8 @@ function checkSoffiando() {
   }
 
   console.log('  ✓ mainland and islands, the four sfera passes, matched and mixed spheres,'
-    + ' windmills, island rates, the last round, the flying machine\'s lift, the Balena,'
+    + ' district variety compounding, walls unclaimable, walls across the wind,'
+    + ' windmills, island rates, the last round, the flying machine\'s lift, the Balena (off by default),'
     + ' towed islands, long flights, the archipelago');
 }
 

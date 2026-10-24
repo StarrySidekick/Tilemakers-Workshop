@@ -74,17 +74,18 @@
 //     in the open sky, and that is the point: the fragments are where islands
 //     come from, and dropping them was an eraser that healed the board back
 //     into one mass every turn. The ONE thing that still falls is a tile the
-//     wind MOVED that no longer FITS — one that comes down beside country
-//     whose edges it cannot meet is touching the kingdom and joined to none of
-//     it, and there is nothing holding that up. It is gone for good. A tile
-//     with no neighbours has nothing to disagree with, so it floats.
+//     wind MOVED that no longer FITS: one that comes down beside country with
+//     even one edge it cannot meet (a road against grass, a wall against a
+//     road) falls. It used to stay up if any one edge agreed. A tile with no
+//     neighbours has nothing to disagree with, so it floats.
 //   FOLLOWERS ARE BLOWN LIKE TILES — WHICH IS NOT WHAT HAPPENS TO THE TILES.
 //     A follower on one of the tiles that comes away rides it and never
 //     notices. Every OTHER follower in the lane is picked up and put down that
 //     many squares downwind — squares, not the cannon's range, because a
 //     person is not a projectile — on whatever it finds there, which may be a
-//     feature somebody else holds, or nothing at all. Nothing at all means it
-//     goes back to its owner's hand.
+//     feature somebody else holds. If that is open sky it keeps flying
+//     downwind until it comes down on the next country in its lane; only one
+//     with nothing at all downwind goes back to its owner's hand.
 //   AND A FOLLOWER PUT DOWN ON A ZEPHYR IS IN THAT WIND. It does not stand
 //     there next to it: it goes on down the new zephyr's lane, at that
 //     zephyr's strength, and if THAT lands it on another zephyr it goes on
@@ -171,18 +172,24 @@ export const immovable = (cell) =>
 export const blocks = (cell) => !!cell.balena || (!!cell.blocks && !zephyrOn(cell));
 
 /**
- * Does this tile agree with anything it is touching? Two neighbours whose
- * facing edges disagree are not holding each other up — they are a road
- * jammed against a city wall — and after the wind has moved a tile that is
- * the difference between country and wreckage.
+ * Does this tile agree with EVERYTHING it is touching? Two neighbours whose
+ * facing edges disagree are not holding each other up: they are a road
+ * jammed against a city wall, and after the wind has moved a tile that is the
+ * difference between country and wreckage.
+ *
+ * It used to be enough to agree with ANY one neighbour, so a road shoved
+ * against a field held on by the edge on its other side and the board filled
+ * up with roads running into the grass. Timothy, 2026-10-24: "roads can no
+ * longer mismatch in any way and still stay together". One wrong edge and
+ * the tile falls.
  */
-function fitsSomething(board, cell) {
+export function fitsAll(board, cell) {
   for (let s = 0; s < 4; s++) {
     const nb = board.neighbor(cell.x, cell.y, s);
     if (!nb) continue;
-    if (edgesMeet(board.edgeAt(cell, s), board.edgeAt(nb, opposite(s)))) return true;
+    if (!edgesMeet(board.edgeAt(cell, s), board.edgeAt(nb, opposite(s)))) return false;
   }
-  return false;
+  return true;
 }
 
 /** The key a mode's `rooted` set is keyed by, and the one this file uses. */
@@ -297,8 +304,16 @@ function firingRange(board, cells, dx, dy, far) {
  * @param blast  a GUST CANNON rather than a zephyr: the loose end is fired
  *               until it hits something rather than carried `power` squares
  */
-export function gust(board, { dir, from = null, everywhere = false, push = 1, rooted = null, blast = false }) {
+export function gust(board, {
+  dir, from = null, everywhere = false, push = 1, rooted = null, blast = false, pinned = null,
+}) {
   const [dx, dy] = SIDE_STEP[dir];
+  // What this gust cannot move: the whale's tile and anything anchored, as
+  // always, and whatever the mode PINS against wind from this direction. In
+  // Soffiando that is a tile with a city wall standing across the wind: a
+  // wall turns a wind that hits it face on and lets one that runs along it
+  // go by.
+  const stuck = (c) => immovable(c) || (!!pinned && pinned(c, dir));
   const report = {
     dir, from, everywhere, push, blast, strength: push,
     moved: [], fell: [], carried: [], homed: [], swung: [],
@@ -410,7 +425,7 @@ export function gust(board, { dir, from = null, everywhere = false, push = 1, ro
     // ALONGSIDE something rather than stopping short of it is the point: that
     // is how two rocks become an island and how an island grows.
     if (raft.whole) {
-      if (order.some(immovable)) continue;
+      if (order.some(stuck)) continue;
       const mine = new Set(order.map((c) => kOf(c.x, c.y)));
       let steps = 0;
       for (let n = 1; n <= raft.power; n++) {
@@ -439,7 +454,7 @@ export function gust(board, { dir, from = null, everywhere = false, push = 1, ro
     // against it, so a raft arrives still a raft. Fired down a lane with
     // nothing in it, a tile goes on for ever, which is to say out of the sky.
     for (const cell of order) {
-      if (immovable(cell)) continue;
+      if (stuck(cell)) continue;
       let steps = 0;
       if (blast) {
         const shot = firingRange(board, [cell], dx, dy, far);
@@ -493,7 +508,7 @@ export function gust(board, { dir, from = null, everywhere = false, push = 1, ro
     const cell = m.cell;
     if (board.get(cell.x, cell.y) !== cell || cell.balena) continue;
     if (!board.degree(cell.x, cell.y)) continue;     // nothing to disagree with: it floats
-    if (fitsSomething(board, cell)) continue;
+    if (fitsAll(board, cell)) continue;
     drop(cell, 'mismatch');
   }
 
@@ -523,10 +538,30 @@ export function gust(board, { dir, from = null, everywhere = false, push = 1, ro
     return { x, y };
   };
 
+  // OVER THE EDGE A FOLLOWER KEEPS FLYING. One the wind carries off a ledge
+  // into open sky does not go home: it carries on downwind until it comes
+  // down on the next country in its lane, which is usually an island
+  // (Timothy, 2026-10-24: "meeple that are blown off a ledge keep flying
+  // until they land on an island"). Measured before it shipped: wind
+  // arrivals on islands went from 0.3 a game to 1.4. Only a follower with
+  // nothing at all downwind of it goes home.
+  let edge = -Infinity;
+  for (const c of board.cells.values()) edge = Math.max(edge, along(c));
+  const landing = (from) => {
+    let to = carried(from);
+    if (board.get(to.x, to.y)) return to;
+    let { x, y } = to;
+    while (x * dx + y * dy < edge) {
+      x += dx; y += dy;
+      if (board.get(x, y)) return carried({ x, y });
+    }
+    return to;
+  };
+
   for (const r of riders.sort((a, b) => (b.was.x * dx + b.was.y * dy) - (a.was.x * dx + a.was.y * dy))) {
-    const to = carried({ x: r.was.x + dx * r.steps, y: r.was.y + dy * r.steps });
+    const to = landing({ x: r.was.x + dx * r.steps, y: r.was.y + dy * r.steps });
     const dest = board.get(to.x, to.y);
-    // Open sky. This is the only way a follower ever leaves the board.
+    // Nothing downwind at all. This is the only way the wind sends one home.
     if (!dest) { report.homed.push({ ...r.meeple, x: r.was.x, y: r.was.y, why: 'sky' }); continue; }
     // One tile holds one figure, so a follower blown onto somebody else stays
     // where it was — and if the wind took THAT away too, it goes home.
@@ -593,7 +628,7 @@ function landingFeature(cell, wasType) {
  * Reports come back in the order they happened, so the caller can pay for them
  * and narrate them in the order a player watched them.
  */
-export function storm(board, first, { cap = MAX_GUSTS, rooted = null } = {}) {
+export function storm(board, first, { cap = MAX_GUSTS, rooted = null, pinned = null } = {}) {
   const out = [];
   const queue = Array.isArray(first) ? first.slice() : [first];
   const fired = new Map();                               // cell -> Set of directions
@@ -612,7 +647,7 @@ export function storm(board, first, { cap = MAX_GUSTS, rooted = null } = {}) {
   }
 
   while (queue.length && out.length < cap) {
-    const g = gust(board, { ...queue.shift(), rooted });
+    const g = gust(board, { ...queue.shift(), rooted, pinned });
     out.push(g);
     for (const { cell, dir, push, blast } of g.zephyrs) {
       if (board.get(cell.x, cell.y) !== cell) continue;   // it fell, or was buried

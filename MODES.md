@@ -826,6 +826,72 @@ kingmakes badly, and you'd blame the mechanic instead of the count.
 > one's cloud. The panel is still parchment.
 
 
+> **Twenty-third pass: cities become districts, walls stand up to the wind.**
+>
+> Timothy's rules of 2026-10-24, all of them built (his words are in
+> `INTENT.md`):
+>
+> - **The Balena is out of the default rules.** `options.balena` still plays
+>   it; without it there is no whale, no button and no line in the panel.
+> - **Cities are districts.** Every city tile is one whole square of one
+>   kind (garden, temple, residential, industrial, trade), open on the sides
+>   its city runs on through and walled on the rest. Twenty-five new tiles,
+>   five shapes of each kind; the four sfera "x" tiles and the turbine
+>   corner became districts too, and the base set's multi-sided cities are
+>   no longer dealt. The old city caps are **flat walls** now, on the tile
+>   across the seam, and a wall is not somewhere you can stand.
+> - **Walls stand up to the wind.** A tile with a wall square across a gust
+>   cannot be pushed by it; one running along the wall moves it. The rule is
+>   a `pinned` hook the mode hands `storm`, so the wind engine still knows
+>   nothing about cities, and the same test stops a whole island drifting if
+>   any of it is pinned. `wallSides` lives in `tiles.js` so the rules and
+>   the art read the same walls.
+> - **One wrong edge and a blown tile falls.** `fitsSomething` became
+>   `fitsAll`, and the Palazzo's tow checks it too.
+> - **A follower blown off a ledge keeps flying** downwind until it lands on
+>   country. Wind arrivals on islands went from 0.3 a game to 1.4.
+>
+> **The city scoring was measured before it was chosen.** The first version
+> took "compounding levels" literally: a point a district, times 1, 2, 3, 5
+> or 8 for one to five kinds, doubled when walled. Thirty bot games a side
+> against `main`:
+>
+> | scoring | mean score | cities' share |
+> |---|---|---|
+> | `main` (the old cities) | 101 | 13% |
+> | districts × 1/2/3/5/8 | 174 | 62% |
+> | districts × 1/1/2/3/5 | 121 | 47% |
+> | half the districts × 1/2/3/5/8 | 115 | 42% |
+> | **districts + 0/1/3/6/10** | **105** | **35%** |
+>
+> The multiplier made the whole game about cities and ran scores up by
+> seventy percent. The one that shipped pays a point a district plus a
+> variety bonus that grows by one more with every new kind, still doubled
+> when walled: totals stay where they were, cities are the second income
+> after farms (39%), and a five-kind city pays three times what a five-tile
+> city of one kind does. `VARIETY` in the mode is the table, if the
+> multiplier is wanted back. Gusts per game fell from 69 to 48 and tiles
+> lost rose from 8.6 to 11.1: walls pin, and one wrong edge is now enough to
+> fall.
+>
+> **The art.** Each district is its own colour and texture: gardens green
+> with trees, flower beds and a hedge curl; the temple quarter gold
+> flagstones with a columned temple, obelisks and a statue; homes the old
+> pink plaster with houses and a manor; the works brick, with a sawtooth
+> factory, a smoking stack and a shed; the market warm cobbles with striped
+> stalls, crates and barrels. Buildings are hand-placed sprites stood upright
+> after the turn and now drawn back to front, so a house lower down the tile
+> hides the foot of one behind it. A **wall** is a crenellated band flat
+> along the edge, teeth facing away from the city, half a pier at each end so
+> two tiles make one across a seam, and a round pink tower where two walls
+> meet. **Crossroads are towns**: a cobbled round square with a fountain,
+> well, statue, maypole, tree or pair of lamps in it, and houses, stalls,
+> hay and trees in the corners, drawn one of eight ways by the tile's place
+> in the order of play (`cell.seq`, passed as `look`), so two crossroads on
+> one board are rarely the same town. The tile in hand is drawn as the town
+> it will become.
+
+
 **Question it answers:** is a small board you keep *editing* better than a big
 one you keep *growing*?
 
