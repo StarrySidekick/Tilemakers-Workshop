@@ -805,9 +805,25 @@ kingmakes badly, and you'd blame the mechanic instead of the count.
 > so houses and towers are placed by hand, a pixel at a time.
 >
 > `node tools/pixel.mjs` renders the sheet (every tile at 6x, all four turns,
-> and at play size) and a small assembled board. The meeples, the Balena and
-> the panel are still the old vector and parchment; they are the next things
-> to bring onto the grid.
+> and at play size) and a small assembled board.
+>
+> **Then the figures, and the corners.** The followers and the Balena came
+> onto the grid too. A follower is a 25 px star person in its player's colour
+> inside an ink line, lit at its edges a whole pixel at a time, with a face;
+> a farmer is the same sprite turned a quarter. Every follower in the game
+> goes through `drawMeeple`, so one switch there covers the board, the claim
+> panel and a follower hopping across the board. The whale is a sky whale a
+> little wider than its square, pale-bellied, breathing a curl of cloud, and
+> it bobs by whole sprite pixels with a two-frame tail, because a pixel sprite
+> that slides by fractions of a pixel stops looking like pixels.
+>
+> Timothy spotted the coasts stepping at every outside corner. Each strip ends
+> in half a billow for the next strip to finish, and at an outside corner
+> there is no next strip, so two half-billows ended flat against each other.
+> Those corners get a whole billow now, and every coast is laid in three
+> passes (all the outlines, then all the cloud, then the curls) so billows
+> from different strips merge instead of one outline landing on the next
+> one's cloud. The panel is still parchment.
 
 
 **Question it answers:** is a small board you keep *editing* better than a big

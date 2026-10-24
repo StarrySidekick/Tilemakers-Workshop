@@ -45,7 +45,8 @@ const page = await browser.newPage({ viewport: { width: 800, height: 600 } });
 await page.goto(`http://localhost:${PORT}/tools/seams.html`).catch(() => {});
 
 const out = await page.evaluate(async (only) => {
-  const { pixelTile, pixelSky, paintCoasts, PX } = await import('/src/pixel.js');
+  const { pixelTile, pixelSky, paintCoasts, PX, drawPixelMeeple, pixelWhale, pixelWhaleShadow } = await import('/src/pixel.js');
+  const { PLAYER_COLORS: PLAYERS } = await import('/src/theme.js');
   const { TILES } = await import('/src/tiles.js');
 
   // Every tile Soffiando deals: the cloud set, and the base set after its swaps.
@@ -102,6 +103,20 @@ const out = await page.evaluate(async (only) => {
     warm: ({ x, y }) => island(x, y),
   });
   for (const { x, y, id, r } of at.values()) b.drawImage(pixelTile(TILES[id], r), x * PX * S, y * PX * S, PX * S, PX * S);
+  // The figures on top: followers of every colour standing, a farmer lying in
+  // a field, one adrift in its broken ring, and the whale over its square.
+  const T = PX * S;
+  const people = [
+    [1.5, 1.3, 0], [2.5, 0.55, 1], [0.35, 1.75, 2, { farmer: true }], [3.5, 1.8, 3],
+    [6.5, 2.6, 4, { adrift: true }], [1.3, 3.55, 1, { farmer: true }],
+  ];
+  for (const [x, y, who, opts] of people) drawPixelMeeple(b, x * T, y * T, 0.42 * T, PLAYERS[who], opts || {});
+  const whale = pixelWhale(0);
+  b.globalAlpha = 0.22;
+  const sh = pixelWhaleShadow();
+  b.drawImage(sh, 2.5 * T - (sh.width / 2) * S, 2.5 * T + 10 * S, sh.width * S, sh.height * S);
+  b.globalAlpha = 1;
+  b.drawImage(whale, 2.5 * T - 32 * S, 2.5 * T - 28 * S, whale.width * S, whale.height * S);
   return { sheet: sheet.toDataURL(), board: board.toDataURL(), coverage };
 }, only);
 

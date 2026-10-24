@@ -8,7 +8,10 @@
 
 import { drawTile, drawMeeple, drawPig, drawIngots, drawBuilding, PLAYER_COLORS } from './art.js';
 import { tileSprite, spriteFrame } from './sprites.js';
-import { pixelTile, pixelSky, paintCoasts, pixelSails, PX, SAIL_FRAMES, turbineHub } from './pixel.js';
+import {
+  pixelTile, pixelSky, paintCoasts, pixelSails, PX, SAIL_FRAMES, turbineHub,
+  setPixelFigures, pixelWhale, pixelWhaleShadow,
+} from './pixel.js';
 import { LIGHT } from './light.js';
 import { THEME, applyDusk, usePalette } from './theme.js';
 import { DESIGN, rgba } from './design.js';
@@ -213,6 +216,7 @@ export class Renderer {
     // A mode drawn in PIXELS (Soffiando) is neither: its tiles, its sky and
     // its coastlines come from pixel.js, on the same 51 px grid.
     this.pixel = !!game.spec?.pixel;
+    setPixelFigures(this.pixel);
     const antique = !this.pixel && game.m?.backdrop === 'sky';
     usePalette(antique ? 'chart' : 'twilight');
     if (this.pixel) this.drawCoasts(game, fog);
@@ -792,7 +796,10 @@ export class Renderer {
     // The whale. It belongs to nobody and it sits ABOVE the country rather
     // than on it, so it is drawn last and drawn big — it overhangs its square,
     // because a thing that shelters a whole lee ought to look like it could.
-    if (overlay.balena) this.drawBalena(sx, sy, z);
+    if (overlay.balena) {
+      if (this.pixel) this.drawPixelBalena(sx, sy, z);
+      else this.drawBalena(sx, sy, z);
+    }
   }
 
   /**
@@ -870,6 +877,34 @@ export class Renderer {
     ctx.imageSmoothingEnabled = this.shrinking(z);
     ctx.drawImage(pixelSails(frame), x0, y0, Math.round(z), Math.round(z));
     ctx.imageSmoothingEnabled = true;
+  }
+
+  /**
+   * The Balena in pixels: the same sky whale on the board's grid, a little
+   * wider than its square. It bobs by whole sprite pixels and flips its tail
+   * between two frames, because a pixel sprite that slides by fractions of a
+   * pixel stops looking like pixels.
+   */
+  drawPixelBalena(sx, sy, z) {
+    const ctx = this.ctx;
+    const t = performance.now() / 1000;
+    const k = z / PX;
+    const bob = Math.round(Math.sin(t * 0.9) * 1.4);
+    const frame = Math.floor((t * 1.7) / Math.PI) & 1;
+    const cx = sx + z / 2, cy = sy + z / 2;
+    ctx.save();
+    ctx.imageSmoothingEnabled = this.shrinking(z);
+    ctx.globalAlpha = 0.22;
+    const shadow = pixelWhaleShadow();
+    ctx.drawImage(shadow, Math.round(cx - (shadow.width / 2) * k), Math.round(cy + 10 * k),
+      Math.round(shadow.width * k), Math.round(shadow.height * k));
+    ctx.globalAlpha = 1;
+    const whale = pixelWhale(frame);
+    // The body's middle is at (32, 25) on the sprite; set it on the tile's
+    // middle, lifted a few pixels so the shadow shows under it.
+    ctx.drawImage(whale, Math.round(cx - 32 * k), Math.round(cy - 25 * k - 3 * k + bob * k),
+      Math.round(whale.width * k), Math.round(whale.height * k));
+    ctx.restore();
   }
 
   /**
