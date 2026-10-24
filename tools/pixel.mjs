@@ -45,7 +45,7 @@ const page = await browser.newPage({ viewport: { width: 800, height: 600 } });
 await page.goto(`http://localhost:${PORT}/tools/seams.html`).catch(() => {});
 
 const out = await page.evaluate(async (only) => {
-  const { pixelTile, pixelSky, pixelCoast, COAST, PX } = await import('/src/pixel.js');
+  const { pixelTile, pixelSky, paintCoasts, PX } = await import('/src/pixel.js');
   const { TILES } = await import('/src/tiles.js');
 
   // Every tile Soffiando deals: the cloud set, and the base set after its swaps.
@@ -86,7 +86,7 @@ const out = await page.evaluate(async (only) => {
     [1, 2, 'Kw', 0], [2, 2, 'Ktr', 0], [3, 2, 'Kg', 1],
     [1, 3, 'J', 2], [2, 3, 'R', 2],
     [6, 1, 'Kab', 0], [6, 2, 'Kzb', 0], [7, 2, 'Kgg', 3],
-    [6, 4, 'Kzq', 0],
+    [6, 4, 'Kzq', 0], [5, 0, 'V', 0],
   ];
   const W = 9, H = 6, S = 2;                       // squares, and 2x pixels
   const board = document.createElement('canvas');
@@ -96,20 +96,11 @@ const out = await page.evaluate(async (only) => {
   for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) b.drawImage(pixelSky(x, y), x * PX * S, y * PX * S, PX * S, PX * S);
   const at = new Map(plan.map(([x, y, id, r]) => [`${x},${y}`, { x, y, id, r }]));
   const island = (x, y) => x >= 6;                 // the right-hand group stands in for an island
-  for (const { x, y } of at.values()) {
-    const warm = island(x, y);
-    const sx = x * PX * S, sy = y * PX * S, k = S;
-    if (!at.has(`${x},${y - 1}`)) b.drawImage(pixelCoast({ warm }), sx, sy - COAST * k, PX * k, COAST * k);
-    if (!at.has(`${x},${y + 1}`)) b.drawImage(pixelCoast({ below: true, warm }), sx, sy + PX * k, PX * k, COAST * k);
-    for (const [dx, q] of [[1, 1], [-1, 3]]) {
-      if (at.has(`${x + dx},${y}`)) continue;
-      b.save();
-      b.translate(sx + PX * k / 2, sy + PX * k / 2);
-      b.rotate(q * Math.PI / 2);
-      b.drawImage(pixelCoast({ warm }), -PX * k / 2, -PX * k / 2 - COAST * k, PX * k, COAST * k);
-      b.restore();
-    }
-  }
+  paintCoasts(b, [...at.values()], {
+    rect: ({ x, y }) => [x * PX * S, y * PX * S, PX * S],
+    has: (x, y) => at.has(`${x},${y}`),
+    warm: ({ x, y }) => island(x, y),
+  });
   for (const { x, y, id, r } of at.values()) b.drawImage(pixelTile(TILES[id], r), x * PX * S, y * PX * S, PX * S, PX * S);
   return { sheet: sheet.toDataURL(), board: board.toDataURL(), coverage };
 }, only);

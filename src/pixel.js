@@ -1009,40 +1009,122 @@ const coasts = new Map();
 /**
  * The coast of a piece of country: a row of cloud billows standing off the
  * edge of a tile that faces open sky. Drawn for a NORTH edge, as a strip
- * 51 wide and 12 tall whose bottom row touches the tile; the renderer turns
- * it to the other sides. The UNDERSIDE (`below`) hangs heavier and shaded,
- * because that is the side a floating island is held up from.
+ * 51 wide and 12 tall whose bottom row touches the tile; it is turned to the
+ * other sides when it is laid. The UNDERSIDE (`below`) hangs heavier and
+ * shaded, because that is the side a floating island is held up from.
  *
- * Billows sit at both ends of the strip on the same radius, so two strips
- * side by side close each other's half-billows into whole ones and a straight
- * coastline reads as one bank of cloud. Islands get a warm cloud and the
- * mainland a cool one: the one thing on the board you most need to see is
- * where you may not build.
+ * Billows sit at both ends of the strip, centred ON the tile's corners, so a
+ * strip ends in half a billow and the next strip along finishes it. Where
+ * there is no next strip (the outside corner of a piece of country) a whole
+ * billow is laid on the corner instead; see `paintCoasts`.
+ *
+ * Each strip comes in three PARTS, because overlapping billows only read as
+ * one cloud if every outline goes down before any fill. Drawn whole, strip
+ * by strip, the second strip's outline lands on top of the first strip's
+ * cloud, and the corner where they meet came out as a notched step.
+ *
+ * Islands get a warm cloud and the mainland a cool one: the one thing on the
+ * board you most need to see is where you may not build.
  */
 export const COAST = 12;
-export function pixelCoast({ below = false, warm = false } = {}) {
-  const key = `${below}|${warm}`;
+const BILLOWS = { x: [0, 10.2, 20.4, 30.6, 40.8, PX], top: [5, 6.5, 5.5, 7, 6, 5], below: [6, 8, 6.5, 8.5, 7, 6] };
+
+function coastInk(warm) {
+  return warm
+    ? { fill: INK.warm, line: INK.warmLine, shade: INK.warmShade }
+    : { fill: INK.cloud, line: INK.cloudLine, shade: INK.cloudShade };
+}
+
+export function pixelCoast({ below = false, warm = false, part = 'fill' } = {}) {
+  const key = `${below}|${warm}|${part}`;
   let hit = coasts.get(key);
   if (hit) return hit;
-  const p = new Plate(PX, COAST, `coast:${key}`);
-  const fill = warm ? INK.warm : INK.cloud;
-  const line = warm ? INK.warmLine : INK.cloudLine;
-  const shade = warm ? INK.warmShade : INK.cloudShade;
+  const p = new Plate(PX, COAST, `coast:${below}|${warm}`);
+  const ink = coastInk(warm);
   const edge = below ? 0 : COAST;               // the row that touches the tile
   const out = below ? 1 : -1;
-  const xs = [0, 10.2, 20.4, 30.6, 40.8, PX];
-  const rs = below ? [6, 8, 6.5, 8.5, 7, 6] : [5, 6.5, 5.5, 7, 6, 5];
-  p.layer(line, (pen) => xs.forEach((x, i) => pen.disc(x, edge, rs[i] + 2)), { cut: 128 });
-  p.layer(fill, (pen) => xs.forEach((x, i) => pen.disc(x, edge, rs[i])), { cut: 128 });
-  if (below) {
-    p.layer(shade, (pen) => xs.forEach((x, i) => pen.arc(x, edge, rs[i] - 2, 0.35, Math.PI - 0.35, { width: 2, wobble: 0 })), { cut: 110 });
+  const xs = BILLOWS.x;
+  const rs = below ? BILLOWS.below : BILLOWS.top;
+  if (part === 'line') p.layer(ink.line, (pen) => xs.forEach((x, i) => pen.disc(x, edge, rs[i] + 2)), { cut: 128 });
+  if (part === 'fill') p.layer(ink.fill, (pen) => xs.forEach((x, i) => pen.disc(x, edge, rs[i])), { cut: 128 });
+  if (part === 'detail') {
+    if (below) {
+      p.layer(ink.shade, (pen) => xs.forEach((x, i) => pen.arc(x, edge, rs[i] - 2, 0.35, Math.PI - 0.35, { width: 2, wobble: 0 })), { cut: 110 });
+    }
+    p.layer(ink.line, (pen) => {
+      pen.spiral(20.4, edge + out * 2.5, 3.6, { dir: 1, start: below ? 4 : 1 });
+      pen.spiral(40.8, edge + out * 3, 3.8, { dir: -1, start: below ? 2 : 5 });
+    }, { cut: 110 });
   }
-  p.layer(line, (pen) => {
-    pen.spiral(20.4, edge + out * 2.5, 3.6, { dir: 1, start: below ? 4 : 1 });
-    pen.spiral(40.8, edge + out * 3, 3.8, { dir: -1, start: below ? 2 : 5 });
-  }, { cut: 110 });
   coasts.set(key, p.cv);
   return p.cv;
+}
+
+/** The billow on an outside corner, centred on the corner, `CORNER` px square. */
+export const CORNER_PX = 18;
+export function pixelCoastCorner({ r = 5, warm = false, part = 'fill' } = {}) {
+  const key = `corner|${r}|${warm}|${part}`;
+  let hit = coasts.get(key);
+  if (hit) return hit;
+  const p = new Plate(CORNER_PX, CORNER_PX, key);
+  const ink = coastInk(warm);
+  const c = CORNER_PX / 2;
+  if (part === 'line') p.layer(ink.line, (pen) => pen.disc(c, c, r + 2), { cut: 128 });
+  if (part === 'fill') p.layer(ink.fill, (pen) => pen.disc(c, c, r), { cut: 128 });
+  coasts.set(key, p.cv);
+  return p.cv;
+}
+
+/**
+ * Lay the coasts of a set of tiles. `rect(cell)` gives where a tile sits on
+ * the canvas as [x, y, size], `has(x, y)` whether a square holds a tile,
+ * `warm(cell)` whether it is out on an island, `alpha(cell)` how faded it is.
+ *
+ * Three passes over every tile (outlines, then cloud, then the curls and the
+ * shading), so billows from different strips and different tiles merge into
+ * one bank. A tile corner whose two sides both face the sky gets a whole
+ * billow of its own, sized to the larger of the half-billows that end there.
+ * Called before the tiles are drawn, so anything that spills over a tile is
+ * covered by it.
+ */
+export function paintCoasts(ctx, cells, { rect, has, warm = () => false, alpha = () => 1 }) {
+  const jobs = cells.map((cell) => {
+    const [x0, y0, w] = rect(cell);
+    const { x, y } = cell;
+    return {
+      x0, y0, w, k: w / PX, warm: !!warm(cell), a: alpha(cell),
+      open: [!has(x, y - 1), !has(x + 1, y), !has(x, y + 1), !has(x - 1, y)],
+    };
+  });
+  // Corners clockwise from the top left, and the two sides that meet at each.
+  const corners = [[0, 0, 3, 0], [1, 0, 0, 1], [1, 1, 1, 2], [0, 1, 2, 3]];
+  ctx.save();
+  for (const part of ['line', 'fill', 'detail']) {
+    for (const j of jobs) {
+      ctx.globalAlpha = j.a;
+      const depth = Math.round(COAST * j.k);
+      for (let side = 0; side < 4; side++) {
+        if (!j.open[side]) continue;
+        const strip = pixelCoast({ below: side === 2, warm: j.warm, part });
+        if (side === 0) { ctx.drawImage(strip, j.x0, j.y0 - depth, j.w, depth); continue; }
+        if (side === 2) { ctx.drawImage(strip, j.x0, j.y0 + j.w, j.w, depth); continue; }
+        ctx.save();
+        ctx.translate(j.x0 + j.w / 2, j.y0 + j.w / 2);
+        ctx.rotate(side * Math.PI / 2);
+        ctx.drawImage(strip, -j.w / 2, -j.w / 2 - depth, j.w, depth);
+        ctx.restore();
+      }
+      if (part === 'detail') continue;
+      for (const [cx, cy, a, b] of corners) {
+        if (!j.open[a] || !j.open[b]) continue;
+        const r = a === 2 || b === 2 ? BILLOWS.below[0] : BILLOWS.top[0];
+        const size = Math.round(CORNER_PX * j.k);
+        ctx.drawImage(pixelCoastCorner({ r, warm: j.warm, part }),
+          j.x0 + cx * j.w - size / 2, j.y0 + cy * j.w - size / 2, size, size);
+      }
+    }
+  }
+  ctx.restore();
 }
 
 const sails = new Map();

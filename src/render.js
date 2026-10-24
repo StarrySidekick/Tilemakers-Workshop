@@ -8,7 +8,7 @@
 
 import { drawTile, drawMeeple, drawPig, drawIngots, drawBuilding, PLAYER_COLORS } from './art.js';
 import { tileSprite, spriteFrame } from './sprites.js';
-import { pixelTile, pixelSky, pixelCoast, pixelSails, COAST, PX, SAIL_FRAMES, turbineHub } from './pixel.js';
+import { pixelTile, pixelSky, paintCoasts, pixelSails, PX, SAIL_FRAMES, turbineHub } from './pixel.js';
 import { LIGHT } from './light.js';
 import { THEME, applyDusk, usePalette } from './theme.js';
 import { DESIGN, rgba } from './design.js';
@@ -839,30 +839,20 @@ export class Renderer {
   drawCoasts(game, fog) {
     const ctx = this.ctx;
     const z = this.cam.zoom;
-    const k = z / PX;
     const board = game.board;
+    const cells = [...board.cells.values()].filter((cell) => this.onScreen(cell.x, cell.y)
+      && !this.fx?.veiled(`tile:${cell.x},${cell.y}`));
     ctx.imageSmoothingEnabled = this.shrinking(z);
-    for (const cell of board.cells.values()) {
-      if (!this.onScreen(cell.x, cell.y)) continue;
-      if (this.fx?.veiled(`tile:${cell.x},${cell.y}`)) continue;
-      const warm = !!game.m.onIsland?.(cell);
-      const [sx, sy] = this.toScreen(cell.x, cell.y);
-      const x0 = Math.round(sx), y0 = Math.round(sy), w = Math.round(sx + z) - x0;
-      const depth = Math.round(COAST * k);
-      ctx.save();
-      if (fog && !fog.has(`${cell.x},${cell.y}`)) ctx.globalAlpha = 0.26;
-      if (!board.get(cell.x, cell.y - 1)) ctx.drawImage(pixelCoast({ warm }), x0, y0 - depth, w, depth);
-      if (!board.get(cell.x, cell.y + 1)) ctx.drawImage(pixelCoast({ below: true, warm }), x0, y0 + w, w, depth);
-      for (const [dx, q] of [[1, 1], [-1, 3]]) {
-        if (board.get(cell.x + dx, cell.y)) continue;
-        ctx.save();
-        ctx.translate(x0 + w / 2, y0 + w / 2);
-        ctx.rotate(q * Math.PI / 2);
-        ctx.drawImage(pixelCoast({ warm }), -w / 2, -w / 2 - depth, w, depth);
-        ctx.restore();
-      }
-      ctx.restore();
-    }
+    paintCoasts(ctx, cells, {
+      rect: (cell) => {
+        const [sx, sy] = this.toScreen(cell.x, cell.y);
+        const x0 = Math.round(sx), y0 = Math.round(sy);
+        return [x0, y0, Math.round(sx + z) - x0];
+      },
+      has: (x, y) => !!board.get(x, y),
+      warm: (cell) => game.m.onIsland?.(cell),
+      alpha: (cell) => (fog && !fog.has(`${cell.x},${cell.y}`) ? 0.26 : 1),
+    });
     ctx.imageSmoothingEnabled = true;
   }
 
