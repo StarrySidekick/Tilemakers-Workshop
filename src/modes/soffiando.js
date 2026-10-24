@@ -161,6 +161,20 @@
 // cannot be pushed by it. A wind running along the wall moves it like
 // anything else.
 //
+// EVERY PLAYER HAS A CLOUD (Timothy, 2026-10-24): a whole cloud the size of a
+// tile, with a face, blowing one way. Instead of placing a follower you may
+// set it down on open sky beside the country, facing whichever way you like,
+// and it blows the moment it lands. Where it stands it is a zephyr to every
+// storm: absorbed by a gust blowing its way, woken by one that isn't, and its
+// own gust hardened by the zephyrs it crosses.
+//
+// THE MAP HAS AN EDGE, sixteen squares a side. Nothing is laid past it, and a
+// tile the wind carries over it is gone into the aether: not back on the
+// deck, not thrown back down.
+//
+// LONE WALLS ARE OUT, for now: a city closes on its districts' own walls and
+// on the Abbazia, whose four walls are drawn as a district's are.
+//
 // THE BALENA, a sky whale the size of a district, is OUT of the default rules
 // (Timothy, 2026-10-24) and plays only with `options.balena`. Whatever tile it
 // lies on cannot be moved by any wind, and on your turn, instead of placing a
@@ -273,6 +287,7 @@ export const SOFFIANDO_WEIGHTS = {
   gust: 1.84,        // everything a gust does, as one dial
   gustBlow: 1,       // shoving a follower — ours out, theirs off
   whale: 0,          // points of shelter before the Balena is worth a turn
+  cloud: 1,          // what a cloud's gust must be worth before it beats skipping
   walk: 2,           // what a walk has to be worth before it beats the supply
 };
 
@@ -364,6 +379,21 @@ const listTally = (things, label = (t) => t) =>
  */
 const SWAPS = { W: 'Gw', L: 'Gl', A: 'Kta', B: 'Kt', C: 'E' };
 
+const DIR_NAMES = ['north', 'east', 'south', 'west'];
+
+/**
+ * LONE WALLS ARE OUT, for now (Timothy, 2026-10-24: "for now remove single
+ * castle wall tiles from the tile pool, just want to see what it looks
+ * like"). A tile whose wall is the point of it (a plain wall, two walls, a
+ * wall over a road, a town or a turbine) is not dealt. One that carries a
+ * wall beside something the mode cannot spare, a sfera half or a wind, is
+ * dealt as its twin without the wall, so there are as many spheres and
+ * zephyrs as before and only the walls are gone. A city closes on its
+ * districts' own walls and the Abbazia. `options.capWalls` deals them all.
+ */
+const UNWALLED = { Kzc: 'Kz', Kzt: 'Kzr', Kgc: 'Kg', Ksc: 'Kso', Kbc: 'Kbo', Krc: 'Kro', Kyc: 'Kyo' };
+const loneWall = (id) => TILES[id].feats.some((f) => f.type === 'city' && !f.district);
+
 /** The eight squares around a tile — a temple's parish, and what red counts. */
 const RING = [[-1, -1], [0, -1], [1, -1], [-1, 0], [1, 0], [-1, 1], [0, 1], [1, 1]];
 
@@ -398,14 +428,20 @@ export class Soffiando extends Mode {
       if (t.group !== 'cloud') continue;
       for (let i = 0; i < t.n; i++) cloud.push(t.id);
     }
-    // The base set tops the deck up with roads, fields and city walls, but
-    // never with its own curved multi-sided cities: a city here is made of
-    // districts, and a base tile city that spans two sides of a tile would
-    // be a city with no kind.
+    // The base set tops the deck up with roads and fields (and city walls,
+    // when they are dealt at all), but never with its own multi-sided
+    // cities: a city here is made of districts, and a base tile city that
+    // spans two sides of a tile would be a city with no kind.
     const base = buildDeck(['base'], rng, 'D')
       .map((id) => SWAPS[id] || id)
       .filter((id) => !TILES[id].feats.some((f) => f.type === 'city' && !f.district && f.sides.length > 1));
-    const deck = [...cloud, ...base.slice(0, Math.max(0, DECK_SIZE - cloud.length))];
+    // Lone walls come out BEFORE the base set tops the deck up, so the deck
+    // is as long as ever and a game as long as ever: what replaces them is
+    // ordinary country.
+    const unwall = (ids) => (this.game.options?.capWalls ? ids
+      : ids.map((id) => UNWALLED[id] || id).filter((id) => !loneWall(id)));
+    const sky = unwall(cloud), ground = unwall(base);
+    const deck = [...sky, ...ground.slice(0, Math.max(0, DECK_SIZE - sky.length))];
     for (let i = deck.length - 1; i > 0; i--) {
       const j = Math.floor(rng() * (i + 1));
       [deck[i], deck[j]] = [deck[j], deck[i]];
@@ -424,6 +460,7 @@ export class Soffiando extends Mode {
     this.laid = 0;
     this.gusts = 0;
     this.fallen = 0;           // tiles the wind has taken out of the sky
+    this.lost = 0;             // …of them, the ones blown off the map for good
     this.caught = false;       // …and whether one has come back to hand this turn
     this.spheres = 0;          // spheres closed so far
     this.hues = {};            // …and how many of each colour
@@ -446,6 +483,12 @@ export class Soffiando extends Mode {
     // it and nothing in the panel about it. City walls are now the brake.
     this.balena = this.game.options?.balena ? { x: 0, y: 0 } : null;
     this.settleBalena();
+    // EVERY PLAYER HAS A CLOUD (Timothy, 2026-10-24): a wind of their own, a
+    // whole cloud the size of a tile, in hand at the start. See "the player
+    // clouds" below. `options.clouds === false` plays without them.
+    this.clouds = this.game.options?.clouds === false ? []
+      : this.game.players.map((p) => ({ player: p.id, x: null, y: null, dir: 1 }));
+    this.cloudMoved = false;   // …and whether this turn's has blown yet
   }
 
   // --- the mainland, and everything adrift from it ---------------------------
@@ -605,6 +648,7 @@ export class Soffiando extends Mode {
     this.strollers.length = 0;
     this.laidFlat = false;
     this.balenaMoved = false;
+    this.cloudMoved = false;
     if (this.laid >= STORM_LIMIT) {
       this.game.say('The season turns, and the wind drops.');
       this.game.finish();
@@ -1095,7 +1139,9 @@ export class Soffiando extends Mode {
   afterScoring() {
     const g = this.game;
     if (g.phase !== 'meeple') return;
-    if (!g.meepleOptions().length && !this.holdsMeeplePhase()) g.endTurn();
+    // The cloud was blown INSTEAD of a follower: once its weather has been
+    // scored and walked, the turn is over.
+    if (this.cloudMoved || (!g.meepleOptions().length && !this.holdsMeeplePhase())) g.endTurn();
   }
 
   // --- retiring a follower into a city ---------------------------------------
@@ -1208,7 +1254,8 @@ export class Soffiando extends Mode {
    */
   holdsMeeplePhase() {
     return !!this.lifted || this.flightLifts().length > 0 || this.canLieDown()
-      || (!this.balenaMoved && this.balenaTargets().length > 0);
+      || (!this.balenaMoved && this.balenaTargets().length > 0)
+      || (!this.cloudMoved && this.cloudTargets().length > 0);
   }
 
   /** Instead of putting a follower down: send the whale somewhere. */
@@ -1223,6 +1270,7 @@ export class Soffiando extends Mode {
     if (this.game.phase === 'stroll') return this.strollTo(x, y);
     if (this.game.phase === 'flat') return this.flatAt(x, y);
     if (this.game.phase === 'flight') return this.liftAt(x, y);
+    if (this.game.phase === 'cloud') return this.blowCloud(x, y);
     if (this.game.phase !== 'balena') return false;
     if (!this.balenaTargets().some((t) => t.x === x && t.y === y)) return false;
     this.balena = { x, y };
@@ -1231,6 +1279,105 @@ export class Soffiando extends Mode {
     this.game.say(`The Balena settles over (${x}, ${y}) — nothing there moves while it stays.`);
     this.game.emit('landmark');
     this.game.endTurn();
+    return true;
+  }
+
+  // --- the player clouds ----------------------------------------------------
+  //
+  // Timothy, 2026-10-24: "every player start with a person zephyr that is an
+  // entire cloud as a tile, that blows in one direction. it can be moved every
+  // turn instead of placing a meeple. it activates when moved."
+  //
+  // So each player has a cloud with a face, the size of a tile, that blows one
+  // way. It starts in hand. On your follower step you may, INSTEAD of putting
+  // a follower down, set it down on any open square of sky beside the country
+  // (the first time, or anywhere else after that), facing whichever way you
+  // like, and it blows the moment it lands. Where it stands it is a zephyr to
+  // every storm: one blowing its way is absorbed and blows a square harder
+  // past it, one blowing any other way wakes it and the storm turns down its
+  // lane, a power harder. And its own gust is hardened by every zephyr it
+  // crosses, the same as anybody's. Nothing the wind does moves a cloud; tiles
+  // slide under it as under the sky. Only its owner moves it.
+
+  /** The current player's cloud, if this game has them. */
+  myCloud() {
+    return this.clouds.find((c) => c.player === this.game.current) || null;
+  }
+
+  /** The clouds standing on the map, as the wind engine's spirits. */
+  spirits() {
+    return this.clouds.filter((c) => c.x != null).map((c) => ({ x: c.x, y: c.y, dir: c.dir, push: 1, cloud: c }));
+  }
+
+  /**
+   * Where a cloud may be set down: open sky inside the map, beside the
+   * country, and not where a cloud already is. Beside, because a cloud
+   * further out in the same lane blows exactly the same country and only
+   * makes the board harder to read.
+   */
+  cloudTargets() {
+    const me = this.myCloud();
+    if (!me) return [];
+    const board = this.game.board;
+    const taken = new Set(this.clouds.filter((c) => c.x != null).map((c) => `${c.x},${c.y}`));
+    const out = [];
+    const seen = new Set();
+    for (const cell of board.cells.values()) {
+      for (let s = 0; s < 4; s++) {
+        const [dx, dy] = SIDE_STEP[s];
+        const x = cell.x + dx, y = cell.y + dy;
+        const k = `${x},${y}`;
+        if (seen.has(k)) continue;
+        seen.add(k);
+        if (board.get(x, y) || !board.inBounds(x, y) || taken.has(k)) continue;
+        out.push({ x, y });
+      }
+    }
+    return out;
+  }
+
+  canBlow() {
+    return this.game.phase === 'meeple' && !this.cloudMoved && this.cloudTargets().length > 0;
+  }
+
+  /** Instead of putting a follower down: pick the cloud up. */
+  beginBlow() {
+    if (!this.canBlow()) return false;
+    this.game.phase = 'cloud';
+    this.game.say(`${this.game.player.name} takes up their cloud.`);
+    return true;
+  }
+
+  cancelBlow() {
+    if (this.game.phase !== 'cloud') return false;
+    this.game.phase = 'meeple';
+    return true;
+  }
+
+  /** R, or the button: the cloud in hand turns a quarter. */
+  turnOther(dir = 1) {
+    if (this.game.phase !== 'cloud') return false;
+    const me = this.myCloud();
+    me.dir = (me.dir + dir + 4) % 4;
+    return true;
+  }
+
+  /** Set the cloud down, and it blows. */
+  blowCloud(x, y) {
+    const g = this.game;
+    if (g.phase !== 'cloud') return false;
+    if (!this.cloudTargets().some((t) => t.x === x && t.y === y)) return false;
+    const me = this.myCloud();
+    me.x = x; me.y = y;
+    this.cloudMoved = true;
+    g.phase = 'meeple';
+    g.say(`${g.player.name}'s cloud settles at (${x}, ${y}) and blows ${DIR_NAMES[me.dir]}.`);
+    g.emit('landmark');
+    this.weather([{ dir: me.dir, from: { x, y }, push: 1, cloud: me }], g.current);
+    this.joinSferas();
+    // A sphere the gust closed may have opened a walk; the turn ends when it
+    // has been walked. Otherwise it ends now.
+    if (g.phase === 'meeple') g.endTurn();
     return true;
   }
 
@@ -1382,7 +1529,12 @@ export class Soffiando extends Mode {
         // what the mainland IS.
         const rooted = () => this.land().mainKeys;
         const pinned = (c, d) => this.pinned(c, d);
-        for (const report of storm(this.game.board, job[0], { rooted, pinned })) this.applyGust(report);
+        // The clouds are zephyrs to every storm. A storm a cloud starts is
+        // tied to that cloud's own spirit, so it can never wake itself.
+        const spirits = this.spirits();
+        const specs = (Array.isArray(job[0]) ? job[0] : [job[0]])
+          .map((sp) => (sp.cloud ? { ...sp, spirit: spirits.find((s) => s.cloud === sp.cloud) } : sp));
+        for (const report of storm(this.game.board, specs, { rooted, pinned, spirits })) this.applyGust(report);
         this.settleBalena();
         this.reopen();
         this.settle(job[1]);
@@ -1425,7 +1577,9 @@ export class Soffiando extends Mode {
     }
     // Every zephyr this gust wakes flashes just before its own gust plays.
     for (const zz of r.zephyrs) {
-      g.emit('wake', { at: { x: zz.cell.x + 0.5, y: zz.cell.y + 0.5 }, blast: !!zz.blast, delay: at + BEAT * 0.55 });
+      const w = zz.cell || zz.spirit;
+      g.emit('wake', { at: { x: w.x + 0.5, y: w.y + 0.5 }, blast: !!zz.blast, delay: at + BEAT * 0.55 });
+      if (zz.spirit) g.say(`${g.players[zz.spirit.cloud.player].name}'s cloud is woken and blows ${DIR_NAMES[zz.dir]}.`);
     }
     if (acted) { this.stormAt = at + BEAT; this.stormN = (this.stormN || 0) + 1; }
     this.payTurbines(r.turbines);
@@ -1433,7 +1587,10 @@ export class Soffiando extends Mode {
     // zephyrs played point out over the edge of the country into open sky —
     // there is no run downwind, so there is no loose end and nothing happens —
     // and a silent nothing reads as a broken rule rather than as an empty lane.
-    if (!r.moved.length && !r.swung.length && !r.homed.length && !r.lifted.length) {
+    // (A gust that only LOST tiles did something: a cannon that fired its loose
+    // end at nothing, or a tile blown over the edge of the map. Those used to
+    // stop here, so a fired tile never went back on the deck.)
+    if (!r.moved.length && !r.fell.length && !r.swung.length && !r.homed.length && !r.lifted.length) {
       if (!r.reached.length) {
         g.say(r.blast
           ? 'The cannon fires out over open sky and finds nothing to hit.'
@@ -1465,17 +1622,27 @@ export class Soffiando extends Mode {
     // made is still open. That is what turns a big storm from bookkeeping into
     // a swing, and it is the only thing that gives back what the cannon takes.
     // Once a turn, however many fall.
-    if (r.fell.length) {
-      this.fallen += r.fell.length;
-      for (const f of r.fell) g.deck.unshift(f.id);
-      const fired = r.fell.filter((f) => f.why === 'fired').length;
-      const bad = r.fell.length - fired;
+    //
+    // EXCEPT OFF THE MAP. The sky has an edge now, 16 squares a side, and a
+    // tile the wind carries over it has gone into the aether: it is not in the
+    // deck and nobody throws it back.
+    const gone = r.fell.filter((f) => f.why === 'aether');
+    const back = r.fell.filter((f) => f.why !== 'aether');
+    this.fallen += r.fell.length;
+    this.lost += gone.length;
+    if (gone.length) {
+      g.say(`${gone.length} tile${gone.length > 1 ? 's fly' : ' flies'} off the edge of the map into the aether, gone for good.`);
+    }
+    if (back.length) {
+      for (const f of back) g.deck.unshift(f.id);
+      const fired = back.filter((f) => f.why === 'fired').length;
+      const bad = back.length - fired;
       const said = [];
       if (fired) said.push(`${fired} tile${fired > 1 ? 's are' : ' is'} fired clean out of the world`);
       if (bad) said.push(`${bad} land${bad > 1 ? '' : 's'} where nothing fits`);
       g.say(`${said.join(' and ')} — back to the top of the deck.`);
     }
-    if (r.fell.length && this.blame === g.current && !this.caught) {
+    if (back.length && this.blame === g.current && !this.caught) {
       this.caught = true;
       g.tilesLeft++;
       g.say(`${g.player.name} catches one out of the air, and may throw it straight back down.`);
@@ -1537,6 +1704,7 @@ export class Soffiando extends Mode {
     const { isles } = this.land();
     const moves = [];
     const towed = [];
+    const gone = [];
     for (const group of isles) {
       // The whale holds an island down, and so does a wall standing across
       // the way it would go.
@@ -1553,6 +1721,13 @@ export class Soffiando extends Mode {
         .sort((a, b) => (b.x * dx + b.y * dy) - (a.x * dx + a.y * dy));
       for (const c of order) {
         const from = { x: c.x, y: c.y };
+        // Towed over the edge of the map: gone into the aether.
+        if (!board.inBounds(c.x + dx, c.y + dy)) {
+          if (c.meeple) { this.game.players[c.meeple.player].meeples++; c.meeple = null; }
+          gone.push({ x: c.x, y: c.y, type: c.type, rot: c.rot, look: c.seq });
+          board.remove(c.x, c.y, { quiet: true });
+          continue;
+        }
         if (!board.shift(from, { x: c.x + dx, y: c.y + dy })) continue;
         towed.push(c);
         moves.push({
@@ -1562,7 +1737,7 @@ export class Soffiando extends Mode {
         });
       }
     }
-    if (!moves.length) return;
+    if (!moves.length && !gone.length) return;
     // A towed tile is a blown tile: if it has come to rest against an edge it
     // cannot meet, it falls, exactly as one the wind moved would.
     const fell = [];
@@ -1579,6 +1754,12 @@ export class Soffiando extends Mode {
     if (fell.length) {
       this.fallen += fell.length;
       this.game.say(`${fell.length} tile${fell.length > 1 ? 's' : ''} towed against country ${fell.length > 1 ? 'they' : 'it'} cannot meet, and fall${fell.length > 1 ? '' : 's'}.`);
+    }
+    if (gone.length) {
+      this.fallen += gone.length;
+      this.lost += gone.length;
+      this.game.say(`${gone.length} tile${gone.length > 1 ? 's are' : ' is'} towed off the edge of the map, gone for good.`);
+      fell.push(...gone);
     }
     board.rebuild();
     this.drifts++;
@@ -1864,7 +2045,20 @@ export class Soffiando extends Mode {
     const g = this.game;
     const w = weightsFor(this, seat);
     if (g.current === seat && g.phase === 'stroll') return this.botStroll();
-    if (g.current !== seat || g.phase !== 'meeple' || !this.canSwim()) return false;
+    if (g.current === seat && g.phase === 'cloud') return this.botCloud(seat);
+    if (g.current !== seat || g.phase !== 'meeple') return false;
+    // The cloud, instead of a follower: when nothing is worth claiming and its
+    // gust is worth something, or when the gust is worth a good deal more than
+    // the usual claim.
+    if (this.canBlow()) {
+      const best = this.bestCloud(seat);
+      const bar = (w.cloud ?? 1) * (g.meepleOptions().length ? 4 : 1);
+      if (best && best.value > bar && this.beginBlow()) {
+        this.myCloud().dir = best.dir;
+        return this.blowCloud(best.x, best.y);
+      }
+    }
+    if (!this.canSwim()) return false;
     if (g.meepleOptions().length) return false;
     let best = null;
     for (const t of this.balenaTargets()) {
@@ -1879,6 +2073,26 @@ export class Soffiando extends Mode {
     if (!best || best.value <= w.whale) return false;
     if (!this.beginSwim()) return false;
     return this.onCellClick(best.x, best.y);
+  }
+
+  /** The best square and facing for this seat's cloud, by what its gust would do. */
+  bestCloud(seat) {
+    let best = null;
+    for (const t of this.cloudTargets()) {
+      for (let dir = 0; dir < 4; dir++) {
+        const value = this.gustValue(t, dir, seat);
+        if (!best || value > best.value) best = { ...t, dir, value };
+      }
+    }
+    return best;
+  }
+
+  /** Already holding the cloud: put it where it does most, or put it back. */
+  botCloud(seat) {
+    const best = this.bestCloud(seat);
+    if (!best) return this.cancelBlow();
+    this.myCloud().dir = best.dir;
+    return this.blowCloud(best.x, best.y);
   }
 
   /**
@@ -2016,6 +2230,12 @@ export class Soffiando extends Mode {
     if (g.phase === 'balena') {
       return [{ label: 'Leave the Balena where it is', fn: () => this.cancelSwim() }];
     }
+    if (g.phase === 'cloud') {
+      return [
+        { label: `Turn it (blowing ${DIR_NAMES[this.myCloud().dir]})`, key: 'R', fn: () => g.rotate(1) },
+        { label: 'Keep it where it is', fn: () => this.cancelBlow() },
+      ];
+    }
     if (g.phase === 'flight') {
       return [{ label: 'Leave them where they are', fn: () => this.cancelLift() }];
     }
@@ -2025,6 +2245,13 @@ export class Soffiando extends Mode {
       fn: () => this.beginSwim(),
       disabled: !this.canSwim(),
     }] : [];
+    if (this.myCloud()) {
+      out.unshift({
+        label: this.myCloud().x == null ? 'Set your cloud down and blow' : 'Move your cloud and blow',
+        fn: () => this.beginBlow(),
+        disabled: !this.canBlow(),
+      });
+    }
     if (this.canLift()) {
       out.unshift({ label: 'Fly out and pick a follower up', fn: () => this.beginLift() });
     }
@@ -2075,7 +2302,7 @@ export class Soffiando extends Mode {
     const whale = this.balena ? ` · The Balena rests at (${this.balena.x}, ${this.balena.y}).` : '';
     const closed = ['green', 'blue', 'red'].filter((h) => this.hues[h])
       .map((h) => `${this.hues[h]} ${h}`).join(', ');
-    return `${rows}<p class="hint">${this.gusts} gust${this.gusts === 1 ? '' : 's'} · ${this.fallen} tile${this.fallen === 1 ? '' : 's'} lost for good · ${this.spheres ? `spheres harvested: ${closed}` : 'no sphere closed yet'}${whale}</p>`;
+    return `${rows}<p class="hint">${this.gusts} gust${this.gusts === 1 ? '' : 's'} · ${this.lost} tile${this.lost === 1 ? '' : 's'} blown off the map · ${this.spheres ? `spheres harvested: ${closed}` : 'no sphere closed yet'}${whale}</p>`;
   }
 }
 
@@ -2092,6 +2319,11 @@ Soffiando.spec = {
   // hand Timothy draws Composer's Key in, coloured for a kingdom in the
   // clouds. See src/pixel.js. The chart stays as the backdrop of nothing.
   pixel: true,
+  // THE MAP HAS AN EDGE (Timothy, 2026-10-24: "let's say it's a 16x16
+  // border"). Sixteen squares a side round the Palazzo's first square, which
+  // has to sit one off the middle on an even board. Nothing is laid outside
+  // it, and a tile the wind carries over it is gone into the aether.
+  bounds: { minX: -8, maxX: 7, minY: -8, maxY: 7 },
   meeples: true,
   minPlayers: 1,
   maxPlayers: 4,
@@ -2109,5 +2341,7 @@ Soffiando.spec = {
     + 'A wall square across the wind holds its tile still; a wind along it does not. A tile the wind moves falls if ANY of its edges no longer meets its neighbour. '
     + 'Any half fits any other, so the pairing is the decision. '
     + 'You may only build onto the mainland, or an island you are already standing on; islands pay double. '
+    + 'Every player has a CLOUD of their own: instead of a follower, set it down on open sky beside the country, facing any way (R turns it), and it blows. Where it stands it is a zephyr to every storm, absorbed or woken like any other. '
+    + 'The map is 16 squares a side; a tile blown over its edge is gone for good. '
     + 'A follower blown onto a zephyr rides it, and again, and again; one blown off a ledge flies on until it lands on country. A feature that scores hands its followers back — or they walk on down a road, out over any amount of open air as long as a road points off the cliff on both sides.',
 };

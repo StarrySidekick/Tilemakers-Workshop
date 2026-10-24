@@ -152,6 +152,16 @@ function step(game, rng) {
       if (!game.cellClick(t.x, t.y)) game.m.cancelSwim();
       return;
     }
+    // …and the player's own cloud: set down beside the country, turned at
+    // random, and it blows.
+    case 'cloud': {
+      const spots = game.m.cloudTargets();
+      if (!spots.length) return void game.m.cancelBlow();
+      for (let i = Math.floor(rng() * 4); i > 0; i--) game.rotate(1);
+      const t = pick(spots);
+      if (!game.cellClick(t.x, t.y)) game.m.cancelBlow();
+      return;
+    }
     case 'magic': { game.magicAuto(); return; }
     case 'rob': { if (rng() < 0.5) game.robAuto(); else game.robSkip(); return; }
     case 'crop': { game.cropChoose(rng() < 0.5 ? 'add' : 'remove'); return; }
@@ -161,6 +171,7 @@ function step(game, rng) {
       if (game.m.canLieDown?.() && rng() < 0.3) return void game.m.beginFlat();
       if (game.m.canLift?.() && rng() < 0.25) return void game.m.beginLift();
       if (game.m.canSwim?.() && rng() < 0.15) return void game.m.beginSwim();
+      if (game.m.canBlow?.() && rng() < 0.2) return void game.m.beginBlow();
       if (game.canPlaceBuilding?.() && rng() < 0.5) game.placeBuilding();
       if (game.canBuildBridge?.() && rng() < 0.4) game.buildBridge();
       const opts = game.meepleOptions();
@@ -944,11 +955,48 @@ function checkWind() {
     if (!b.get(0, -2)) return fail('the whale shelters its lee from a zephyr', 'the lee blew away');
   }
 
+  // THE EDGE OF THE MAP. On a board with bounds, a tile the wind carries
+  // past the edge is gone into the aether, the tiles behind it slide into
+  // the room it left, and a cannon shot that meets nothing goes over the edge
+  // rather than "out of the world".
+  {
+    const b = new Board({ bounds: { minX: -2, maxX: 2, minY: -2, maxY: 2 } });
+    lay(b, 0, 0, 'Kz', 1);                  // east
+    lay(b, 1, 0, 'B'); lay(b, 2, 0, 'B');   // the loose end on the last column
+    lay(b, 0, 1, 'B');
+    const r = gust(b, { dir: 1, from: { x: 0, y: 0 } });
+    if (at(b, 2, 0)) return fail('a tile blown past the map edge leaves', 'it is still there');
+    if (!r.fell.some((f) => f.why === 'aether' && f.id === 'B')) {
+      return fail('…into the aether', JSON.stringify(r.fell.map((f) => f.why)));
+    }
+    if (!at(b, 1, 0)) return fail('the tile behind it stays put at power one', 'it moved');
+  }
+  {
+    const b = new Board({ bounds: { minX: -2, maxX: 2, minY: -2, maxY: 2 } });
+    lay(b, 0, 0, 'Kg', 1);                  // a cannon, east, at nothing
+    lay(b, 1, 0, 'B');
+    lay(b, 0, 1, 'B');
+    const r = gust(b, { dir: 1, from: { x: 0, y: 0 }, blast: true });
+    if (at(b, 1, 0) || !r.fell.some((f) => f.why === 'aether')) {
+      return fail('a cannon shot at nothing goes over the edge of a bounded map', JSON.stringify(r.fell.map((f) => f.why)));
+    }
+  }
+  {
+    // An island two wide, lifted whole at power two against the east edge:
+    // the leading tile goes over, the one behind it fetches up on the edge.
+    const b = new Board({ bounds: { minX: -4, maxX: 3, minY: -4, maxY: 3 } });
+    lay(b, -2, 0, 'Kzz', 1);                // a double zephyr, east
+    lay(b, 1, 0, 'B'); lay(b, 2, 0, 'B');   // the island, apart from it
+    const r = gust(b, { dir: 1, from: { x: -2, y: 0 }, push: 2, rooted: new Set(['-2,0']) });
+    if (!r.fell.some((f) => f.why === 'aether')) return fail('an island blown over the edge loses what crosses it', 'nothing went');
+    if (!at(b, 3, 0)) return fail('…and keeps what does not', JSON.stringify([...b.cells.keys()]));
+  }
+
   console.log('  ✓ the cannon, rafts, fired into nothing, power past three, corners that harden,'
     + ' the whale, crystals, loose zephyrs, turbines, vanes, straight roads, chains, rebounds,'
     + ' once-per-storm, the rose, gaps crossed, islands lifted whole, islands merging,'
     + ' mismatched landings, fragments that stay up, double zephyrs, followers riding,'
-    + ' blown and carried on, temples, Abbazias');
+    + ' blown and carried on, temples, Abbazias, the edge of the map');
 }
 
 /**
@@ -1551,6 +1599,100 @@ function checkSoffiando() {
     }
   }
 
+  // EVERY PLAYER HAS A CLOUD. It starts in hand; instead of a follower it is
+  // set down on open sky beside the country, facing any way, and it blows.
+  {
+    const h = fresh(61);
+    const b = h.board;
+    for (const x of [0, 1, 2]) lay(b, x, 0, 'U');
+    b.rebuild();
+    if (h.m.clouds.length !== 2 || h.m.clouds.some((c) => c.x != null)) {
+      return fail('every player starts with a cloud in hand', JSON.stringify(h.m.clouds));
+    }
+    h.phase = 'meeple';
+    if (!h.m.canBlow() || !h.m.beginBlow()) return fail('the cloud can be taken up instead of a follower', 'it could not');
+    while (h.m.myCloud().dir !== 1) h.rotate(1);       // R turns it
+    if (!h.cellClick(-1, 0)) return fail('the cloud is set down beside the country', 'the click was refused');
+    if (h.m.clouds[0].x !== -1 || h.m.clouds[0].y !== 0) return fail('the cloud stays where it was set', JSON.stringify(h.m.clouds[0]));
+    if (b.get(2, 0) || !b.get(3, 0)) return fail('a cloud blows when it is set down', 'the loose end did not move');
+    if (h.current !== 1) return fail('blowing the cloud is the turn\'s follower step', `still player ${h.current}`);
+    if (h.m.cloudTargets().some((t) => t.x === -1 && t.y === 0)) {
+      return fail('two clouds never share a square', 'the first cloud\'s square was offered');
+    }
+  }
+
+  // A cloud's gust is hardened by the zephyrs it crosses, like anyone's…
+  {
+    const h = fresh(62);
+    const b = h.board;
+    lay(b, 0, 0, 'Kz', 1);                    // a zephyr blowing east, in the lane
+    lay(b, 1, 0, 'U'); lay(b, 2, 0, 'U');
+    b.rebuild();
+    h.phase = 'meeple';
+    h.m.beginBlow();
+    while (h.m.myCloud().dir !== 1) h.rotate(1);
+    h.cellClick(-1, 0);
+    if (!b.get(3, 0) || !b.get(4, 0) || b.get(1, 0)) {
+      return fail('a cloud\'s gust absorbs a zephyr blowing its way', JSON.stringify([...b.cells.keys()]));
+    }
+  }
+
+  // …and a zephyr's gust is hardened by a cloud blowing its way, or wakes one
+  // that blows any other way and turns down its lane.
+  {
+    const h = fresh(63);
+    const b = h.board;
+    lay(b, -2, 0, 'Kz', 1);                   // east, across the cloud's square
+    lay(b, 0, 0, 'U'); lay(b, 1, 0, 'U');
+    b.rebuild();
+    Object.assign(h.m.clouds[1], { x: -1, y: 0, dir: 1 });
+    h.m.weather([{ dir: 1, from: { x: -2, y: 0 } }], 0);
+    if (!b.get(2, 0) || !b.get(3, 0) || b.get(0, 0)) {
+      return fail('a cloud blowing the gust\'s way hardens it', JSON.stringify([...b.cells.keys()]));
+    }
+  }
+  {
+    const h = fresh(64);
+    const b = h.board;
+    lay(b, -2, 0, 'Kz', 1);                   // east, at a cloud facing south
+    lay(b, -1, 1, 'U'); lay(b, -1, 2, 'U');
+    b.rebuild();
+    Object.assign(h.m.clouds[1], { x: -1, y: 0, dir: 2 });
+    h.m.weather([{ dir: 1, from: { x: -2, y: 0 } }], 0);
+    if (!b.get(-1, 3) || !b.get(-1, 4) || b.get(-1, 1)) {
+      return fail('a gust wakes a cloud facing another way, a power harder', JSON.stringify([...b.cells.keys()]));
+    }
+    if (h.m.clouds[1].x !== -1 || h.m.clouds[1].y !== 0) return fail('the wind never moves a cloud', 'it moved');
+  }
+
+  // THE EDGE OF THE MAP: a tile blown over it is gone, not back in the deck.
+  {
+    const h = fresh(65);
+    const b = h.board;
+    lay(b, 4, 0, 'Kz', 1);
+    for (const x of [5, 6, 7]) lay(b, x, 0, 'U');
+    b.rebuild();
+    const deck = h.deck.length;
+    h.m.weather([{ dir: 1, from: { x: 4, y: 0 } }], 0);
+    if (b.get(7, 0) || b.get(8, 0)) return fail('a tile blown over the map\'s edge is gone', 'it is still on the board');
+    if (h.deck.length !== deck || h.m.lost !== 1) {
+      return fail('…for good, not back on the deck', `deck ${deck} -> ${h.deck.length}, lost ${h.m.lost}`);
+    }
+  }
+
+  // LONE WALLS ARE OUT of the default pool, and `capWalls` deals them; the
+  // sfera halves and the winds that carried one are dealt without it.
+  {
+    const ids = (o) => { const g = new Game({ mode: 'soffiando', players: 2, seed: 5, options: o }); return [g.tile?.id, ...g.deck].filter(Boolean); };
+    const lone = (id) => TILES[id].feats.some((f) => f.type === 'city' && !f.district);
+    const plain = ids({}), walled = ids({ capWalls: true });
+    if (plain.some(lone)) return fail('no lone wall is dealt by default', plain.filter(lone).join(' '));
+    if (!walled.some(lone)) return fail('capWalls deals the lone walls', 'none were dealt');
+    const sferas = (l) => l.filter((id) => TILES[id].feats.some((f) => f.type === 'sfera')).length;
+    if (sferas(plain) !== sferas(walled)) return fail('no sfera half is lost with the walls', `${sferas(plain)} against ${sferas(walled)}`);
+    if (plain.length !== walled.length) return fail('the deck is as long without the walls', `${plain.length} against ${walled.length}`);
+  }
+
   // The whale is OUT of the default rules, and in with `options.balena`.
   {
     if (new Game({ mode: 'soffiando', players: 2, seed: 3 }).m.balena) {
@@ -1636,6 +1778,7 @@ function checkSoffiando() {
 
   console.log('  ✓ mainland and islands, the four sfera passes, matched and mixed spheres,'
     + ' district variety compounding, walls unclaimable, walls across the wind,'
+    + ' the players\' clouds, the map\'s edge, no lone walls,'
     + ' windmills, island rates, the last round, the flying machine\'s lift, the Balena (off by default),'
     + ' towed islands, long flights, the archipelago');
 }

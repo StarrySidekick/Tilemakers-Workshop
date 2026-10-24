@@ -49,6 +49,15 @@ still stay together": a blown piece that mismatches falls. Followers "blown
 off a ledge keep flying until they land on an island". "Road intersections
 have cute little towns that have different little visual features." What was
 built, and how the scoring was tuned, is the twenty-third pass in `MODES.md`.
+Later the same day: the Abbazia gets "the four castle walls on its edges to
+mirror the look of the city tiles"; "every player start with a person zephyr
+that is an entire cloud as a tile, that blows in one direction. it can be
+moved every turn instead of placing a meeple. it activates when moved. it's
+interacts with zephyrs on tiles the same in that its gust can be amplified by
+them and vice versa"; "for now remove single castle wall tiles from the tile
+pool, just want to see what it looks like"; and "the map has a border, and if
+island tiles are blown off it, they fly off into the aether and are gone.
+let's say it's a 16x16 border." That is the twenty-fourth pass.
 
 **Fields: settled 2026-09-06, and Timothy was right.** They are fully built.
 `src/tiles.js` cuts the perimeter into eight half-edges with `halfPartner` as the

@@ -9,7 +9,7 @@
 import { drawTile, drawMeeple, drawPig, drawIngots, drawBuilding, PLAYER_COLORS } from './art.js';
 import { tileSprite, spriteFrame } from './sprites.js';
 import {
-  pixelTile, pixelSky, paintCoasts, pixelSails, PX, SAIL_FRAMES, turbineHub,
+  pixelTile, pixelSky, pixelAether, pixelCloudSpirit, paintCoasts, pixelSails, PX, SAIL_FRAMES, turbineHub,
   setPixelFigures, pixelWhale, pixelWhaleShadow,
 } from './pixel.js';
 import { LIGHT } from './light.js';
@@ -237,6 +237,7 @@ export class Renderer {
 
     if (game.phase === 'lift') this.drawCellTargets(game.m.allLiftable ? game.m.allLiftable() : liftableCells(game.board), THEME.violet, '107,90,140');
     if (game.phase === 'balena') this.drawCellTargets(game.m.balenaTargets(), THEME.teal, '95,191,174');
+    if (game.phase === 'cloud') this.drawCellTargets(game.m.cloudTargets(), THEME.teal, '95,191,174');
     if (game.phase === 'flight') this.drawCellTargets(game.m.flightLifts(), THEME.teal, '95,191,174');
     if (game.phase === 'flat') this.drawCellTargets(game.m.flatTargets(), THEME.gold, '212,175,95');
     if (game.phase === 'stroll') this.drawCellTargets(game.m.stroll?.targets || [], MOVE_OK.line, MOVE_OK.rgb);
@@ -245,6 +246,7 @@ export class Renderer {
     if (game.phase === 'place') this.drawPlacementHints(game);
 
     this.drawMeeples(game);
+    if (game.m?.clouds?.length) this.drawClouds(game);
     if (game.phase === 'meeple' && !this.hideMeepleTargets) this.drawMeepleTargets(game);
     // With the claim panel doing the aiming, the board still says WHICH tile
     // is being claimed on — otherwise the two read as unrelated things.
@@ -297,7 +299,7 @@ export class Renderer {
    */
   drawBackdrop(game) {
     const ctx = this.ctx;
-    if (game?.spec?.pixel) return this.drawPixelSky();
+    if (game?.spec?.pixel) return this.drawPixelSky(game.board.bounds);
     if (game?.m?.backdrop !== 'sky') {
       ctx.fillStyle = THEME.night;
       ctx.fillRect(0, 0, this.w, this.h);
@@ -819,17 +821,28 @@ export class Renderer {
    * repeating in a pattern the eye can find, and a dot at every corner of the
    * grid, which is what you count a wind's lane by.
    */
-  drawPixelSky() {
+  drawPixelSky(bounds = null) {
     const ctx = this.ctx;
     const z = this.cam.zoom;
     const [wx0, wy0] = this.toWorld(0, 0);
     const [wx1, wy1] = this.toWorld(this.w, this.h);
+    // Past the edge of a bounded map is the aether, and the squares of it
+    // that face the map carry the border.
+    const inside = (x, y) => !bounds
+      || (x >= bounds.minX && x <= bounds.maxX && y >= bounds.minY && y <= bounds.maxY);
     ctx.imageSmoothingEnabled = this.shrinking(z);
     for (let y = Math.floor(wy0); y <= Math.floor(wy1); y++) {
       for (let x = Math.floor(wx0); x <= Math.floor(wx1); x++) {
         const [sx, sy] = this.toScreen(x, y);
         const x0 = Math.round(sx), y0 = Math.round(sy);
-        ctx.drawImage(pixelSky(x, y), x0, y0, Math.round(sx + z) - x0, Math.round(sy + z) - y0);
+        let pic;
+        if (inside(x, y)) pic = pixelSky(x, y);
+        else {
+          const edges = (inside(x, y - 1) ? 1 : 0) | (inside(x + 1, y) ? 2 : 0)
+            | (inside(x, y + 1) ? 4 : 0) | (inside(x - 1, y) ? 8 : 0);
+          pic = pixelAether(x, y, edges);
+        }
+        ctx.drawImage(pic, x0, y0, Math.round(sx + z) - x0, Math.round(sy + z) - y0);
       }
     }
     ctx.imageSmoothingEnabled = true;
@@ -877,6 +890,38 @@ export class Renderer {
     ctx.imageSmoothingEnabled = this.shrinking(z);
     ctx.drawImage(pixelSails(frame), x0, y0, Math.round(z), Math.round(z));
     ctx.imageSmoothingEnabled = true;
+  }
+
+  /**
+   * The players' clouds, over the tiles and the sky alike, each bobbing a
+   * whole sprite pixel at its own pace; and while one is being set down, a
+   * ghost of it on the square under the pointer, facing the way it will blow.
+   */
+  drawClouds(game) {
+    const ctx = this.ctx;
+    const z = this.cam.zoom;
+    const k = z / PX;
+    const t = performance.now() / 1000;
+    const draw = (c, x, y, alpha) => {
+      if (!this.onScreen(x, y)) return;
+      const [sx, sy] = this.toScreen(x, y);
+      const bob = Math.round(Math.sin(t * 1.1 + c.player * 1.7) * 1.2);
+      ctx.save();
+      ctx.globalAlpha = alpha;
+      ctx.imageSmoothingEnabled = this.shrinking(z);
+      ctx.drawImage(pixelCloudSpirit(PLAYER_COLORS[c.player], c.dir),
+        Math.round(sx), Math.round(sy + bob * k), Math.round(z), Math.round(z));
+      ctx.restore();
+    };
+    for (const c of game.m.clouds) {
+      if (c.x == null) continue;
+      const holding = game.phase === 'cloud' && c.player === game.current;
+      draw(c, c.x, c.y, holding ? 0.4 : 1);
+    }
+    const h = this.hover;
+    if (game.phase === 'cloud' && h && game.m.cloudTargets().some((q) => q.x === h.x && q.y === h.y)) {
+      draw(game.m.myCloud(), h.x, h.y, 0.85);
+    }
   }
 
   /**

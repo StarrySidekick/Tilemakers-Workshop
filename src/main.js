@@ -266,7 +266,10 @@ function newGame() {
   shownScores = [];
   bumping.clear();
   renderer.centerOn(0, 0);
-  renderer.cam.zoom = spec(mode)?.bounds ? 78 : 96;
+  // A board small enough to see whole starts zoomed out to show it; a big
+  // map like Soffiando's 16 x 16 starts at the usual size on the middle.
+  const b = spec(mode)?.bounds;
+  renderer.cam.zoom = b && b.maxX - b.minX < 12 ? 78 : 96;
   syncPanel();
 }
 
@@ -1266,6 +1269,7 @@ const PHASE_TEXT = {
   crop: 'A crop circle — choose what everyone does',
   rob: 'Post your robber on an opponent',
   balena: 'Send the Balena — click any tile on the board',
+  cloud: 'Set your cloud down beside the country — R turns it',
   flight: 'Click one of your followers on the flight to pick it up',
   stroll: 'Walk the follower on down the road, or send it home',
   flat: 'Click one of your followers in a city to lay it flat',

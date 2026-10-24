@@ -892,6 +892,64 @@ kingmakes badly, and you'd blame the mechanic instead of the count.
 > it will become.
 
 
+> **Twenty-fourth pass: a cloud each, an edge to the sky, and no lone walls.**
+>
+> Four more of Timothy's, the same day (his words are in `INTENT.md`):
+>
+> - **Every player has a cloud.** A whole cloud the size of a tile, with a
+>   face, cheeks in its player's colour, breathing a stream of wind curls the
+>   way it faces. It starts in hand. Instead of a follower you may set it
+>   down on open sky beside the country, facing any way (R turns it), and it
+>   blows as it lands. To the wind engine it is a **spirit**: a zephyr that
+>   stands on a square instead of a tile (`spirits` in `gust` and `storm`).
+>   A gust reaching one that blows its way is absorbed and hardens past it;
+>   one that blows any other way is woken and the storm turns down its lane,
+>   a power harder; and its own gust is hardened by the zephyrs it crosses.
+>   A storm a cloud starts carries that cloud's spirit, so it can never wake
+>   itself. The wind never moves a cloud, and tiles slide under one as under
+>   the sky. Two decisions that were mine: you choose the facing each time
+>   you set it down, and it may only be set down beside the country, since a
+>   cloud further out in the same lane blows exactly the same country.
+> - **The map is 16 x 16**, `bounds` on the spec, one off the middle because
+>   the board is even. Outside it is the aether, deep and starry, and the
+>   squares of it facing the map carry the border. A tile the wind carries
+>   over the edge is **gone for good** (`why: 'aether'`): not back on the
+>   deck, not caught and thrown back. A cannon fired at nothing goes over the
+>   edge now too. And testing it found an old bug: a gust whose ONLY effect
+>   was to lose tiles returned before its losses were handled, so a cannon
+>   that fired its loose end at nothing never put the tile back on the deck.
+> - **No lone walls, for now.** Every tile whose wall is the point of it is
+>   out of the pool (plain walls, two walls, a wall over a road, the walled
+>   town, the tower turbine); the sfera halves and the winds that carried a
+>   wall are dealt as their twins without one, so there are as many spheres
+>   and zephyrs as before. The base set tops the deck back up to 112.
+>   `options.capWalls` deals them all again.
+> - **The Abbazia is drawn walled on all four sides**, with a tower in each
+>   corner, like a district. Only drawn: it is still a cap, not a city, and
+>   its walls do not pin it.
+>
+> Thirty bot games a side, two players:
+>
+> | | before | edge, no lone walls | and the clouds |
+> |---|---|---|---|
+> | tiles on the board at the end | 84 | 77 | 65 |
+> | tiles blown off the map a game | 0 | 9.5 | 15.7 |
+> | gusts a game | 49 | 44 | 84 |
+> | clouds set down / woken a game | | | 20 / 13 |
+> | spheres closed a game | 3.3 | 3.1 | 2.5 |
+> | walled share of city payouts | 17% | 10% | 9% |
+> | mean score | 105 | 103 | 105 |
+>
+> The clouds nearly double the weather: the bot sets its cloud down about
+> one turn in four and other storms wake a cloud thirteen times a game. The
+> edge takes ten tiles a game on its own and sixteen with the clouds, so the
+> board ends a quarter smaller. Without lone walls a city is harder to close,
+> and walled cities fall from 17% of city payouts to 10%. Scores did not
+> move. The bot's cloud is priced by the same `gustValue` it uses for a
+> zephyr in hand (`bestCloud`), and it blows it when nothing is worth
+> claiming or when the gust is worth four times the bar.
+
+
 **Question it answers:** is a small board you keep *editing* better than a big
 one you keep *growing*?
 

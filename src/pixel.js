@@ -50,6 +50,7 @@ export const INK = {
   water: '#7fc3f0',
   hedge: '#3f8a63', leaf: '#79c49b', slate: '#6a6390',
   sky: '#a9d5f5', skyDot: '#8fc1ea', skyCloud: '#c3e3fa', skySwirl: '#d9eefd',
+  aether: '#2b2752', aetherDot: '#6f68b0', aetherSwirl: '#3d3770',
 };
 
 /** Each sfera colour as [body, rim and ring, highlight]. */
@@ -753,7 +754,11 @@ function wallRects(out) {
 function paintWalls(p, type) {
   const walls = wallSides(type);
   if (!walls.size) return null;
-  const out = !!districtKind(type);
+  return drawWalls(p, walls, !!districtKind(type));
+}
+
+/** Walls on the given sides, teeth out (`out`) or in, and a tower in every walled corner. */
+function drawWalls(p, walls, out) {
   const { dark, light } = wallRects(out);
   const mask = p.layer(INK.wall, (pen) => {
     for (const s of walls) for (const r of dark) pen.rect(...onSide(s, r));
@@ -1194,24 +1199,14 @@ function paintTown(p, type, look) {
 }
 
 /**
- * The Abbazia: walled edge to edge (it caps everything it touches), a curl
- * tucked into each corner the way Composer's Key finishes a wall, and a bell
- * tower in the middle.
+ * The Abbazia: walled on all four edges with the same flat castle walls a
+ * district has (Timothy, 2026-10-24), a tower in each corner, stone inside,
+ * and a bell tower in the middle. It caps everything it touches, and now it
+ * looks it. The walls are only drawn: it is not a city, and they do not pin it.
  */
 function paintAbbazia(p) {
   p.layer(INK.stone, (pen) => pen.rect(0, 0, PX, PX), { cut: 128, busy: false });
-  p.layer(INK.wall, (pen) => {
-    pen.line(3.5, 4.5, 47.5, 4.5, { wobble: 0.4 });
-    pen.line(3.5, 46.5, 47.5, 46.5, { wobble: 0.4 });
-    pen.line(4.5, 3.5, 4.5, 47.5, { wobble: 0.4 });
-    pen.line(46.5, 3.5, 46.5, 47.5, { wobble: 0.4 });
-  }, { cut: 110 });
-  p.layer(INK.wall, (pen) => {
-    pen.curlAt(10, 4.5, 0, 4, { dir: 1 });
-    pen.curlAt(41, 46.5, Math.PI, 4, { dir: 1 });
-    pen.curlAt(46.5, 10, Math.PI / 2, 4, { dir: 1 });
-    pen.curlAt(4.5, 41, -Math.PI / 2, 4, { dir: 1 });
-  }, { cut: 110 });
+  drawWalls(p, new Set([0, 1, 2, 3]), true);
   p.stand([MID, MID], 13, abbey);
 }
 
@@ -1385,6 +1380,53 @@ export function pixelSky(x, y) {
     p.layer(INK.skySwirl, (pen) => pen.stalk(x0, y0, -0.2, 12, 4, { dir: 1, bend: 0.2 }), { cut: 110 });
   }
   skies.set(v, p.cv);
+  return p.cv;
+}
+
+const aethers = new Map();
+
+/**
+ * One square of the AETHER: what lies past the edge of the map, where a tile
+ * the wind carries over the edge is gone for good. Deep and starry, so it
+ * reads as nowhere at all beside the day sky. `edges` is a bit per side
+ * (1 N, 2 E, 4 S, 8 W) facing the map, and on those sides the square carries
+ * the map's border: a pale rule with a row of cloud curls hanging off it.
+ */
+export function pixelAether(x, y, edges = 0) {
+  const v = hash(`aether:${x},${y}`) % 6;
+  const k = `${v}|${edges}`;
+  let hit = aethers.get(k);
+  if (hit) return hit;
+  const p = new Plate(PX, PX, `aether:${v}`);
+  p.layer(INK.aether, (pen) => pen.rect(0, 0, PX, PX), { cut: 128, busy: false });
+  p.layer(INK.aetherDot, (pen) => {
+    for (let i = 0; i < 7; i++) pen.rect(Math.floor(p.r() * PX), Math.floor(p.r() * PX), 1, 1);
+  }, { cut: 128 });
+  p.layer(INK.cloud, (pen) => {
+    for (let i = 0; i < 2; i++) {
+      const sx = 4 + Math.floor(p.r() * (PX - 8)), sy = 4 + Math.floor(p.r() * (PX - 8));
+      pen.rect(sx, sy, 1, 1);
+      if (v % 2 === 0) { pen.rect(sx - 1, sy, 3, 1); pen.rect(sx, sy - 1, 1, 3); }
+    }
+  }, { cut: 128 });
+  if (v === 0) {
+    const x0 = 12 + p.r() * 20, y0 = 14 + p.r() * 20;
+    p.layer(INK.aetherSwirl, (pen) => pen.stalk(x0, y0, -0.2, 11, 4, { dir: 1, bend: 0.2 }), { cut: 110 });
+  }
+  // The border: on each side facing the map, a pale rule a few pixels in and
+  // a curl every third of the way along it, the way the chart's frame is drawn.
+  for (let s = 0; s < 4; s++) {
+    if (!(edges & (1 << s))) continue;
+    p.layer(INK.cloudLine, (pen) => pen.rect(...onSide(s, [0, 0, PX, 4])), { cut: 128 });
+    p.layer(INK.cloud, (pen) => pen.rect(...onSide(s, [0, 1, PX, 2])), { cut: 128 });
+    p.layer(INK.cloudLine, (pen) => {
+      for (const t of [12.5, 38.5]) {
+        const [cx, cy] = turn([t, 9.5], s);
+        pen.hook(cx, cy, 3.6, { dir: 1, start: s * Math.PI / 2 - Math.PI / 2, width: 2 });
+      }
+    }, { cut: 120 });
+  }
+  aethers.set(k, p.cv);
   return p.cv;
 }
 
@@ -1694,6 +1736,60 @@ export function drawPixelMeeple(ctx, x, y, size, color, opts = {}) {
  * out of its blowhole, because in this kingdom even the whale is weather.
  * Nose east, two frames of tail (up, down), and a bit wider than a tile.
  */
+/**
+ * A PLAYER'S CLOUD: a whole cloud the size of a tile with a face on it,
+ * cheeks puffed, blowing a stream of wind curls the way it faces, like the
+ * wind-heads in the corners of an old chart. Its outline and its cheeks are
+ * its player's colour. The body sits back from the way it blows and the face
+ * stays upright whichever way that is, looking where it blows.
+ */
+const spiritPics = new Map();
+export function pixelCloudSpirit(color, dir = 0) {
+  const k = `${color}|${dir}`;
+  let hit = spiritPics.get(k);
+  if (hit) return hit;
+  const p = new Plate(PX, PX, `spirit:${dir}`);
+  const [cx, cy] = turn([MID, 31.5], dir).map((v) => Math.round(v - 0.5) + 0.5);
+  const S = 1.5;
+  const blobs = [[0, 1.5, 7], [-6.5, 3, 4.5], [6.5, 3, 4.5], [-3.5, -3.5, 5], [3.5, -3.5, 4.5]]
+    .map(([dx, dy, r]) => [cx + dx * S, cy + dy * S, r * S]);
+  const line = shade(color, -0.25);
+  p.layer(line, (pen) => blobs.forEach(([x, y, r]) => pen.disc(x, y, r + 2)), { cut: 128 });
+  p.layer(INK.cloud, (pen) => blobs.forEach(([x, y, r]) => pen.disc(x, y, r)), { cut: 128 });
+  p.layer(INK.cloudShade, (pen) => {
+    pen.c.save();
+    pen.c.beginPath(); blobs.forEach(([x, y, r]) => { pen.c.moveTo(x + r, y); pen.c.arc(x, y, r, 0, Math.PI * 2); });
+    pen.c.clip();
+    blobs.forEach(([x, y, r]) => pen.disc(x, y + r * 0.75, r * 0.7));
+    pen.c.restore();
+  }, { cut: 128 });
+  // The breath, out over the cloud's edge to the side of the tile it blows
+  // at: the one thing on it that has to read at a glance.
+  const out = SIDE_ANGLE[dir];
+  const reach = dir % 2 ? 15 : 12;
+  p.layer(INK.wind, (pen) => {
+    [-0.45, 0, 0.45].forEach((da) => {
+      const a = out + da;
+      const x = cx + Math.cos(a) * reach, y = cy + Math.sin(a) * reach;
+      pen.stalk(x, y, a, da ? 6 : 8, 3.6, { dir: da < 0 ? -1 : 1, bend: 0.12 });
+    });
+  }, { cut: 128 });
+  // The face, upright, its eyes and mouth leaning the way it blows.
+  const [lx, ly] = [[0, -1], [1, 0], [0, 1], [-1, 0]][dir];
+  const fx = cx + lx * 3, fy = cy - 1 + ly * 2;
+  p.layer(shade(color, 0.25), (pen) => { pen.disc(fx - 7.5, fy + 3, 3.3); pen.disc(fx + 7.5, fy + 3, 3.3); }, { cut: 128 });
+  p.layer(INK.ink, (pen) => {
+    pen.rect(Math.round(fx - 6 + lx), Math.round(fy - 4), 2, 3);
+    pen.rect(Math.round(fx + 4 + lx), Math.round(fy - 4), 2, 3);
+  }, { cut: 128 });
+  p.layer(INK.ink, (pen) => {
+    const mx = fx + lx * 5, my = fy + 4 + ly * 2;
+    pen.arc(mx, my, 2.2, 0, Math.PI * 2, { width: 1.5, wobble: 0 });
+  }, { cut: 110 });
+  spiritPics.set(k, p.cv);
+  return p.cv;
+}
+
 export const WHALE_W = 61, WHALE_H = 43;
 const WHALE = { body: '#6a78b8', deep: '#4f5a96', belly: '#e8ecfb' };
 

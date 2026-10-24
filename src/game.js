@@ -449,7 +449,11 @@ export class Game {
       else this.rot = (this.rot + dir + 4) % 4;
     } else if (this.phase === 'interior-place' && this.interior) {
       this.interior.rotate(dir);
-    } else return;
+    } else if (!this.m.turnOther?.(dir)) {
+      // Nothing to turn, unless the mode has something of its own in hand
+      // outside the tile step (Soffiando's player cloud).
+      return;
+    }
     this.emit('rotate');
   }
 

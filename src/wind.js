@@ -303,9 +303,15 @@ function firingRange(board, cells, dx, dy, far) {
  * @param push   the power it opens at, before anything it absorbs
  * @param blast  a GUST CANNON rather than a zephyr: the loose end is fired
  *               until it hits something rather than carried `power` squares
+ * @param spirits  zephyrs that stand on a square rather than on a tile, as
+ *               [{ x, y, dir }]: Soffiando's player clouds. The wind treats
+ *               one exactly as it treats a zephyr on a tile it reaches,
+ *               absorbed if it blows the gust's way and woken if it doesn't,
+ *               but nothing it does moves one: they are not country.
  */
 export function gust(board, {
   dir, from = null, everywhere = false, push = 1, rooted = null, blast = false, pinned = null,
+  spirits = [],
 }) {
   const [dx, dy] = SIDE_STEP[dir];
   // What this gust cannot move: the whale's tile and anything anchored, as
@@ -323,7 +329,14 @@ export function gust(board, {
   const lanes = everywhere
     ? everyLane(board, dx, dy)
     : (from ? [laneRuns(board, from, dx, dy)] : []);
-  if (!lanes.some((runs) => runs.length)) return report;
+  // The spirits in a lane, downwind of where it starts. A lane with no
+  // country in it can still carry the wind to a cloud and wake it, so a
+  // gust only does nothing if there is neither.
+  const inLane = (sx, sy) => spirits.filter((sp) => (dx === 0
+    ? sp.x === sx && (dy < 0 ? sp.y < sy : sp.y > sy)
+    : sp.y === sy && (dx < 0 ? sp.x < sx : sp.x > sx)));
+  const laneSpirits = everywhere ? [] : (from ? inLane(from.x, from.y) : []);
+  if (!lanes.some((runs) => runs.length) && !laneSpirits.length) return report;
 
   const roots = typeof rooted === 'function' ? rooted(board) : rooted;
   // Downwind distance along the gust — the order everything happens in.
@@ -337,10 +350,19 @@ export function gust(board, {
   const force = new Map();                        // cell -> the wind that reached it
   const rafts = [];                               // what actually moves
   const seen = new Set();                         // pieces of country already lifted
+  // A spirit is met where it stands: before any tile further downwind, and
+  // after the tile (if any) on its own square.
+  const meet = (sp, strength) => {
+    if (sp.dir === dir) return Math.min(MAX_STRENGTH, strength + 1);
+    report.zephyrs.push({ spirit: sp, dir: sp.dir, push: Math.min(MAX_STRENGTH, strength + 1), blast: false });
+    return strength;
+  };
   for (const runs of lanes) {
     let strength = Math.min(MAX_STRENGTH, push);
+    const ahead = laneSpirits.slice().sort((a, b) => along(a) - along(b));
     for (const run of runs) {
       for (const c of run.cells) {
+        while (ahead.length && along(ahead[0]) < along(c)) strength = meet(ahead.shift(), strength);
         // The force on THIS tile is the wind as it arrived — worked out before
         // the tile's own zephyr is folded in. A zephyr blowing the same way as
         // the gust hardens the wind BEYOND itself, not upon itself.
@@ -362,6 +384,7 @@ export function gust(board, {
           report.zephyrs.push({ cell: c, dir: d, push: Math.min(MAX_STRENGTH, strength + 1), blast: isCannon(c) });
         }
         if (absorbed) strength = Math.min(MAX_STRENGTH, strength + 1);
+        while (ahead.length && along(ahead[0]) === along(c)) strength = meet(ahead.shift(), strength);
       }
 
       // The loose end. A run backed up against the whale has none.
@@ -384,6 +407,9 @@ export function gust(board, {
       }
       rafts.push({ power, cells: run.cells.slice(Math.max(0, run.cells.length - power)) });
     }
+    // Past the last of the country the wind still blows, out to any cloud
+    // further down the lane — unless the whale closed the lane.
+    if (!runs.length || runs[runs.length - 1].open) for (const sp of ahead) strength = meet(sp, strength);
   }
 
   const lifting = new Set();
@@ -405,6 +431,25 @@ export function gust(board, {
     });
     c.meeple = null;
   }
+
+  // How a tile leaves the sky: its follower goes home, and it is reported so
+  // the mode can decide whether it comes back.
+  const drop = (cell, why) => {
+    if (cell.meeple) {
+      report.homed.push({ ...cell.meeple, x: cell.x, y: cell.y, why: 'fell' });
+      cell.meeple = null;
+    }
+    report.fell.push({ id: cell.type.id, x: cell.x, y: cell.y, type: cell.type, rot: cell.rot, cell, why });
+    board.remove(cell.x, cell.y, { quiet: true });   // one rebuild at the end
+  };
+
+  // THE EDGE OF THE MAP. A board with bounds has an edge, and a tile the wind
+  // carries past it is gone into the aether (Timothy, 2026-10-24: "if island
+  // tiles are blown off it, they fly off into the aether and are gone"). Not
+  // fallen, not back in the deck: gone. It goes the moment its way out crosses
+  // the edge, so the tiles behind it are free to slide into the room it left.
+  const off = (x, y) => !!board.bounds && !board.inBounds(x, y);
+  const aether = board.bounds ? 'aether' : 'fired';
 
   // --- the shove -------------------------------------------------------------
   // Far end first, always, so anything moving slides along behind its own
@@ -440,6 +485,7 @@ export function gust(board, {
       const was0 = order.map((c) => ({ x: c.x, y: c.y }));
       for (const cell of order) {
         const was = { x: cell.x, y: cell.y };
+        if (off(was.x + dx * steps, was.y + dy * steps)) { drop(cell, 'aether'); continue; }
         if (!board.shift(was, { x: was.x + dx * steps, y: was.y + dy * steps })) continue;
         report.moved.push({ cell, from: was, steps });
       }
@@ -467,6 +513,7 @@ export function gust(board, {
         }
       }
       if (!steps) continue;
+      if (off(cell.x + dx * steps, cell.y + dy * steps)) { drop(cell, 'aether'); continue; }
       const was = { x: cell.x, y: cell.y };
       if (!board.shift(was, { x: was.x + dx * steps, y: was.y + dy * steps })) continue;
       report.moved.push({ cell, from: was, steps });
@@ -488,19 +535,10 @@ export function gust(board, {
   //
   // The whale's tile is never dropped: a hundred tons of sky whale outranks the
   // seam it happens to be sitting on.
-  const drop = (cell, why) => {
-    if (cell.meeple) {
-      report.homed.push({ ...cell.meeple, x: cell.x, y: cell.y, why: 'fell' });
-      cell.meeple = null;
-    }
-    report.fell.push({ id: cell.type.id, x: cell.x, y: cell.y, type: cell.type, rot: cell.rot, cell, why });
-    board.remove(cell.x, cell.y, { quiet: true });   // one rebuild at the end
-  };
-
   for (const cell of fired) {
     if (board.size <= 1) break;
     if (board.get(cell.x, cell.y) !== cell || cell.balena) continue;
-    drop(cell, 'fired');
+    drop(cell, aether);                              // nothing to stop it: off the map
   }
 
   for (const m of report.moved) {
@@ -628,7 +666,7 @@ function landingFeature(cell, wasType) {
  * Reports come back in the order they happened, so the caller can pay for them
  * and narrate them in the order a player watched them.
  */
-export function storm(board, first, { cap = MAX_GUSTS, rooted = null, pinned = null } = {}) {
+export function storm(board, first, { cap = MAX_GUSTS, rooted = null, pinned = null, spirits = [] } = {}) {
   const out = [];
   const queue = Array.isArray(first) ? first.slice() : [first];
   const fired = new Map();                               // cell -> Set of directions
@@ -641,15 +679,23 @@ export function storm(board, first, { cap = MAX_GUSTS, rooted = null, pinned = n
     return true;
   };
 
+  // A storm a spirit starts is that spirit's, not the tile's under it.
   for (const spec of queue) {
-    const src = spec.from && board.get(spec.from.x, spec.from.y);
+    const src = spec.spirit || (spec.from && board.get(spec.from.x, spec.from.y));
     if (src) once(src, spec.dir);
   }
 
   while (queue.length && out.length < cap) {
-    const g = gust(board, { ...queue.shift(), rooted, pinned });
+    const g = gust(board, { ...queue.shift(), rooted, pinned, spirits });
     out.push(g);
-    for (const { cell, dir, push, blast } of g.zephyrs) {
+    for (const { cell, spirit, dir, push, blast } of g.zephyrs) {
+      // A spirit is woken like a zephyr, from its own square, and is never
+      // moved or buried by the weather, so there is nothing to check first.
+      if (spirit) {
+        if (!once(spirit, dir)) continue;
+        queue.push({ dir, from: { x: spirit.x, y: spirit.y }, push: Math.max(push || 1, spirit.push || 1), spirit });
+        continue;
+      }
       if (board.get(cell.x, cell.y) !== cell) continue;   // it fell, or was buried
       if (!once(cell, dir)) continue;
       // A woken zephyr opens at whichever is harder: the wind that woke it,
