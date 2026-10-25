@@ -211,25 +211,40 @@ const kOf = (x, y) => `${x},${y}`;
  */
 function laneRuns(board, from, dx, dy) {
   const lane = [];
-  for (const c of board.cells.values()) {
-    const ok = dx === 0
-      ? c.x === from.x && (dy < 0 ? c.y < from.y : c.y > from.y)
-      : c.y === from.y && (dx < 0 ? c.x < from.x : c.x > from.x);
-    if (ok) lane.push(c);
-  }
-  lane.sort((a, b) => (a.x * dx + a.y * dy) - (b.x * dx + b.y * dy));
+  const down = downwind(board, from, dx, dy);
+  for (const c of board.cells.values()) if (down(c) != null) lane.push(c);
+  lane.sort((a, b) => down(a) - down(b));
 
   const runs = [];
   let cur = null;
   let prev = null;
   for (const c of lane) {
     if (blocks(c)) { if (cur) cur.open = false; break; }   // the whale: no loose end, no lee
-    const d = c.x * dx + c.y * dy;
+    const d = down(c);
     if (!cur || d !== prev + 1) { cur = { cells: [], open: true }; runs.push(cur); }
     cur.cells.push(c);
     prev = d;
   }
   return runs;
+}
+
+/**
+ * How far downwind a square is, in the lane out of `from`, or null if it is
+ * not in that lane at all: measured from the board's own origin, as
+ * everything else in this file is. A lane runs to the edge of the map, on a
+ * map that wraps as on one that doesn't (2026-10-25): the wind takes hold of
+ * what is between its zephyr and the edge, and only what it PUSHES crosses
+ * the seam. Measured with the wind going round the world to its own back as
+ * well, a game had half as many gusts again and twice the falls.
+ */
+function downwind(board, from, dx, dy) {
+  const f = board.norm(from.x, from.y);
+  return (c) => {
+    const ok = dx === 0
+      ? c.x === f.x && (dy < 0 ? c.y < f.y : c.y > f.y)
+      : c.y === f.y && (dx < 0 ? c.x < f.x : c.x > f.x);
+    return ok ? c.x * dx + c.y * dy : null;
+  };
 }
 
 /** Every lane on the board at once, for a mass weather event. */
@@ -282,14 +297,16 @@ function regionOf(board, seed) {
 function firingRange(board, cells, dx, dy, far) {
   const mine = new Set(cells.map((c) => kOf(c.x, c.y)));
   const start = Math.min(...cells.map((c) => c.x * dx + c.y * dy));
-  const reach = far - start + 1;
+  // Round a wrapping world a shot can go a whole lap, and one that meets
+  // nothing in all of it has come back round to where it was fired from.
+  const reach = board.wraps ? (dx === 0 ? board.span.h : board.span.w) : far - start + 1;
   for (let n = 1; n <= reach; n++) {
     for (const c of cells) {
       const [tx, ty] = [c.x + dx * n, c.y + dy * n];
-      if (board.get(tx, ty) && !mine.has(kOf(tx, ty))) return n - 1;
+      if (board.get(tx, ty) && !mine.has(board.key(tx, ty))) return n - 1;
     }
   }
-  return null;
+  return board.wraps ? 0 : null;
 }
 
 /**
@@ -329,13 +346,11 @@ export function gust(board, {
   const lanes = everywhere
     ? everyLane(board, dx, dy)
     : (from ? [laneRuns(board, from, dx, dy)] : []);
+  const down = from && !everywhere ? downwind(board, from, dx, dy) : null;
   // The spirits in a lane, downwind of where it starts. A lane with no
   // country in it can still carry the wind to a cloud and wake it, so a
   // gust only does nothing if there is neither.
-  const inLane = (sx, sy) => spirits.filter((sp) => (dx === 0
-    ? sp.x === sx && (dy < 0 ? sp.y < sy : sp.y > sy)
-    : sp.y === sy && (dx < 0 ? sp.x < sx : sp.x > sx)));
-  const laneSpirits = everywhere ? [] : (from ? inLane(from.x, from.y) : []);
+  const laneSpirits = down ? spirits.filter((sp) => down(sp) != null) : [];
   if (!lanes.some((runs) => runs.length) && !laneSpirits.length) return report;
 
   const roots = typeof rooted === 'function' ? rooted(board) : rooted;
@@ -426,6 +441,7 @@ export function gust(board, {
     riders.push({
       meeple: c.meeple,
       was: { x: c.x, y: c.y },
+      d: along(c),
       steps: force.get(c) || 1,
       type: c.type.feats[c.meeple.feat]?.type || null,
     });
@@ -448,8 +464,11 @@ export function gust(board, {
   // tiles are blown off it, they fly off into the aether and are gone"). Not
   // fallen, not back in the deck: gone. It goes the moment its way out crosses
   // the edge, so the tiles behind it are free to slide into the room it left.
+  //
+  // A WRAPPING board has no edge (2026-10-25): what goes off one side comes
+  // on at the other, still joined to whatever it was joined to.
   const off = (x, y) => !!board.bounds && !board.inBounds(x, y);
-  const aether = board.bounds ? 'aether' : 'fired';
+  const aether = board.bounds && !board.wraps ? 'aether' : 'fired';
 
   // --- the shove -------------------------------------------------------------
   // Far end first, always, so anything moving slides along behind its own
@@ -476,19 +495,22 @@ export function gust(board, {
       for (let n = 1; n <= raft.power; n++) {
         const clear = order.every((c) => {
           const [tx, ty] = [c.x + dx * n, c.y + dy * n];
-          return !board.get(tx, ty) || mine.has(kOf(tx, ty));
+          return !board.get(tx, ty) || mine.has(board.key(tx, ty));
         });
         if (!clear) break;
         steps = n;
       }
       if (!steps) continue;
       const was0 = order.map((c) => ({ x: c.x, y: c.y }));
+      // All of it at once rather than far end first: round a wrapping world
+      // an island can lie across the seam, and then it has no far end.
+      const go = [];
       for (const cell of order) {
         const was = { x: cell.x, y: cell.y };
         if (off(was.x + dx * steps, was.y + dy * steps)) { drop(cell, 'aether'); continue; }
-        if (!board.shift(was, { x: was.x + dx * steps, y: was.y + dy * steps })) continue;
-        report.moved.push({ cell, from: was, steps });
+        go.push({ cell, from: was, to: { x: was.x + dx * steps, y: was.y + dy * steps } });
       }
+      for (const m of board.shiftAll(go)) report.moved.push({ cell: m.cell, from: m.from, steps });
       report.lifted.push({ cells: order, steps, from: was0 });
       continue;
     }
@@ -498,7 +520,10 @@ export function gust(board, {
     // FIRED and travels until the square in front of it is taken, however far
     // that is. The leading tile goes furthest and the ones behind pile up
     // against it, so a raft arrives still a raft. Fired down a lane with
-    // nothing in it, a tile goes on for ever, which is to say out of the sky.
+    // nothing in it, a tile goes on for ever, which is to say out of the sky;
+    // round a wrapping world there is always something, its own cannon's back
+    // if nothing else, and a shot with nothing at all in its row comes all
+    // the way round to where it started.
     for (const cell of order) {
       if (stuck(cell)) continue;
       let steps = 0;
@@ -583,20 +608,23 @@ export function gust(board, {
   // until they land on an island"). Measured before it shipped: wind
   // arrivals on islands went from 0.3 a game to 1.4. Only a follower with
   // nothing at all downwind of it goes home.
+  // Round a wrapping world it flies at most a lap, and so comes down on
+  // something: the tile it was blown off, if nothing else.
   let edge = -Infinity;
-  for (const c of board.cells.values()) edge = Math.max(edge, along(c));
+  for (const c of board.cells.values()) edge = Math.max(edge, c.x * dx + c.y * dy);
+  const lap = board.wraps ? (dx === 0 ? board.span.h : board.span.w) : 0;
   const landing = (from) => {
     let to = carried(from);
-    if (board.get(to.x, to.y)) return to;
+    if (board.get(to.x, to.y)) return board.norm(to.x, to.y);
     let { x, y } = to;
-    while (x * dx + y * dy < edge) {
+    for (let n = 0; board.wraps ? n < lap : x * dx + y * dy < edge; n++) {
       x += dx; y += dy;
-      if (board.get(x, y)) return carried({ x, y });
+      if (board.get(x, y)) { const c = carried({ x, y }); return board.norm(c.x, c.y); }
     }
-    return to;
+    return board.norm(to.x, to.y);
   };
 
-  for (const r of riders.sort((a, b) => (b.was.x * dx + b.was.y * dy) - (a.was.x * dx + a.was.y * dy))) {
+  for (const r of riders.sort((a, b) => b.d - a.d)) {
     const to = landing({ x: r.was.x + dx * r.steps, y: r.was.y + dy * r.steps });
     const dest = board.get(to.x, to.y);
     // Nothing downwind at all. This is the only way the wind sends one home.

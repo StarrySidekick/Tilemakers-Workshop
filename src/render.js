@@ -10,12 +10,12 @@ import { drawTile, drawMeeple, drawPig, drawIngots, drawBuilding, PLAYER_COLORS 
 import { tileSprite, spriteFrame } from './sprites.js';
 import {
   pixelTile, pixelSky, pixelAether, pixelCloudSpirit, paintCoasts, pixelSails, PX, SAIL_FRAMES, turbineHub,
-  setPixelFigures, pixelWhale, pixelWhaleShadow,
+  setPixelFigures, pixelWhale, pixelWhaleShadow, pixelGate,
 } from './pixel.js';
 import { LIGHT } from './light.js';
 import { THEME, applyDusk, usePalette } from './theme.js';
 import { DESIGN, rgba } from './design.js';
-import { rotPoint } from './tiles.js';
+import { rotPoint, wallSides, opposite } from './tiles.js';
 import { liftableCells } from './mechanics.js';
 
 // Move targets, in the order you want to notice them. Green is the plain "you
@@ -235,6 +235,9 @@ export class Renderer {
       if (overlay) this.drawCellOverlay(cell, overlay, lift);
     }
 
+    if (this.pixel) this.drawGates(game);
+    if (game.board.wraps) this.drawSeam(game, fog);
+
     if (game.phase === 'lift') this.drawCellTargets(game.m.allLiftable ? game.m.allLiftable() : liftableCells(game.board), THEME.violet, '107,90,140');
     if (game.phase === 'balena') this.drawCellTargets(game.m.balenaTargets(), THEME.teal, '95,191,174');
     if (game.phase === 'cloud') this.drawCellTargets(game.m.cloudTargets(), THEME.teal, '95,191,174');
@@ -282,6 +285,59 @@ export class Renderer {
 
     // Interiors sit above that — you're indoors, not outdoors.
     if (game.interior) this.drawInterior(game); else this.caveView = null;
+  }
+
+  /**
+   * A gate in every district wall a road runs into (2026-10-25), drawn over
+   * the district because the tile's own picture cannot know the road is
+   * there. Walls are in the tile's own frame; the board asks in the world's.
+   */
+  drawGates(game) {
+    const ctx = this.ctx, z = this.cam.zoom, board = game.board;
+    ctx.imageSmoothingEnabled = this.shrinking(z);
+    for (const cell of board.cells.values()) {
+      const walls = wallSides(cell.type);
+      if (!walls.size || !cell.type.feats.some((f) => f.district)) continue;
+      if (!this.onScreen(cell.x, cell.y) || this.fx?.veiled(`tile:${cell.x},${cell.y}`)) continue;
+      for (const c of walls) {
+        const s = (c + cell.rot) % 4;
+        const nb = board.neighbor(cell.x, cell.y, s);
+        if (!nb || board.edgeAt(nb, opposite(s)) !== 'r') continue;
+        const [sx, sy] = this.toScreen(cell.x, cell.y);
+        const x0 = Math.round(sx), y0 = Math.round(sy);
+        ctx.drawImage(pixelGate(s), x0, y0, Math.round(sx + z) - x0, Math.round(sy + z) - y0);
+      }
+    }
+    ctx.imageSmoothingEnabled = true;
+  }
+
+  /**
+   * THE SEAM of a map that wraps (Soffiando, 2026-10-25). The ring of squares
+   * just past each edge shows, faintly, what is on the far edge across from
+   * it, because that is what is next door: a tile on the east edge has the
+   * west edge's tile as its neighbour, and a road running off one side runs
+   * on from the other. Pictures only; nothing can be laid or clicked there.
+   */
+  drawSeam(game, fog) {
+    const ctx = this.ctx;
+    const board = game.board, b = board.bounds, { w, h } = board.span;
+    for (const cell of board.cells.values()) {
+      if (this.fx?.veiled(`tile:${cell.x},${cell.y}`)) continue;
+      const xs = [0], ys = [0];
+      if (cell.x === b.minX) xs.push(w); if (cell.x === b.maxX) xs.push(-w);
+      if (cell.y === b.minY) ys.push(h); if (cell.y === b.maxY) ys.push(-h);
+      for (const ox of xs) {
+        for (const oy of ys) {
+          if (!ox && !oy) continue;
+          const gx = cell.x + ox, gy = cell.y + oy;
+          if (!this.onScreen(gx, gy)) continue;
+          ctx.save();
+          ctx.globalAlpha = fog && !fog.has(`${cell.x},${cell.y}`) ? 0.12 : 0.42;
+          this.paintTile(gx, gy, cell.rot, cell.type, 'surface', this.cam.zoom, null, cell.seq);
+          ctx.restore();
+        }
+      }
+    }
   }
 
   onScreen(x, y) {

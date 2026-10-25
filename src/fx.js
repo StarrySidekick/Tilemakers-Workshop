@@ -309,7 +309,12 @@ export class Effects {
         // rather than a single instantaneous rearrangement.
         const at = data.delay || 0;
         for (const m of data.moves || []) {
-          this.flyTile({ from: m.from, to: m.at, type: m.type, rot: m.rot, look: m.look, delay: at, life: DESIGN.storm.tileGlide, solid: true });
+          const glide = { type: m.type, rot: m.rot, look: m.look, delay: at, life: DESIGN.storm.tileGlide, solid: true };
+          if (!m.via) { this.flyTile({ from: m.from, to: m.at, ...glide }); continue; }
+          // Across the seam of a map that wraps: off the edge it leaves by,
+          // and on at the one across from it, the same slide twice.
+          this.flyTile({ from: m.from, to: m.via, ...glide });
+          this.flyTile({ from: { x: m.at.x - (m.via.x - m.from.x), y: m.at.y - (m.via.y - m.from.y) }, to: m.at, ...glide });
         }
         if (data.fell?.length) this.fall(data.fell, 'blow', at);
         return;
@@ -318,10 +323,18 @@ export class Effects {
       case 'wind': {
         // The gust itself: an ink streak sweeping down the lane, so the path
         // the weather takes is a thing you watch rather than reconstruct.
-        this.add({
-          kind: 'wind', from: data.from, to: data.to, dir: data.dir,
-          blast: !!data.blast, delay: data.delay || 0, life: LIFE.wind,
-        });
+        // Round a map that wraps it comes in legs, each starting as the one
+        // before it goes off the edge.
+        const legs = data.legs || [{ from: data.from, to: data.to, share: 1 }];
+        let done = 0;
+        for (const leg of legs) {
+          this.add({
+            kind: 'wind', from: leg.from, to: leg.to, dir: data.dir,
+            blast: !!data.blast, delay: (data.delay || 0) + LIFE.wind * 0.6 * done,
+            life: LIFE.wind * Math.max(0.35, leg.share),
+          });
+          done += leg.share;
+        }
         return;
       }
 

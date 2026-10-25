@@ -1,0 +1,463 @@
+<title>Soffiando Rulebook</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@500;700&family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&display=swap">
+<style>
+  /* One column under a sky band: the rules to read and comment on, the deck
+     tile by tile, and what is waiting for Claude. The pixel face only for
+     names and numbers, a reading face for everything else. */
+  :root {
+    --sky: #a9d5f5; --sky-deep: #7fb4df; --ink: #3a3262; --paper: #f7f8fd;
+    --card: #ffffff; --line: #d9dcef; --muted: #5d5a7f; --gold: #b9861f; --gold-wash: #fbf1d8;
+    --timothy: #2d58a8; --history: #6a6390; --carc: #8a5a3c; --claude: #2f7f48;
+    --good: #2f7f48; --warn: #a2571c; --out: #9e2f47; --field: #c4e7b0;
+    --display: "Pixelify Sans", "Courier New", monospace;
+    --body: "Atkinson Hyperlegible", system-ui, -apple-system, sans-serif;
+  }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+    --sky: #2b2752; --sky-deep: #3d3770; --ink: #e8e6fb; --paper: #1d1a38;
+    --card: #26224a; --line: #3b3666; --muted: #b3aedb; --gold: #f3c24f; --gold-wash: #3a3220;
+    --timothy: #9cc3ff; --history: #c7c0f0; --carc: #e3b08a; --claude: #8fd6a3;
+    --good: #8fd6a3; --warn: #f0b27a; --out: #f39aa8; --field: #35513a; color-scheme: dark } }
+  :root[data-theme="dark"] {
+    --sky: #2b2752; --sky-deep: #3d3770; --ink: #e8e6fb; --paper: #1d1a38;
+    --card: #26224a; --line: #3b3666; --muted: #b3aedb; --gold: #f3c24f; --gold-wash: #3a3220;
+    --timothy: #9cc3ff; --history: #c7c0f0; --carc: #e3b08a; --claude: #8fd6a3;
+    --good: #8fd6a3; --warn: #f0b27a; --out: #f39aa8; --field: #35513a; color-scheme: dark }
+  body { background: var(--paper); color: var(--ink); font: 16px/1.55 var(--body); margin: 0; }
+  body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--paper); }
+  .band { background: var(--sky); border-bottom: 3px solid var(--sky-deep);
+    padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 28px 0; }
+  .wrap { max-width: 46rem; margin: 0 auto; }
+  main.wrap { padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 8px 48px; }
+  h1 { font: 700 2.4rem/1.05 var(--display); margin: 0 0 8px; letter-spacing: 0.01em; text-wrap: balance; }
+  .lede { margin: 0; max-width: 38rem; }
+  .meta { margin: 10px 0 0; color: var(--muted); font-size: 0.9rem; display: flex; flex-wrap: wrap; gap: 4px 14px; align-items: center; }
+  .state { font-weight: 700; }
+  .state.ok { color: var(--good); } .state.bad { color: var(--out); } .state.busy { color: var(--muted); }
+  .tabs { display: flex; gap: 4px; margin-top: 18px; overflow-x: auto; }
+  .tabs button { font: 700 1rem var(--display); color: var(--ink); background: transparent; border: 3px solid transparent;
+    border-bottom: 0; padding: 8px 14px 9px; cursor: pointer; white-space: nowrap; }
+  .tabs button[aria-selected="true"] { background: var(--paper); border-color: var(--sky-deep); margin-bottom: -3px; padding-bottom: 12px; }
+  .badge { display: inline-block; min-width: 1.4em; padding: 0 5px; margin-left: 6px; background: var(--gold); color: var(--paper);
+    font: 700 0.8rem/1.4 var(--body); text-align: center; }
+  .badge:empty { display: none; }
+  button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visible, summary:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
+  nav.parts { display: flex; flex-wrap: wrap; gap: 6px; margin: 14px 0 0; }
+  nav.parts a { font: 500 0.85rem var(--display); color: var(--ink); text-decoration: none; padding: 3px 8px; border: 2px solid var(--sky-deep); background: var(--card); }
+  .find { margin: 20px 0 4px; }
+  label.small, .find label { display: block; font-size: 0.85rem; color: var(--muted); margin-bottom: 4px; }
+  input[type="search"], textarea { width: 100%; box-sizing: border-box; font: 1rem var(--body); padding: 8px 10px; color: var(--ink);
+    background: var(--card); border: 2px solid var(--line); border-radius: 0; }
+  textarea { min-height: 4.2em; resize: vertical; }
+  .group { margin-top: 30px; }
+  h2 { font: 700 1.35rem/1.2 var(--display); margin: 0; text-wrap: balance; }
+  .ask { margin: 2px 0 10px; color: var(--muted); }
+  ol.rules { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+  .rule { display: grid; grid-template-columns: 2.6rem 1fr; gap: 10px; background: var(--card);
+    border: 2px solid var(--line); padding: 12px 12px 12px 8px; scroll-margin-top: 12px; }
+  .rule:target { border-color: var(--sky-deep); }
+  .rule.mine { border-color: var(--gold); }
+  .n { font: 700 1.25rem/1.3 var(--display); color: var(--ink); text-decoration: none; text-align: right; font-variant-numeric: tabular-nums; }
+  .body { min-width: 0; display: grid; gap: 8px; }
+  .text { margin: 0; }
+  .text s { color: var(--muted); }
+  .text a { color: inherit; text-decoration-color: var(--gold); text-decoration-thickness: 2px; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .chip { font-size: 0.78rem; padding: 1px 8px; border: 2px dashed var(--sky-deep); color: var(--muted); }
+  .chip.new { border-style: solid; border-color: var(--sky-deep); color: var(--ink); }
+  .chip.wait { border-style: solid; border-color: var(--gold); color: var(--ink); background: var(--gold-wash); }
+  .from { font-size: 0.86rem; color: var(--muted); display: grid; gap: 2px; border-left: 3px solid var(--line); padding-left: 10px; }
+  .from .who { font-weight: 700; letter-spacing: 0.02em; }
+  .timothy { border-left-color: var(--timothy); } .timothy .who { color: var(--timothy); }
+  .history { border-left-color: var(--history); } .history .who { color: var(--history); }
+  .carc { border-left-color: var(--carc); } .carc .who { color: var(--carc); }
+  .claude { border-left-color: var(--claude); } .claude .who { color: var(--claude); }
+  q { font-style: italic; }
+  .was { margin: 0; font-size: 0.86rem; color: var(--muted); }
+  .act { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  .btn { font: 700 0.9rem var(--body); color: var(--ink); background: var(--card); border: 2px solid var(--sky-deep);
+    padding: 5px 12px; cursor: pointer; }
+  .btn.quiet { border-color: var(--line); color: var(--muted); font-weight: 400; }
+  .btn.warn { border-color: var(--out); color: var(--out); }
+  .btn:disabled { opacity: 0.5; cursor: default; }
+  .editor { display: grid; gap: 10px; padding: 10px; background: var(--paper); border: 2px solid var(--line); }
+  .editor .row { display: flex; gap: 8px; align-items: center; }
+  .none { color: var(--muted); }
+  /* The deck. */
+  .count { display: grid; grid-template-columns: auto 1fr; gap: 4px 16px; align-items: center; margin-top: 22px;
+    background: var(--card); border: 2px solid var(--line); padding: 14px 16px; position: sticky; top: env(safe-area-inset-top, 0px); z-index: 2; }
+  .count .big { font: 700 2.6rem/1 var(--display); font-variant-numeric: tabular-nums; grid-row: span 2; }
+  .count .of { font-weight: 700; }
+  .count .of.good { color: var(--good); } .count .of.warn { color: var(--warn); }
+  .count p { margin: 0; color: var(--muted); font-size: 0.88rem; }
+  .tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(10.5rem, 1fr)); gap: 10px; }
+  .tile { background: var(--card); border: 2px solid var(--line); padding: 10px; display: grid; gap: 6px; align-content: start; }
+  .tile.off { background: transparent; border-style: dashed; }
+  .tile.off img { opacity: 0.45; }
+  .tile.mine { border-color: var(--gold); border-style: solid; }
+  .tile img { width: 102px; height: 102px; image-rendering: pixelated; image-rendering: crisp-edges; max-width: 100%; }
+  .tile .name { font-weight: 700; line-height: 1.25; }
+  .tile code { font-size: 0.8rem; color: var(--muted); }
+  .tile .was { font-size: 0.8rem; }
+  .switch { display: flex; gap: 8px; align-items: center; font-size: 0.9rem; cursor: pointer; }
+  .switch input { width: 1.1rem; height: 1.1rem; accent-color: var(--gold); }
+  .stepper { display: flex; align-items: center; gap: 4px; }
+  .stepper button { width: 2rem; height: 2rem; font: 700 1.1rem var(--display); color: var(--ink); background: var(--paper); border: 2px solid var(--line); cursor: pointer; }
+  .stepper output { min-width: 1.6rem; text-align: center; font: 700 1.2rem var(--display); font-variant-numeric: tabular-nums; }
+  /* Your changes. */
+  .panel { background: var(--card); border: 2px solid var(--line); padding: 14px 16px; margin-top: 22px; display: grid; gap: 10px; }
+  .panel h2 { font-size: 1.1rem; }
+  .panel ul { margin: 0; padding-left: 1.2rem; display: grid; gap: 6px; }
+  .panel p { margin: 0; }
+  .panel a { color: inherit; text-decoration-color: var(--gold); text-decoration-thickness: 2px; }
+  .say { background: var(--gold-wash); border: 2px solid var(--gold); padding: 10px 12px; }
+  footer { margin-top: 36px; color: var(--muted); font-size: 0.85rem; }
+  @media (prefers-reduced-motion: no-preference) { html { scroll-behavior: smooth; } }
+</style>
+<header class="band">
+  <div class="wrap">
+    <h1>Soffiando Rulebook</h1>
+    <p class="lede">Every rule of the cloud kingdom as the game plays it today, and every tile in its deck. Each rule has a test that plays it on the game's engine, so if a rule here and the game ever disagree, the check fails.</p>
+    <p class="meta"><span id="meta"></span><span class="state busy" id="state">Connecting…</span></p>
+    <div class="tabs" role="tablist" aria-label="Sections">
+      <button role="tab" id="t-rules" data-tab="rules" aria-selected="true">Rules</button>
+      <button role="tab" id="t-tiles" data-tab="tiles" aria-selected="false">Tiles</button>
+      <button role="tab" id="t-changes" data-tab="changes" aria-selected="false">Your changes<span class="badge" id="badge"></span></button>
+    </div>
+  </div>
+</header>
+<main class="wrap">
+  <section data-panel="rules" id="rules">
+    <nav class="parts" aria-label="Parts" id="parts"></nav>
+    <div class="find">
+      <label for="find">Find a rule</label>
+      <input id="find" type="search" placeholder="cloud, island, wall…" autocomplete="off">
+    </div>
+    <p class="none" id="none" hidden>No rule says that.</p>
+    <div id="groups"></div>
+  </section>
+  <section data-panel="tiles" id="tiles" hidden>
+    <div class="count" aria-live="polite">
+      <span class="big" id="total"></span>
+      <span class="of" id="of"></span>
+      <p>Turn a tile on or off, or change how many copies go in. Your changes wait here until Claude builds them.</p>
+    </div>
+    <div id="deck"></div>
+  </section>
+  <section data-panel="changes" id="changes" hidden>
+    <div class="panel">
+      <p class="say">Everything you change here is saved as you go. To put it in the game, tell Claude: <b>apply the Soffiando Rulebook</b>. Claude reads it from this page, builds each change with a test that proves it, and it comes back here as part of the rules and the deck.</p>
+      <div id="pending"></div>
+      <div class="act" id="clearrow">
+        <button class="btn warn" type="button" id="clear">Clear all my changes</button>
+        <span id="confirm" hidden>Clear everything listed above? <button class="btn warn" type="button" id="clearyes">Yes, clear it</button> <button class="btn quiet" type="button" id="clearno">Keep it</button></span>
+      </div>
+    </div>
+  </section>
+  <footer>Rule numbers are for good: a rule taken out keeps its number, and no new rule reuses it<span id="retired"></span>.
+  Sources: Timothy's own words where he said it; the design history (the passes in MODES.md) where nobody wrote down who decided; Carcassonne where it is Carcassonne's; Claude's calls, each named.
+  Proven by <code>node tools/soffiando-rulebook.mjs</code> in the Tilemaker's Workshop repo.</footer>
+</main>
+<script>
+const DATA = /*DATA*/;
+const OPTION = { deck: 'a deck of its own (deck)', clouds: 'clouds (clouds)', balena: 'the Balena (balena)' };
+
+// --- Helpers. ----------------------------------------------------------------------
+function el(tag, attrs = {}, ...kids) {
+  const n = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs)) {
+    if (v == null || v === false) continue;
+    if (k.startsWith('on')) n.addEventListener(k.slice(2), v);
+    else if (k === 'class') n.className = v;
+    else if (v === true) n.setAttribute(k, '');
+    else n.setAttribute(k, v);
+  }
+  for (const k of kids.flat()) if (k != null && k !== false) n.append(k.nodeType ? k : String(k));
+  return n;
+}
+const clone = (o) => JSON.parse(JSON.stringify(o || {}));
+/** "(rule 40)" and "(rules 25 to 27)" become links to those rules. */
+function linked(text) {
+  const out = [];
+  let last = 0;
+  for (const m of text.matchAll(/\brules? (\d+)(?: (to|and) (\d+))?/g)) {
+    out.push(text.slice(last, m.index));
+    const a = (n) => el('a', { href: `#r${n}` }, n);
+    if (m[3]) out.push('rules ', a(m[1]), ` ${m[2]} `, a(m[3]));
+    else out.push(m[0].startsWith('rules') ? 'rules ' : 'rule ', a(m[1]));
+    last = m.index + m[0].length;
+  }
+  out.push(text.slice(last));
+  return out;
+}
+
+// --- What Timothy has changed, waiting for Claude: kept in the page's database
+// (doc book/changes) so Claude can read it, and in this browser as a fallback.
+let C = { rules: {}, tiles: {} };
+let db = null, ref = null, canWrite = true, saving = false, again = false, timer = null, dirty = false;
+const KEY = 'soffiando-rulebook';
+function load(s) { C = { rules: clone(s?.rules), tiles: clone(s?.tiles) }; }
+function setState(kind, text) { const s = document.getElementById('state'); s.className = `state ${kind}`; s.textContent = text; }
+function changed() {
+  for (const [id, e] of Object.entries(C.rules)) {
+    if (!e.text && !e.out && !e.note) delete C.rules[id];
+  }
+  paintBadge();
+  if (!canWrite) return;
+  dirty = true;
+  setState('busy', 'Saving…');
+  clearTimeout(timer);
+  timer = setTimeout(save, 450);
+}
+async function save() {
+  if (saving) { again = true; return; }
+  saving = true;
+  const body = { ...clone(C), updated: new Date().toISOString() };
+  try {
+    if (ref) await ref.set(body);
+    else { try { localStorage.setItem(KEY, JSON.stringify(body)); } catch { /* blocked */ } }
+    setState('ok', ref ? 'Saved' : 'Saved in this browser only');
+  } catch (e) {
+    if (e?.code === 'invalid_argument') { canWrite = false; setState('bad', 'Read only: you cannot change these'); paintAll(); }
+    else setState('bad', 'Not saved. Change something again to retry.');
+  }
+  saving = false;
+  if (again) { again = false; save(); return; }
+  dirty = false;
+}
+async function connect() {
+  try { const s = JSON.parse(localStorage.getItem(KEY)); if (s) { load(s); paintAll(); } } catch { /* none */ }
+  db = await window.claude?.use?.('db');
+  if (!db) { setState('ok', 'Saving in this browser only'); return; }
+  const user = await window.claude.use('user');
+  if (user?.can?.('data.write') === false) canWrite = false;
+  ref = db.doc('book/changes');
+  let first = true;
+  ref.onSnapshot((snap) => {
+    // Our own writes come back as snapshots too; while there is anything of
+    // ours still to send, what the store holds is older than this page.
+    if (snap.metadata.hasPendingWrites || dirty) return;
+    if (snap.exists) {
+      const d = snap.data();
+      const same = JSON.stringify({ r: d.rules || {}, t: d.tiles || {} }) === JSON.stringify({ r: C.rules, t: C.tiles });
+      if (!same) { load(d); paintAll(); }
+    }
+    if (first) {
+      first = false;
+      if (!canWrite) { setState('bad', 'Read only'); paintAll(); }
+      else setState('ok', snap.exists ? 'Saved' : 'Nothing changed yet');
+    }
+  }, () => setState('bad', 'Lost the connection: reload to keep saving'));
+}
+
+// --- Rules. -----------------------------------------------------------------------
+const book = DATA.book;
+let open = new Set();
+function setRule(id, k, v) { C.rules[id] = { ...(C.rules[id] || {}), [k]: v }; changed(); }
+function source(f) {
+  if (f.by === 'timothy') return el('div', { class: 'from timothy' }, el('span', { class: 'who' }, `Timothy, ${f.on}`), el('q', {}, f.said), f.call ? el('span', {}, `Read as: ${f.call}`) : null);
+  if (f.by === 'history') return el('div', { class: 'from history' }, el('span', { class: 'who' }, `Design history${f.pass ? `, ${f.pass} pass` : ''}`), f.why ? el('span', {}, f.why) : null);
+  if (f.by === 'carcassonne') return el('div', { class: 'from carc' }, el('span', { class: 'who' }, 'From Carcassonne'), f.why ? el('span', {}, f.why) : null);
+  return el('div', { class: 'from claude' }, el('span', { class: 'who' }, 'Claude’s call'), el('span', {}, f.why));
+}
+function editor(id, e, isNew) {
+  const ro = !canWrite;
+  return el('div', { class: 'editor' },
+    el('div', {}, el('label', { class: 'small', for: `rn-${id}` }, isNew ? 'Why, or anything else Claude should know' : 'Your comment'),
+      el('textarea', { id: `rn-${id}`, disabled: ro, placeholder: isNew ? 'When it applies, how it should feel.' : 'What is wrong with it, what it should do instead, or a question.', oninput: (ev) => setRule(id, 'note', ev.target.value.trim()), onchange: () => refreshRule(id) }, e.note || '')),
+    el('div', {}, el('label', { class: 'small', for: `rt-${id}` }, isNew ? 'The rule, as a player would say it' : 'How it should read instead (leave empty to keep its words)'),
+      el('textarea', { id: `rt-${id}`, disabled: ro, oninput: (ev) => setRule(id, 'text', ev.target.value.trim()), onchange: () => refreshRule(id) }, e.text || '')),
+    isNew ? null : el('label', { class: 'switch', for: `ro-${id}` },
+      el('input', { type: 'checkbox', id: `ro-${id}`, disabled: ro, checked: !!e.out, onchange: (ev) => { setRule(id, 'out', ev.target.checked); refreshRule(id); } }), 'Take this rule out'),
+    el('div', { class: 'act' },
+      el('button', { class: 'btn quiet', type: 'button', disabled: ro, onclick: () => { delete C.rules[id]; open.delete(id); changed(); paintRules(); } }, isNew ? 'Drop this new rule' : 'Back to the rule as it is')));
+}
+function says(r, e) {
+  if (e.out) return [el('s', {}, r.text)];
+  if (e.text) return [el('span', {}, e.text), el('br'), el('s', {}, r.text)];
+  return linked(r.text);
+}
+function tags(r, e) {
+  return el('div', { class: 'chips' },
+    (r.settings || []).map((s) => el('span', { class: 'chip' }, `Option: ${OPTION[s] || s}`)),
+    r.added === DATA.today || r.changed === DATA.today ? el('span', { class: 'chip new' }, r.added ? 'New today' : 'Changed today') : null,
+    e.out ? el('span', { class: 'chip wait' }, 'Out, waiting') : e.text ? el('span', { class: 'chip wait' }, 'New words, waiting') : null,
+    e.note ? el('span', { class: 'chip wait' }, 'Your comment') : null);
+}
+function ruleCard(r) {
+  const e = C.rules[r.id] || {};
+  const isOpen = open.has(r.id);
+  const mine = e.text || e.out || e.note;
+  return el('li', { class: `rule${mine ? ' mine' : ''}`, id: `r${r.n}`, 'data-id': r.id,
+      'data-text': `${r.n} ${r.text} ${r.from.said || ''} ${r.from.why || ''} ${r.from.call || ''} ${e.note || ''} ${e.text || ''}`.toLowerCase() },
+    el('a', { class: 'n', href: `#r${r.n}`, 'aria-label': `Rule ${r.n}` }, r.n),
+    el('div', { class: 'body' },
+      el('p', { class: 'text' }, ...says(r, e)),
+      tags(r, e),
+      r.changed ? el('p', { class: 'was' }, `Changed ${r.changed}. Before: ${r.was}`) : r.added ? el('p', { class: 'was' }, `New ${r.added}.`) : null,
+      source(r.from),
+      el('div', { class: 'act' },
+        el('button', { class: 'btn', type: 'button', 'aria-expanded': String(isOpen), 'aria-controls': `ed-${r.id}`,
+          onclick: () => { if (open.has(r.id)) open.delete(r.id); else open.add(r.id); refreshRule(r.id); if (open.has(r.id)) document.getElementById(`rn-${r.id}`)?.focus(); } },
+          isOpen ? 'Close' : mine ? 'Your comment and changes' : 'Comment or change')),
+      isOpen ? el('div', { id: `ed-${r.id}` }, editor(r.id, e, false)) : null));
+}
+function newCard(id, e) {
+  return el('li', { class: 'rule mine', 'data-id': id, 'data-text': `${e.text || ''} ${e.note || ''}`.toLowerCase() },
+    el('span', { class: 'n' }, '+'),
+    el('div', { class: 'body' },
+      el('p', { class: 'text' }, e.text || 'A new rule: write it below.'),
+      el('div', { class: 'chips' }, el('span', { class: 'chip wait' }, 'Your new rule, waiting')),
+      editor(id, e, true)));
+}
+function refreshRule(id) {
+  const old = document.querySelector(`.rule[data-id="${id}"]`);
+  const r = book.rules.find((x) => x.id === id);
+  if (!old) return;
+  const keep = document.activeElement?.id;
+  const pos = document.activeElement?.selectionStart;
+  old.replaceWith(r ? ruleCard(r) : newCard(id, C.rules[id] || {}));
+  const back = keep && document.getElementById(keep);
+  if (back) { back.focus(); if (pos != null && back.setSelectionRange) back.setSelectionRange(pos, pos); }
+  filter();
+}
+function paintRules() {
+  document.getElementById('parts').replaceChildren(...book.groups.map((g) => el('a', { href: `#${g.id}` }, g.name)));
+  const groups = book.groups.map((g) => {
+    const rules = book.rules.filter((r) => r.group === g.id).sort((a, b) => a.n - b.n);
+    const mine = Object.entries(C.rules).filter(([id, e]) => e.added && e.group === g.id);
+    return el('section', { class: 'group', id: g.id },
+      el('h2', {}, g.name), el('p', { class: 'ask' }, g.ask),
+      el('ol', { class: 'rules' }, ...rules.map(ruleCard), ...mine.map(([id, e]) => newCard(id, e))),
+      canWrite ? el('div', { class: 'act', style: 'margin-top:10px' },
+        el('button', { class: 'btn quiet', type: 'button', onclick: () => {
+          const id = `new-${Date.now().toString(36)}`;
+          C.rules[id] = { added: true, group: g.id, text: '', note: '' };
+          paintRules();
+          document.getElementById(`rt-${id}`)?.focus();
+        } }, '+ Suggest a new rule here')) : null);
+  });
+  document.getElementById('groups').replaceChildren(...groups);
+  filter();
+}
+function filter() {
+  const q = document.getElementById('find').value.trim().toLowerCase();
+  let shown = 0;
+  for (const r of document.querySelectorAll('.rule')) { const hit = !q || r.dataset.text.includes(q); r.hidden = !hit; if (hit) shown++; }
+  for (const g of document.querySelectorAll('.group')) g.hidden = !!q && !g.querySelector('.rule:not([hidden])');
+  document.getElementById('none').hidden = shown > 0;
+}
+document.getElementById('find').addEventListener('input', filter);
+
+// --- The deck. ----------------------------------------------------------------------
+const built = Object.fromEntries(DATA.deck.flatMap((g) => g.tiles.map((t) => [t.id, t.n])));
+const countOf = (id) => (id in C.tiles ? C.tiles[id] : built[id]);
+function setTile(id, n) {
+  n = Math.max(0, Math.min(9, n));
+  if (n === built[id]) delete C.tiles[id]; else C.tiles[id] = n;
+  changed();
+  paintTile(id); paintTotal();
+}
+function tileCard(t) {
+  const n = countOf(t.id), ro = !canWrite;
+  const mine = t.id in C.tiles;
+  return el('div', { class: `tile${n ? '' : ' off'}${mine ? ' mine' : ''}`, 'data-tile': t.id },
+    el('img', { src: t.pic, alt: '', width: 102, height: 102 }),
+    el('span', { class: 'name' }, t.name), el('code', {}, t.id),
+    el('label', { class: 'switch', for: `on-${t.id}` },
+      el('input', { type: 'checkbox', id: `on-${t.id}`, disabled: ro, checked: n > 0,
+        onchange: (ev) => setTile(t.id, ev.target.checked ? (built[t.id] || 1) : 0) }), n ? 'In the deck' : 'Out (an extra)'),
+    el('div', { class: 'stepper', role: 'group', 'aria-label': `Copies of ${t.name}` },
+      el('button', { type: 'button', disabled: ro || n === 0, 'aria-label': 'One fewer', onclick: () => setTile(t.id, countOf(t.id) - 1) }, '−'),
+      el('output', { 'aria-live': 'polite' }, n),
+      el('button', { type: 'button', disabled: ro, 'aria-label': 'One more', onclick: () => setTile(t.id, countOf(t.id) + 1) }, '+')),
+    mine ? el('span', { class: 'was' }, `In the game: ${built[t.id]}`) : null);
+}
+function paintTile(id) {
+  const t = DATA.deck.flatMap((g) => g.tiles).find((x) => x.id === id);
+  const old = document.querySelector(`[data-tile="${id}"]`);
+  const keep = document.activeElement;
+  const which = keep?.closest?.('[data-tile]') === old ? [...old.querySelectorAll('input, button')].indexOf(keep) : -1;
+  const fresh = tileCard(t);
+  old.replaceWith(fresh);
+  if (which >= 0) fresh.querySelectorAll('input, button')[which]?.focus();
+}
+function paintTotal() {
+  const total = Object.keys(built).reduce((a, id) => a + countOf(id), 0);
+  document.getElementById('total').textContent = total;
+  const of = document.getElementById('of');
+  const d = total - DATA.size;
+  of.textContent = d === 0 ? `tiles: exactly ${DATA.size}` : d > 0 ? `tiles: ${d} over ${DATA.size}` : `tiles: ${-d} short of ${DATA.size}`;
+  of.className = `of ${d === 0 ? 'good' : 'warn'}`;
+}
+function paintDeck() {
+  document.getElementById('deck').replaceChildren(...DATA.deck.map((g) => el('section', { class: 'group' },
+    el('h2', {}, g.name),
+    el('p', { class: 'ask' }, `${g.note} ${g.tiles.reduce((a, t) => a + built[t.id], 0)} in the deck now.`),
+    el('div', { class: 'tiles' }, ...g.tiles.map(tileCard)))));
+  paintTotal();
+}
+
+// --- Your changes. ------------------------------------------------------------------
+function waiting() {
+  const rules = Object.entries(C.rules).filter(([, e]) => e.text || e.out || e.note);
+  const tiles = Object.entries(C.tiles);
+  return { rules, tiles, n: rules.length + tiles.length };
+}
+function paintBadge() { const n = waiting().n; document.getElementById('badge').textContent = n ? n : ''; }
+function paintPending() {
+  const { rules, tiles, n } = waiting();
+  const name = Object.fromEntries(DATA.deck.flatMap((g) => g.tiles.map((t) => [t.id, t.name])));
+  const out = [];
+  if (!n) out.push(el('p', { class: 'none' }, 'Nothing waiting. Comment on a rule, suggest one, or change the deck, and it shows up here.'));
+  if (rules.length) {
+    out.push(el('h2', {}, 'Rules'), el('ul', {}, ...rules.map(([id, e]) => {
+      const r = book.rules.find((x) => x.id === id);
+      const what = [e.out ? 'take it out' : null, e.text ? `new words: “${e.text}”` : null, e.note ? `comment: “${e.note}”` : null].filter(Boolean).join('; ');
+      return el('li', {}, r ? el('a', { href: `#r${r.n}` }, `Rule ${r.n}`) : el('b', {}, 'A new rule'), r ? '' : ` in ${book.groups.find((g) => g.id === e.group)?.name || 'the rulebook'}`, `: ${what}`);
+    })));
+  }
+  if (tiles.length) {
+    const total = Object.keys(built).reduce((a, id) => a + countOf(id), 0);
+    out.push(el('h2', {}, 'Tiles'), el('ul', {}, ...tiles.map(([id, c]) => el('li', {}, `${name[id]} (${id}): ${built[id]} → ${c}`))),
+      el('p', { class: total === DATA.size ? 'none' : '' }, `The deck would be ${total} tiles${total === DATA.size ? '.' : `, not ${DATA.size}.`}`));
+  }
+  document.getElementById('pending').replaceChildren(...out);
+  document.getElementById('clearrow').hidden = !n || !canWrite;
+}
+document.getElementById('clear').addEventListener('click', () => { document.getElementById('confirm').hidden = false; });
+document.getElementById('clearno').addEventListener('click', () => { document.getElementById('confirm').hidden = true; });
+document.getElementById('clearyes').addEventListener('click', () => {
+  C = { rules: {}, tiles: {} };
+  document.getElementById('confirm').hidden = true;
+  changed(); paintAll();
+});
+
+// --- Tabs. --------------------------------------------------------------------------
+let tab = 'rules';
+function show(t, scroll = true) {
+  tab = t;
+  document.querySelectorAll('.tabs button').forEach((b) => b.setAttribute('aria-selected', String(b.dataset.tab === t)));
+  document.querySelectorAll('[data-panel]').forEach((p) => { p.hidden = p.dataset.panel !== t; });
+  if (t === 'changes') paintPending();
+  if (scroll) window.scrollTo({ top: 0 });
+}
+document.querySelectorAll('.tabs button').forEach((b) => b.addEventListener('click', () => show(b.dataset.tab)));
+document.addEventListener('click', (ev) => {
+  const a = ev.target.closest?.('a[href^="#r"]');
+  if (a && /^#r\d+$/.test(a.getAttribute('href')) && tab !== 'rules') { show('rules', false); }
+});
+function paintAll() { paintRules(); paintDeck(); paintBadge(); if (tab === 'changes') paintPending(); }
+
+// --- Start. -------------------------------------------------------------------------
+const byTimothy = book.rules.filter((r) => r.from.by === 'timothy').length;
+document.getElementById('meta').textContent = `${book.rules.length} rules in ${book.groups.length} parts · ${byTimothy} from Timothy's own words · ${DATA.size} tiles · built ${DATA.today}`;
+document.getElementById('retired').textContent = book.retired.length ? ` (taken out so far: ${book.retired.join(', ')})` : '';
+paintAll();
+const h = location.hash.slice(1);
+if (h === 'tiles' || h === 'changes') show(h, false);
+else if (/^r\d+$/.test(h)) document.getElementById(h)?.scrollIntoView();
+connect();
+</script>

@@ -58,6 +58,13 @@ them and vice versa"; "for now remove single castle wall tiles from the tile
 pool, just want to see what it looks like"; and "the map has a border, and if
 island tiles are blown off it, they fly off into the aether and are gone.
 let's say it's a 16x16 border." That is the twenty-fourth pass.
+On 2026-10-25: "make sure we stick to 72 tiles", "map needs to be 17x17 in
+order to allow the palazzo to be perfectly in the middle", "instead of flying
+off the side of the world, tiles that are pushed off the map appear on the
+other side pac-man style, still connected", and farmland and roads may meet a
+city wall, "as if the road is running straight from the middle of the castle
+wall". He wants to comment on rules and toggle tiles in the rulebook page and
+have Claude save the changes. That is the twenty-sixth pass.
 
 **Fields: settled 2026-09-06, and Timothy was right.** They are fully built.
 `src/tiles.js` cuts the perimeter into eight half-edges with `halfPartner` as the

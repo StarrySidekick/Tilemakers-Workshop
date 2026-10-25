@@ -88,7 +88,7 @@ export class Game {
     // A mode with its own bounds keeps them; the mechanic only fills silence.
     const mapBounds = this.has('maps') && !spec.bounds
       ? { minX: -5, maxX: 5, minY: -5, maxY: 5 } : null;
-    this.board = new Board({ bounds: spec.bounds || mapBounds || null });
+    this.board = new Board({ bounds: spec.bounds || mapBounds || null, wrap: !!spec.wrap && !!spec.bounds });
     this.players = Array.from({ length: players }, (_, i) => ({
       id: i,
       name: spec.playerName ? spec.playerName(i) : PLAYER_NAMES[i],

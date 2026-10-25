@@ -1666,32 +1666,35 @@ function checkSoffiando() {
     if (h.m.clouds[1].x !== -1 || h.m.clouds[1].y !== 0) return fail('the wind never moves a cloud', 'it moved');
   }
 
-  // THE EDGE OF THE MAP: a tile blown over it is gone, not back in the deck.
+  // THE MAP WRAPS (2026-10-25): a tile blown off the east edge comes on at
+  // the west, still joined to what it was joined to, and nothing is lost.
   {
     const h = fresh(65);
     const b = h.board;
     lay(b, 4, 0, 'Kz', 1);
-    for (const x of [5, 6, 7]) lay(b, x, 0, 'U');
+    for (const y of [1, 2, 3]) lay(b, 4, y, 'B');
+    for (const x of [7, 8]) lay(b, x, 0, 'U', 1);    // an island, against the east edge
     b.rebuild();
     const deck = h.deck.length;
     h.m.weather([{ dir: 1, from: { x: 4, y: 0 } }], 0);
-    if (b.get(7, 0) || b.get(8, 0)) return fail('a tile blown over the map\'s edge is gone', 'it is still on the board');
-    if (h.deck.length !== deck || h.m.lost !== 1) {
-      return fail('…for good, not back on the deck', `deck ${deck} -> ${h.deck.length}, lost ${h.m.lost}`);
+    if (b.get(8, 0)?.type.id !== 'U' || b.get(-8, 0)?.type.id !== 'U') {
+      return fail('a tile blown off the east edge comes on at the west', JSON.stringify([...b.cells.keys()]));
+    }
+    if (b.featureOf(8, 0, 0) !== b.featureOf(-8, 0, 0)) return fail('…still joined', 'two roads');
+    if (h.deck.length !== deck || h.m.lost !== 0) {
+      return fail('…and nothing lost', `deck ${deck} -> ${h.deck.length}, lost ${h.m.lost}`);
     }
   }
 
-  // LONE WALLS ARE OUT of the default pool, and `capWalls` deals them; the
-  // sfera halves and the winds that carried one are dealt without it.
+  // THE DECK IS A LIST of 72 (soffiando-deck.js), the lone walls among its
+  // extras, and `options.deck` changes counts by tile.
   {
     const ids = (o) => { const g = new Game({ mode: 'soffiando', players: 2, seed: 5, options: o }); return [g.tile?.id, ...g.deck].filter(Boolean); };
     const lone = (id) => TILES[id].feats.some((f) => f.type === 'city' && !f.district);
-    const plain = ids({}), walled = ids({ capWalls: true });
+    const plain = ids({}), walled = ids({ deck: { Kce: 3, Kz: 1 } });
+    if (plain.length !== 72) return fail('the deck is 72 tiles', `${plain.length}`);
     if (plain.some(lone)) return fail('no lone wall is dealt by default', plain.filter(lone).join(' '));
-    if (!walled.some(lone)) return fail('capWalls deals the lone walls', 'none were dealt');
-    const sferas = (l) => l.filter((id) => TILES[id].feats.some((f) => f.type === 'sfera')).length;
-    if (sferas(plain) !== sferas(walled)) return fail('no sfera half is lost with the walls', `${sferas(plain)} against ${sferas(walled)}`);
-    if (plain.length !== walled.length) return fail('the deck is as long without the walls', `${plain.length} against ${walled.length}`);
+    if (walled.filter(lone).length !== 3 || walled.length !== 72) return fail('options.deck deals what it names', `${walled.filter(lone).length} walls in ${walled.length}`);
   }
 
   // The whale is OUT of the default rules, and in with `options.balena`.
@@ -1779,7 +1782,7 @@ function checkSoffiando() {
 
   console.log('  ✓ mainland and islands, the four sfera passes, matched and mixed spheres,'
     + ' district variety compounding, walls unclaimable, walls across the wind,'
-    + ' the players\' clouds, the map\'s edge, no lone walls,'
+    + ' the players\' clouds, the wrapping map, the deck list,'
     + ' windmills, island rates, the last round, the flying machine\'s lift, the Balena (off by default),'
     + ' towed islands, long flights, the archipelago');
 }

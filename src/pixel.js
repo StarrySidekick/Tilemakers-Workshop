@@ -1383,6 +1383,28 @@ export function pixelSky(x, y) {
   return p.cv;
 }
 
+const gates = new Map();
+
+/**
+ * A GATE in a district's wall, on side `side`, where a road on the next tile
+ * runs into it (2026-10-25): the road comes through the wall in the middle,
+ * kerb and all, between two small towers, and stops at the threshold. Drawn
+ * over the district by the renderer, because only the board knows a road is
+ * there.
+ */
+export function pixelGate(side = 0) {
+  let hit = gates.get(side & 3);
+  if (hit) return hit;
+  const p = new Plate(PX, PX, `gate:${side & 3}`);
+  p.layer(INK.kerb, (pen) => { pen.rect(...onSide(side, [21, 0, 9, 9])); }, { cut: 128 });
+  p.layer(INK.road, (pen) => { pen.rect(...onSide(side, [23, 0, 5, 8])); }, { cut: 128 });
+  const towers = [[17.5, 4.5], [33.5, 4.5]].map((at) => turn(at, side));
+  p.layer(INK.wall, (pen) => towers.forEach(([x, y]) => pen.disc(x, y, 4.6)), { cut: 128 });
+  p.layer(INK.roof, (pen) => towers.forEach(([x, y]) => pen.disc(x, y, 2.9)), { cut: 128 });
+  gates.set(side & 3, p.cv);
+  return p.cv;
+}
+
 const aethers = new Map();
 
 /**

@@ -29,8 +29,8 @@
 // of it is occupied, however far away that is. So a raft crosses a strait it
 // could never have crossed a square at a time, the leading tile going furthest
 // and the ones behind piling up against it. And one fired down a lane with
-// NOTHING in it never stops, which is to say it flies off the edge of the map
-// and is gone. Followers are unchanged by all of it — a person is not a
+// nothing else in it goes on round the map until it meets the back of its own
+// cannon. Followers are unchanged by all of it — a person is not a
 // projectile.
 //
 // AND IT BUILDS. Power used to stop at three; it doesn't any more. A gust that
@@ -167,12 +167,21 @@
 // storm: absorbed by a gust blowing its way, woken by one that isn't, and its
 // own gust hardened by the zephyrs it crosses.
 //
-// THE MAP HAS AN EDGE, sixteen squares a side. Nothing is laid past it, and a
-// tile the wind carries over it is gone into the aether: not back on the
-// deck, not thrown back down.
+// THE MAP WRAPS (Timothy, 2026-10-25: "tiles that are pushed off the map
+// appear on the other side pac-man style, still connected"). It is seventeen
+// squares a side with the Palazzo in the very middle, and each edge meets the
+// edge across from it: a tile on the east edge has the west edge's tile as
+// its neighbour, and what the wind pushes off one side comes on at the other.
+// A lane still runs only to the edge; it is what the wind PUSHES, fires or
+// blows that crosses. Nothing is lost off the map any more.
 //
-// LONE WALLS ARE OUT, for now: a city closes on its districts' own walls and
-// on the Abbazia, whose four walls are drawn as a district's are.
+// WALLS ARE ON THE EDGE (2026-10-25). A district's walls stand on its tile's
+// edge, so farmland may lie against one and a road may run into one, ending
+// at a gate in its middle; yellow pays a road for the city behind the gate.
+//
+// THE DECK IS A LIST of 72 (soffiando-deck.js), and LONE WALLS are out of it,
+// for now: a city closes on its districts' own walls and on the Abbazia,
+// whose four walls are drawn as a district's are.
 //
 // THE BALENA, a sky whale the size of a district, is OUT of the default rules
 // (Timothy, 2026-10-24) and plays only with `options.balena`. Whatever tile it
@@ -221,9 +230,10 @@
 
 import { Mode } from './mode.js';
 import {
-  TILE_TYPES, TILES, CENTRE_FEATURES, SIDE_STEP, opposite, buildDeck, wallSides,
+  CENTRE_FEATURES, SIDE_STEP, opposite, wallSides, WALL,
 } from '../tiles.js';
 import { PLAYER_COLORS } from '../theme.js';
+import { DECK_COUNTS } from './soffiando-deck.js';
 import { DESIGN } from '../design.js';
 import { claimableFeatures, citiesFed, hasMark } from '../mechanics.js';
 import {
@@ -231,16 +241,10 @@ import {
 } from '../wind.js';
 
 /**
- * Bigger than a Carcassonne set, because the cloud pool alone is now 65 tiles
- * and four sfera colours want four different kinds of country to count. Cut to
- * 72 and the base tiles that carry the ordinary cities, roads and fields came
- * to seven, which is a board with nothing on it for three of the four colours.
- */
-const DECK_SIZE = 112;
-/**
  * The backstop, in tiles laid rather than rounds played. Counting placements
  * is the only clock that means the same thing at every player count, and this
- * one sits a third above the deck.
+ * one sits a third above the 72-tile deck: tiles the wind knocks out of the
+ * sky go back on it, so a stormy game runs past the deck it started with.
  */
 const STORM_LIMIT = 96;
 const TURBINE = 2;           // to the feature's holder, per gust through it
@@ -369,29 +373,7 @@ const tallyOf = (things) => {
 const listTally = (things, label = (t) => t) =>
   listOf(tallyOf(things).map(([t, n]) => `${label(t)}${n > 1 ? ` ×${n}` : ''}`));
 
-/**
- * What Soffiando plays instead of parts of the base set. The three-way junctions
- * become junctions with a village on them; there are no cloisters in the sky,
- * so every one is a temple; and the four-sided city is out, because a city
- * that can only be entered and never capped is one the weather never lets you
- * finish.
- */
-const SWAPS = { W: 'Gw', L: 'Gl', A: 'Kta', B: 'Kt', C: 'E' };
-
 const DIR_NAMES = ['north', 'east', 'south', 'west'];
-
-/**
- * LONE WALLS ARE OUT, for now (Timothy, 2026-10-24: "for now remove single
- * castle wall tiles from the tile pool, just want to see what it looks
- * like"). A tile whose wall is the point of it (a plain wall, two walls, a
- * wall over a road, a town or a turbine) is not dealt. One that carries a
- * wall beside something the mode cannot spare, a sfera half or a wind, is
- * dealt as its twin without the wall, so there are as many spheres and
- * zephyrs as before and only the walls are gone. A city closes on its
- * districts' own walls and the Abbazia. `options.capWalls` deals them all.
- */
-const UNWALLED = { Kzc: 'Kz', Kzt: 'Kzr', Kgc: 'Kg', Ksc: 'Kso', Kbc: 'Kbo', Krc: 'Kro', Kyc: 'Kyo' };
-const loneWall = (id) => TILES[id].feats.some((f) => f.type === 'city' && !f.district);
 
 /** The eight squares around a tile — a temple's parish, and what red counts. */
 const RING = [[-1, -1], [0, -1], [1, -1], [-1, 0], [1, 0], [-1, 1], [0, 1], [1, 1]];
@@ -416,31 +398,17 @@ export class Soffiando extends Mode {
   finalFarms = false;
 
   /**
-   * A guaranteed mix rather than a cut of the shuffled pool: this mode is its
-   * weather, and a deck that happened to deal no zephyrs would be a different
-   * game entirely. Every cloud tile goes in, then base tiles fill the rest.
+   * The deck is a table, not a cut of a shuffled pool (soffiando-deck.js):
+   * this mode is its weather, and a deck that happened to deal no zephyrs
+   * would be a different game entirely. Seventy-two tiles, each named and
+   * counted. `options.deck` replaces counts by id, which is how a tile
+   * toggled on the rulebook page is tried before it is written in.
    */
   deck() {
     const rng = this.game.rng;
-    const cloud = [];
-    for (const t of TILE_TYPES) {
-      if (t.group !== 'cloud') continue;
-      for (let i = 0; i < t.n; i++) cloud.push(t.id);
-    }
-    // The base set tops the deck up with roads and fields (and city walls,
-    // when they are dealt at all), but never with its own multi-sided
-    // cities: a city here is made of districts, and a base tile city that
-    // spans two sides of a tile would be a city with no kind.
-    const base = buildDeck(['base'], rng, 'D')
-      .map((id) => SWAPS[id] || id)
-      .filter((id) => !TILES[id].feats.some((f) => f.type === 'city' && !f.district && f.sides.length > 1));
-    // Lone walls come out BEFORE the base set tops the deck up, so the deck
-    // is as long as ever and a game as long as ever: what replaces them is
-    // ordinary country.
-    const unwall = (ids) => (this.game.options?.capWalls ? ids
-      : ids.map((id) => UNWALLED[id] || id).filter((id) => !loneWall(id)));
-    const sky = unwall(cloud), ground = unwall(base);
-    const deck = [...sky, ...ground.slice(0, Math.max(0, DECK_SIZE - sky.length))];
+    const counts = { ...DECK_COUNTS, ...(this.game.options?.deck || {}) };
+    const deck = [];
+    for (const [id, n] of Object.entries(counts)) for (let i = 0; i < n; i++) deck.push(id);
     for (let i = deck.length - 1; i > 0; i--) {
       const j = Math.floor(rng() * (i + 1));
       [deck[i], deck[j]] = [deck[j], deck[i]];
@@ -907,18 +875,31 @@ export class Soffiando extends Mode {
       // the road's tiles is one city and is counted once.
       const seen = new Set();
       let reached = 0;
+      const reach = (city) => {
+        if (!city) return;
+        const root = board.find(city.parts[0]);
+        if (seen.has(root)) return;
+        seen.add(root);
+        reached++;
+        const key2 = city.open === 0 ? 'roadCityDone' : 'roadCity';
+        pts += isle ? RATE[key2].isle : RATE[key2].main;
+      };
+      const mine = board.find(d.parts[0]);
       for (const cell of cells) {
         cell.type.feats.forEach((f, i) => {
-          if (f.type !== 'city') return;
-          const city = board.featureOf(cell.x, cell.y, i);
-          if (!city) return;
-          const root = board.find(city.parts[0]);
-          if (seen.has(root)) return;
-          seen.add(root);
-          reached++;
-          const key2 = city.open === 0 ? 'roadCityDone' : 'roadCity';
-          pts += isle ? RATE[key2].isle : RATE[key2].main;
+          if (f.type === 'city') reach(board.featureOf(cell.x, cell.y, i));
         });
+        // …and the city behind a wall the road runs into: it ends at a gate
+        // in the middle of that wall (2026-10-25), and through the gate is
+        // the city.
+        for (let s = 0; s < 4; s++) {
+          const fi = board.featAt(cell, s);
+          if (fi == null || board.find(`${key(cell)}#${fi}`) !== mine) continue;
+          const nb = board.neighbor(cell.x, cell.y, s);
+          if (!nb || board.edgeAt(nb, opposite(s)) !== WALL) continue;
+          const di = nb.type.feats.findIndex((g) => g.district);
+          if (di >= 0) reach(board.featureOf(nb.x, nb.y, di));
+        }
       }
       this.payHolders(d, pts,
         `Road of ${d.tiles.size} tile${d.tiles.size === 1 ? '' : 's'}`
@@ -1324,7 +1305,7 @@ export class Soffiando extends Mode {
     for (const cell of board.cells.values()) {
       for (let s = 0; s < 4; s++) {
         const [dx, dy] = SIDE_STEP[s];
-        const x = cell.x + dx, y = cell.y + dy;
+        const { x, y } = board.norm(cell.x + dx, cell.y + dy);
         const k = `${x},${y}`;
         if (seen.has(k)) continue;
         seen.add(k);
@@ -1395,10 +1376,12 @@ export class Soffiando extends Mode {
     let dir = worldDir(cell, flier);
     let { x, y } = cell;
     const path = [];
-    const seen = new Set();
+    // Its own square too: round a wrapping world a flight can come all the
+    // way back to the machine it took off from.
+    const seen = new Set([`${x},${y}`]);
     for (let step = 0; step < FLIGHT_RANGE; step++) {
       const [dx, dy] = SIDE_STEP[dir];
-      x += dx; y += dy;
+      ({ x, y } = board.norm(x + dx, y + dy));
       const k = `${x},${y}`;
       if (seen.has(k)) break;                    // zephyrs pointed in a circle
       seen.add(k);
@@ -1570,8 +1553,7 @@ export class Soffiando extends Mode {
         : 2;
       g.emit('wind', {
         dir: r.dir, blast: !!r.blast, delay: at,
-        from: { x: r.from.x, y: r.from.y },
-        to: { x: r.from.x + dx * far, y: r.from.y + dy * far },
+        legs: this.legs(r.from, r.dir, far),
       });
     }
     // Every zephyr this gust wakes flashes just before its own gust plays.
@@ -1586,9 +1568,9 @@ export class Soffiando extends Mode {
     // zephyrs played point out over the edge of the country into open sky —
     // there is no run downwind, so there is no loose end and nothing happens —
     // and a silent nothing reads as a broken rule rather than as an empty lane.
-    // (A gust that only LOST tiles did something: a cannon that fired its loose
-    // end at nothing, or a tile blown over the edge of the map. Those used to
-    // stop here, so a fired tile never went back on the deck.)
+    // (A gust that only knocked tiles out of the sky did something, and so
+    // did one that blew a tile over the edge of a map that has one. Those
+    // used to stop here, so a fallen tile never went back on the deck.)
     if (!r.moved.length && !r.fell.length && !r.swung.length && !r.homed.length && !r.lifted.length) {
       if (!r.reached.length) {
         g.say(r.blast
@@ -1603,11 +1585,7 @@ export class Soffiando extends Mode {
     g.emit('gust', {
       dir: r.dir,
       delay: at + 140,
-      moves: r.moved.map((m) => ({
-        from: { x: m.from.x + 0.5, y: m.from.y + 0.5 },
-        at: { x: m.cell.x + 0.5, y: m.cell.y + 0.5 },
-        type: m.cell.type, rot: m.cell.rot, look: m.cell.seq,
-      })),
+      moves: r.moved.map((m) => this.slide(m.cell, m.from, r.dir, m.steps)),
       fell: r.fell.map((f) => ({ x: f.x, y: f.y, type: f.type, rot: f.rot, look: f.cell?.seq })),
     });
     if (r.strength > 1) {
@@ -1622,9 +1600,9 @@ export class Soffiando extends Mode {
     // a swing, and it is the only thing that gives back what the cannon takes.
     // Once a turn, however many fall.
     //
-    // EXCEPT OFF THE MAP. The sky has an edge now, 16 squares a side, and a
-    // tile the wind carries over it has gone into the aether: it is not in the
-    // deck and nobody throws it back.
+    // EXCEPT OFF THE MAP, on a map with an edge: a tile the wind carries over
+    // it has gone into the aether, not into the deck. Soffiando's map wraps
+    // (2026-10-25), so nothing goes that way any more.
     const gone = r.fell.filter((f) => f.why === 'aether');
     const back = r.fell.filter((f) => f.why !== 'aether');
     this.fallen += r.fell.length;
@@ -1655,8 +1633,13 @@ export class Soffiando extends Mode {
     // still on the board and still counts for whoever owns it; one it carried
     // out over open sky is the only figure that ever comes home by accident.
     for (const m of r.carried) {
+      // One carried round the seam of the map comes in from beyond the edge
+      // across from the one it left by, rather than back over the board.
+      const d = this.ahead(m.from, m.to, r.dir);
+      const [dx, dy] = SIDE_STEP[r.dir];
+      const from = d != null ? { x: m.to.x - dx * d, y: m.to.y - dy * d } : m.from;
       g.emit('step', {
-        from: { x: m.from.x + 0.5, y: m.from.y + 0.5 },
+        from: { x: from.x + 0.5, y: from.y + 0.5 },
         at: { x: m.to.x + 0.5, y: m.to.y + 0.5 },
         key: `meeple:${m.to.x},${m.to.y}`, player: m.player,
         delay: at + 220,
@@ -1691,6 +1674,65 @@ export class Soffiando extends Mode {
   }
 
   /**
+   * A tile the wind moved, as the picture shows it: from where it was to where
+   * it is. Round the seam of the map that is two slides, one off the edge it
+   * left by and one in from the edge across from it, because a tile that
+   * zipped back over the whole board to get one square east would read as a
+   * different rule entirely.
+   */
+  slide(cell, from, dir, steps) {
+    const [dx, dy] = SIDE_STEP[dir];
+    const out = {
+      from: { x: from.x + 0.5, y: from.y + 0.5 },
+      at: { x: cell.x + 0.5, y: cell.y + 0.5 },
+      type: cell.type, rot: cell.rot, look: cell.seq,
+    };
+    const via = { x: from.x + dx * steps + 0.5, y: from.y + dy * steps + 0.5 };
+    if (via.x !== out.at.x || via.y !== out.at.y) out.via = via;
+    return out;
+  }
+
+  /**
+   * How many squares downwind of `from` the square `to` is, round the seam of
+   * a wrapping map if need be, or null if it is not straight downwind.
+   */
+  ahead(from, to, dir) {
+    const board = this.game.board;
+    const [dx, dy] = SIDE_STEP[dir];
+    if (dx === 0 ? from.x !== to.x : from.y !== to.y) return null;
+    const d = (to.x - from.x) * dx + (to.y - from.y) * dy;
+    if (!board.wraps) return d > 0 ? d : null;
+    const lap = dx === 0 ? board.span.h : board.span.w;
+    return ((d % lap) + lap) % lap || null;
+  }
+
+  /**
+   * A gust's streak, `far` squares down its lane from `from`: one leg, or on a
+   * wrapping map as many as it takes to go round, each running from where it
+   * comes on to where it goes off (or ends), with its share of the length.
+   */
+  legs(from, dir, far) {
+    const board = this.game.board;
+    const [dx, dy] = SIDE_STEP[dir];
+    if (!board.wraps) return [{ from: { x: from.x, y: from.y }, to: { x: from.x + dx * far, y: from.y + dy * far }, share: 1 }];
+    const b = board.bounds;
+    const out = [];
+    let at = board.norm(from.x, from.y), left = far;
+    while (left > 0 && out.length < 4) {
+      // Squares from here to the edge downwind, and the square past it.
+      const room = dx > 0 ? b.maxX - at.x : dx < 0 ? at.x - b.minX : dy > 0 ? b.maxY - at.y : at.y - b.minY;
+      const n = Math.min(left, room + 1);
+      out.push({ from: at, to: { x: at.x + dx * n, y: at.y + dy * n }, share: n / far });
+      left -= n;
+      at = board.norm(at.x + dx * n, at.y + dy * n);
+      // A leg that starts at an edge comes on from beyond it.
+      at = { x: at.x - dx, y: at.y - dy };
+      left += left > 0 ? 1 : 0;
+    }
+    return out;
+  }
+
+  /**
    * The Palazzo moves, and every island moves with it. The kingdom staying put
    * while the sky slides one square past it is the one thing on the board that
    * changes which pieces of country are touching which, without a single tile
@@ -1714,29 +1756,25 @@ export class Soffiando extends Mode {
       const mine = new Set(group.map(key));
       const clear = group.every((c) => {
         const to = board.get(c.x + dx, c.y + dy);
-        return !to || mine.has(`${c.x + dx},${c.y + dy}`);
+        return !to || mine.has(board.key(c.x + dx, c.y + dy));
       });
       if (!clear) continue;
-      // Far end first, so the island slides along behind its own leading edge
-      // rather than colliding with itself.
-      const order = group.slice()
-        .sort((a, b) => (b.x * dx + b.y * dy) - (a.x * dx + a.y * dy));
-      for (const c of order) {
-        const from = { x: c.x, y: c.y };
-        // Towed over the edge of the map: gone into the aether.
+      // All of it at once (Board.shiftAll): an island lying across the seam
+      // of the map has no far end to start from.
+      const go = [];
+      for (const c of group) {
+        // Towed over the edge of a map that has one: gone into the aether.
         if (!board.inBounds(c.x + dx, c.y + dy)) {
           if (c.meeple) { this.game.players[c.meeple.player].meeples++; c.meeple = null; }
           gone.push({ x: c.x, y: c.y, type: c.type, rot: c.rot, look: c.seq });
           board.remove(c.x, c.y, { quiet: true });
           continue;
         }
-        if (!board.shift(from, { x: c.x + dx, y: c.y + dy })) continue;
-        towed.push(c);
-        moves.push({
-          from: { x: from.x + 0.5, y: from.y + 0.5 },
-          at: { x: c.x + 0.5, y: c.y + 0.5 },
-          type: c.type, rot: c.rot, look: c.seq,
-        });
+        go.push({ cell: c, from: { x: c.x, y: c.y }, to: { x: c.x + dx, y: c.y + dy } });
+      }
+      for (const m of board.shiftAll(go)) {
+        towed.push(m.cell);
+        moves.push(this.slide(m.cell, m.from, dir, 1));
       }
     }
     if (!moves.length && !gone.length) return;
@@ -2175,7 +2213,8 @@ export class Soffiando extends Mode {
     let value = 0;
     let strength = 1;
     const run = [];
-    for (let step = 1; step <= 24; step++) {
+    const reach = board.wraps ? (dx === 0 ? board.span.h : board.span.w) - 1 : 24;
+    for (let step = 1; step <= reach; step++) {
       const other = board.get(cell.x + dx * step, cell.y + dy * step);
       if (!other) break;                         // the gap: this is the loose end
       if (other.balena) return value;            // the whale: nothing comes away
@@ -2304,7 +2343,7 @@ export class Soffiando extends Mode {
     const whale = this.balena ? ` · The Balena rests at (${this.balena.x}, ${this.balena.y}).` : '';
     const closed = ['green', 'blue', 'red'].filter((h) => this.hues[h])
       .map((h) => `${this.hues[h]} ${h}`).join(', ');
-    return `${rows}<p class="hint">${this.gusts} gust${this.gusts === 1 ? '' : 's'} · ${this.lost} tile${this.lost === 1 ? '' : 's'} blown off the map · ${this.spheres ? `spheres harvested: ${closed}` : 'no sphere closed yet'}${whale}</p>`;
+    return `${rows}<p class="hint">${this.gusts} gust${this.gusts === 1 ? '' : 's'} · ${this.fallen} tile${this.fallen === 1 ? '' : 's'} fallen · ${this.spheres ? `spheres harvested: ${closed}` : 'no sphere closed yet'}${whale}</p>`;
   }
 }
 
@@ -2321,11 +2360,11 @@ Soffiando.spec = {
   // hand Timothy draws Composer's Key in, coloured for a kingdom in the
   // clouds. See src/pixel.js. The chart stays as the backdrop of nothing.
   pixel: true,
-  // THE MAP HAS AN EDGE (Timothy, 2026-10-24: "let's say it's a 16x16
-  // border"). Sixteen squares a side round the Palazzo's first square, which
-  // has to sit one off the middle on an even board. Nothing is laid outside
-  // it, and a tile the wind carries over it is gone into the aether.
-  bounds: { minX: -8, maxX: 7, minY: -8, maxY: 7 },
+  // SEVENTEEN SQUARES A SIDE (Timothy, 2026-10-25: "map needs to be 17x17 in
+  // order to allow the palazzo to be perfectly in the middle"), and its edges
+  // meet: what goes off one side comes on at the other (Board's `wrap`).
+  bounds: { minX: -8, maxX: 8, minY: -8, maxY: 8 },
+  wrap: true,
   meeples: true,
   minPlayers: 1,
   maxPlayers: 4,
@@ -2333,7 +2372,7 @@ Soffiando.spec = {
   opening: 'A first stone hangs in the cloud. Everything else is weather.',
   hint: 'A zephyr does nothing to the country it blows through — it tears the LOOSE END off it. '
     + 'The run downwind ends at a gap, and the last tiles before it come away: power N pops N tiles off and carries each of them N squares. '
-    + 'A GUST CANNON — six in the deck — does not carry them, it FIRES them: each flies until the square in front of it is taken, however far that is, and one fired down an empty lane never stops, which is to say it falls out of the sky. '
+    + 'A GUST CANNON — three in the deck — does not carry them, it FIRES them: each flies until the square in front of it is taken, however far that is, round the map if it has to. '
     + 'It gains a power off every zephyr blowing its own way and off every corner it turns, and it no longer stops at three. '
     + 'A tile the wind shakes loose of everything HANGS THERE, and every fragment off the biggest landmass is an ISLAND, down to one tile. Anything that falls goes back on top of the deck, and if your own weather knocked it down you lay one more tile this turn, which is that one — once a turn. '
     + 'The mainland is the only country too big for the wind to get under: everything else adrift sails whole, and slides until it comes to rest against something — so islands meet and merge. '
@@ -2344,6 +2383,7 @@ Soffiando.spec = {
     + 'Any half fits any other, so the pairing is the decision. '
     + 'You may only build onto the mainland, or an island you are already standing on; islands pay double. '
     + 'Every player has a CLOUD of their own: instead of a follower, set it down on open sky beside the country, facing any way (R turns it), and it blows. Where it stands it is a zephyr to every storm, absorbed or woken like any other. '
-    + 'The map is 16 squares a side; a tile blown over its edge is gone for good. '
+    + 'The map is 17 squares a side and its edges meet: a tile blown off one side comes on at the other, still joined to what it was joined to. '
+    + 'A city wall stands on its tile\'s edge: farmland stops against it, and a road may run into it, ending at a gate, and yellow pays that road for the city behind. '
     + 'A follower blown onto a zephyr rides it, and again, and again; one blown off a ledge flies on until it lands on country. A feature that scores hands its followers back — or they walk on down a road, out over any amount of open air as long as a road points off the cliff on both sides.',
 };

@@ -19,6 +19,7 @@ import { Board } from '../src/board.js';
 import { TILES, wallSides, DISTRICTS, edgesMeet } from '../src/tiles.js';
 import { gust, storm } from '../src/wind.js';
 import { RULEBOOK } from '../src/modes/soffiando-rulebook.js';
+import { DECK_COUNTS } from '../src/modes/soffiando-deck.js';
 import { readFileSync } from 'node:fs';
 
 const SPEC = MODES.find((m) => m.id === 'soffiando');
@@ -65,7 +66,7 @@ function layHand(g, id, x, y, rot = 0) {
   return g.placeAt(x, y);
 }
 /** A raw wind-engine board, no mode, no mainland. */
-const raw = (bounds = null) => new Board({ bounds });
+const raw = (bounds = null, wrap = false) => new Board({ bounds, wrap });
 const rlay = (b, x, y, id, rot = 0) => b.place(x, y, TILES[id], rot);
 const rput = (b, x, y, type, p) => b.addMeeple(x, y, fi(b.get(x, y), type), p);
 
@@ -91,31 +92,58 @@ prove('game-start', (ok) => {
   ok(g.current === 1, 'then the next player');
 });
 prove('game-deck', (ok) => {
-  const ids = (o) => { const g = new Game({ mode: 'soffiando', players: 2, seed: 5, options: o }); return [g.tile.id, ...g.deck]; };
-  const lone = (id) => TILES[id].feats.some((f) => f.type === 'city' && !f.district);
-  const plain = ids({}), walled = ids({ capWalls: true });
-  ok(plain.length === 112 && walled.length === 112, `112 tiles (${plain.length})`);
-  ok(!plain.some(lone), 'no lone wall dealt');
-  ok(walled.some(lone), 'capWalls deals them');
-  const count = (l, f) => l.filter(f).length;
-  const sfera = (id) => TILES[id].feats.some((f) => f.type === 'sfera');
-  const zephyr = (id) => TILES[id].marks.some((m) => m.kind === 'zephyr');
-  ok(count(plain, sfera) === 16 && count(plain, sfera) === count(walled, sfera), 'every sfera half, without its wall');
-  ok(count(plain, zephyr) === count(walled, zephyr), 'every zephyr and cannon, without its wall');
+  const ids = (o, seed = 5) => { const g = new Game({ mode: 'soffiando', players: 2, seed, options: o }); return [g.tile.id, ...g.deck]; };
+  const plain = ids({});
+  ok(plain.length === 72, `72 tiles (${plain.length})`);
   const tally = {};
   for (const id of plain) tally[id] = (tally[id] || 0) + 1;
-  const cloud = Object.values(TILES).filter((t) => t.group === 'cloud' && t.n > 0 && !lone(t.id));
-  ok(cloud.every((t) => (tally[t.id] || 0) >= t.n), 'every tile of the cloud set');
-  ok(plain.every((id) => TILES[id].group === 'cloud' || TILES[id].group === 'base'), 'the rest from the base set');
-  ok(['U', 'V', 'Kt'].some((id) => tally[id]), 'roads and temples among them');
+  ok(Object.entries(DECK_COUNTS).every(([id, n]) => (tally[id] || 0) === n) && Object.keys(tally).every((id) => id in DECK_COUNTS), 'each tile as many times as the deck list says');
+  ok(ids({}, 6).join() !== plain.join(), 'shuffled');
+  const lone = (id) => TILES[id].feats.some((f) => f.type === 'city' && !f.district);
+  const has = (kind) => (id) => TILES[id].feats.some((f) => f.type === kind);
+  const mark = (kind) => (id) => TILES[id].marks.some((m) => m.kind === kind);
+  const count = (f) => plain.filter(f).length;
+  const isDistrict = (id) => TILES[id].feats.some((f) => f.district) && !mark('turbine')(id) && !has('sfera')(id);
+  ok(count(isDistrict) === 15, `15 districts (${count(isDistrict)})`);
+  ok(count(has('sfera')) === 16 && ['green', 'blue', 'red', 'yellow'].every((h) => plain.filter((id) => TILES[id].feats.some((f) => f.hue === h)).length === 4), '16 sfera halves, four of each colour');
+  ok(count(mark('zephyr')) === 18, `18 zephyrs and cannons (${count(mark('zephyr'))})`);
+  ok(count(mark('turbine')) === 3, '3 windmills');
+  ok(count((id) => id === 'Kt') === 4 && count((id) => id === 'Kta') === 1, '4 temples and a temple on a road');
+  ok(count((id) => id === 'Kab') === 3 && count((id) => id === 'Kfl') === 3 && count((id) => id === 'Kw') === 2, '3 Abbazias, 3 flying machines, 2 windvanes');
+  ok(count((id) => ['U', 'V', 'X', 'Gw'].includes(id)) === 7, '7 plain roads');
+  ok(!plain.some(lone), 'no lone wall dealt');
+  ok(Object.entries(DECK_COUNTS).some(([id, n]) => !n && lone(id)), 'the lone walls are extras');
+  const more = ids({ deck: { Kce: 2, U: 1 } });
+  ok(more.filter((id) => id === 'Kce').length === 2 && more.filter((id) => id === 'U').length === 1 && more.length === 72, 'a game\'s own deck list replaces counts by tile');
 });
 prove('game-map', (ok) => {
   const b = SPEC.bounds;
-  ok(b.maxX - b.minX + 1 === 16 && b.maxY - b.minY + 1 === 16, '16 by 16');
-  ok(b.minX === -8 && b.maxX === 7 && b.minY === -8 && b.maxY === 7, 'the Palazzo\'s square one off the middle');
-  const g = fresh(4);
-  lay(g, 7, 0, 'B');
-  ok(!g.board.canPlace(8, 0, TILES.B, 0) && g.board.canPlace(6, 0, TILES.B, 0), 'nothing laid outside it');
+  ok(b.maxX - b.minX + 1 === 17 && b.maxY - b.minY + 1 === 17, '17 by 17');
+  ok(b.minX === -8 && b.maxX === 8 && b.minY === -8 && b.maxY === 8, 'the Palazzo\'s square in the very middle');
+  const g = new Game({ mode: 'soffiando', players: 2, seed: 4 });
+  ok(g.board.get(0, 0)?.type.id === 'Kpz', 'and the Palazzo on it');
+});
+prove('game-wrap', (ok) => {
+  const g = fresh(104);
+  const b = g.board;
+  ok(b.wraps, 'the board wraps');
+  lay(g, 8, 0, 'U', 1);                    // a road on the east edge, running east
+  ok(b.canPlace(-8, 0, TILES.U, 1) && !b.canPlace(-8, 0, TILES.B, 0), 'a tile on the west edge must match across the seam');
+  lay(g, -8, 0, 'U', 1);
+  b.rebuild();
+  ok(b.featureOf(8, 0, 0) === b.featureOf(-8, 0, 0), 'and joins what is there');
+  ok(b.groups().length === 1, 'one piece of country, across the seam');
+  ok(b.place(9, 2, TILES.B, 0).x === -8, 'a square past the east edge is the west edge');
+  const h = fresh(105);
+  for (const y of [-3, -2, -1, 0, 1]) lay(h, 0, y, 'B');      // the mainland
+  lay(h, -1, 4, 'Kz', 1);                   // east
+  lay(h, 7, 4, 'U', 1); lay(h, 8, 4, 'U', 1); lay(h, 8, 3, 'B');   // an island against the east edge
+  h.board.rebuild();
+  const deck = h.deck.length;
+  blow(h, -1, 4, 1);
+  ok(at(h, 8, 4)?.type.id === 'U' && at(h, -8, 4)?.type.id === 'U' && at(h, -8, 3)?.type.id === 'B' && !at(h, 7, 4), 'carried off the east edge, it comes on at the west');
+  ok(h.board.groups().some((gr) => gr.length === 3 && gr.some((c) => c.x === 8) && gr.some((c) => c.x === -8)), 'still joined');
+  ok(h.m.lost === 0 && h.deck.length === deck, 'nothing lost');
 });
 
 // --- Your turn. -----------------------------------------------------------------
@@ -148,6 +176,9 @@ prove('turn-fit', (ok) => {
   ok(b.canPlace(3, 1, TILES.Kso, 0) && !b.canPlace(3, 1, TILES.U, 0), 'sfera half to sfera half, nothing else');
   lay(g, 5, 0, 'DXg');
   ok(b.canPlace(6, 0, TILES.DXr, 0) && !b.canPlace(6, 0, TILES.B, 0), 'city to city');
+  lay(g, 0, 5, 'DEg', 0);                  // walls east, south and west
+  ok(b.canPlace(1, 5, TILES.B, 0) && b.canPlace(1, 5, TILES.U, 1) && b.canPlace(1, 5, TILES.DEt, 1), 'a wall to a field, a road or another wall');
+  ok(!b.canPlace(1, 5, TILES.DXr, 0) && !b.canPlace(1, 5, TILES.Kso, 3), 'never an open city or a sfera half');
   g.phase = 'place'; g.tile = TILES.U; g.rot = 0;
   g.rotate(1);
   ok(g.rot === 1, 'you may turn it');
@@ -348,6 +379,15 @@ prove('wind-blows', (ok) => {
   g2.board.rebuild();
   blow(g2, -7, 0, 1);
   ok(at(g2, 7, 0) && at(g2, 7, 1), 'all the way down its lane, to the far side of the map');
+  const g3 = fresh(124);
+  lay(g3, 4, 0, 'Kz', 1); lay(g3, 3, 0, 'B'); lay(g3, 2, 0, 'B');
+  for (const y of [1, 2, 3, 4]) lay(g3, 2, y, 'B');
+  lay(g3, -4, 0, 'B');                      // an island behind it, round the seam
+  lay(g3, 7, 0, 'B'); lay(g3, 8, 0, 'B');   // and in front of it, a piece at the edge
+  g3.board.rebuild();
+  blow(g3, 4, 0, 1);
+  ok(at(g3, -4, 0) && !at(g3, -3, 0), 'the wind takes hold of nothing past the edge');
+  ok(at(g3, 8, 0) && at(g3, -8, 0) && !at(g3, 7, 0), 'but what it pushes over the edge comes on at the other side');
 });
 prove('wind-loose-end', (ok) => {
   const g = fresh(25);
@@ -518,7 +558,7 @@ prove('storm-cannon', (ok) => {
   h.board.rebuild();
   const deck = h.deck.length;
   blow(h, 0, 0, 1, { blast: true });
-  ok(!at(h, 1, 0) && h.m.lost === 1 && h.deck.length === deck, 'with nothing in front, off the map');
+  ok(!at(h, 1, 0) && at(h, -1, 0)?.type.id === 'B' && h.m.lost === 0 && h.deck.length === deck, 'with nothing else in its row, round the map to the back of its own cannon');
 });
 
 // --- Out of the sky. ------------------------------------------------------------
@@ -540,17 +580,6 @@ prove('fall-alone', (ok) => {
   blow(g, 0, 0, 1);
   ok(at(g, 2, 0) && g.board.degree(2, 0) === 0, 'touching nothing, it hangs there');
 });
-prove('fall-edge', (ok) => {
-  const g = fresh(43);
-  lay(g, 4, 0, 'Kz', 1);
-  for (const x of [5, 6, 7]) lay(g, x, 0, 'U');
-  for (const y of [1, 2]) lay(g, 4, y, 'B');
-  g.board.rebuild();
-  const deck = g.deck.length;
-  blow(g, 4, 0, 1);
-  ok(!at(g, 7, 0) && !at(g, 8, 0) && g.m.lost === 1, 'over the edge, gone');
-  ok(g.deck.length === deck, 'not back on the deck');
-});
 prove('fall-followers', (ok) => {
   const g = fresh(44);
   lay(g, 0, 0, 'Kz', 1); lay(g, 1, 0, 'U'); lay(g, 2, 1, 'B');
@@ -559,13 +588,6 @@ prove('fall-followers', (ok) => {
   put(g, 1, 0, 'road', 0);
   blow(g, 0, 0, 1);
   ok(!at(g, 2, 0) && g.players[0].meeples === 8, 'a follower on a tile that falls goes home');
-  const h = fresh(45);
-  lay(h, 6, 0, 'Kz', 1); lay(h, 7, 0, 'U');
-  for (const y of [1, 2]) lay(h, 6, y, 'B');
-  h.board.rebuild();
-  put(h, 7, 0, 'road', 1);
-  blow(h, 6, 0, 1);
-  ok(!at(h, 7, 0) && h.players[1].meeples === 8, 'and off the edge too');
 });
 
 // --- Followers in the wind. -----------------------------------------------------
@@ -597,11 +619,11 @@ prove('blown-fly-on', (ok) => {
   rput(b, 1, 0, 'monastery', 0);
   gust(b, { dir: 1, from: { x: 0, y: 0 } });
   ok(b.get(3, 0)?.meeple?.player === 0, 'off the ledge, it flies on to the next tile (raw engine)');
-  const b2 = raw({ minX: -8, maxX: 7, minY: -8, maxY: 7 });
+  const b2 = raw(SPEC.bounds, true);
   rlay(b2, 5, 0, 'Kg', 1); rlay(b2, 6, 0, 'B'); rlay(b2, 7, 0, 'B'); rlay(b2, 5, 1, 'B');
   rput(b2, 6, 0, 'monastery', 0);
   const r = gust(b2, { dir: 1, from: { x: 5, y: 0 }, blast: true });
-  ok(r.homed.some((m) => m.player === 0 && m.why === 'sky'), 'with no tile ahead, it goes home');
+  ok(b2.get(4, 0)?.meeple?.player === 0 && !r.homed.length, 'round the map, onto the tile its cannon fired behind it (raw engine, wrapping)');
 });
 prove('blown-occupied', (ok) => {
   const b = raw();
@@ -654,13 +676,14 @@ prove('land-tow', (ok) => {
   lay(g, -1, 0, 'Kz', 1); lay(g, 0, 0, 'Kpz');
   for (const y of [1, 2, 3, 4]) lay(g, -1, y, 'B');   // the mainland
   lay(g, 3, 5, 'B');                        // an island
-  lay(g, 7, -3, 'B');                       // one on the east edge
-  lay(g, 2, -6, 'U'); lay(g, 3, -5, 'B');   // one that will come to rest against a field
+  lay(g, 8, -3, 'Kz');                      // one on the east edge
+  lay(g, -3, 2, 'U', 1);                    // one that will come to rest against a field
   g.board.rebuild();
   blow(g, -1, 0, 1);
   ok(at(g, 2, 0)?.type.id === 'Kpz', 'the Palazzo moves, and blown adrift it is an island and goes on with them');
   ok(at(g, 4, 5) && !at(g, 3, 5), 'every island slides one square with it');
-  ok(!at(g, 7, -3) && !at(g, 8, -3) && g.m.lost >= 1, 'towed over the edge, gone');
+  ok(!at(g, 8, -3) && at(g, -8, -3)?.type.id === 'Kz' && g.m.lost === 0, 'towed off the east edge, on at the west');
+  ok(!at(g, -2, 2) && !at(g, -3, 2), 'towed against an edge it does not match, it falls');
 });
 
 // --- Spheres. -------------------------------------------------------------------
@@ -751,6 +774,13 @@ prove('colour-yellow', (ok) => {
   put(h, 1, 0, 'road', 0);
   h.m.fire('yellow');
   ok(h.players[0].score === 5, `three tiles and a closed city (${h.players[0].score})`);
+  const k = fresh(158);
+  lay(k, 0, 0, 'DEg', 0); lay(k, 0, -1, 'DEt', 2);   // a city of two, closed all round
+  lay(k, 1, 0, 'U', 1); lay(k, 2, 0, 'U', 1);        // a road east from its wall
+  k.board.rebuild();
+  put(k, 2, 0, 'road', 0);
+  k.m.fire('yellow');
+  ok(k.players[0].score === 4, `two tiles and the closed city through the gate (${k.players[0].score})`);
 });
 
 // --- Cities. --------------------------------------------------------------------
@@ -789,6 +819,29 @@ prove('city-walled', (ok) => {
   g.m.fire('blue');
   ok(g.players[0].score === 4, `two districts of one kind, doubled (${g.players[0].score})`);
 });
+prove('city-gate', (ok) => {
+  const g = fresh(160);
+  const b = g.board;
+  lay(g, 0, 0, 'DEg', 0);                   // walls east, south and west
+  lay(g, 1, 0, 'U', 1);                     // a road east from the east wall
+  lay(g, 2, 0, 'DEt', 2);                   // and on into another wall
+  b.rebuild();
+  ok(TILES.DEg.edges.join('') === 'c###', 'a district\'s walls are on its edges');
+  ok(b.featureOf(1, 0, 0).open === 0, 'a road from wall to wall is closed at both ends');
+  lay(g, 0, 1, 'U');                        // a road south from the south wall, open at its far end
+  b.rebuild();
+  ok(b.featureOf(0, 1, 0).open === 1, 'one end at a gate, one open');
+  lay(g, -1, 0, 'Kz'); lay(g, -1, 1, 'Kz'); lay(g, -1, -1, 'Kz');
+  lay(g, 1, -1, 'Kz');
+  b.rebuild();
+  const west = b.featureOf(-1, 0, fi(at(g, -1, 0), 'field'));
+  const east = b.featureOf(1, -1, fi(at(g, 1, -1), 'field'));
+  ok(west && east && west !== east, 'farmland against a wall stops there, and runs under no wall');
+  ok(!TILES.DEg.feats.some((f) => f.type === 'field'), 'a district has no fields');
+  lay(g, 4, 4, 'DEg', 3); lay(g, 5, 4, 'DEr', 1);   // two walls back to back
+  b.rebuild();
+  ok(b.featureOf(4, 4, 0) !== b.featureOf(5, 4, 0), 'two walls back to back are two cities');
+});
 prove('city-reopen', (ok) => {
   const g = fresh(61);
   lay(g, -1, 0, 'Kab'); lay(g, 0, 0, 'DIg'); lay(g, 1, 0, 'DIt'); lay(g, 2, 0, 'Kab');
@@ -820,13 +873,14 @@ prove('cloud-start', (ok) => {
 prove('cloud-set', (ok) => {
   const g = fresh(64);
   for (const x of [0, 1, 2]) lay(g, x, 0, 'U');
-  lay(g, 7, 5, 'B');
+  lay(g, 8, 5, 'B');
   g.board.rebuild();
   g.phase = 'meeple';
   const t = g.m.cloudTargets();
-  ok(t.every((q) => !at(g, q.x, q.y) && g.board.inBounds(q.x, q.y)), 'on open sky inside the map');
+  const b = SPEC.bounds;
+  ok(t.every((q) => !at(g, q.x, q.y) && q.x >= b.minX && q.x <= b.maxX && q.y >= b.minY && q.y <= b.maxY), 'on open sky, a square of the map');
   ok(t.every((q) => [[0, -1], [1, 0], [0, 1], [-1, 0]].some(([dx, dy]) => at(g, q.x + dx, q.y + dy))), 'beside the country');
-  ok(!t.some((q) => q.x === 8), 'never past the edge');
+  ok(t.some((q) => q.x === -8 && q.y === 5), 'across the seam too');
   ok(g.m.beginBlow(), 'instead of claiming');
   while (g.m.myCloud().dir !== 1) g.rotate(1);
   ok(g.cellClick(-1, 0) && at(g, 3, 0) && !at(g, 2, 0), 'facing any way, it blows as it lands');
