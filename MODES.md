@@ -950,6 +950,40 @@ kingmakes badly, and you'd blame the mechanic instead of the count.
 > claiming or when the gust is worth four times the bar.
 
 
+> **Twenty-fifth pass: the rulebook.**
+>
+> Timothy had lost track of the rules (2026-10-25), so Soffiando now keeps a
+> rulebook the way Grove Chess does: 66 numbered rules in plain words in
+> `src/modes/soffiando-rulebook.js`, each with a test that plays it on the
+> engine (`tools/soffiando-rulebook.mjs`, run by the harness), each saying
+> where it came from, and a page built from it to read on a phone. Faults
+> injected into a copy of the engine (fallen tiles to the bottom, variety as
+> a multiplier, one matching edge enough, walls that do not pin, no map edge,
+> clouds that are not zephyrs, followers kept when paid, red doubled
+> everywhere) were each caught by the rule they break.
+>
+> Writing it down found four things the docs had wrong:
+>
+> - **Catch and throw was not throwing the tile back.** The sixteenth pass
+>   put fallen tiles "on top of the deck" so the catch lays that very tile,
+>   but the code still put them on the bottom, as the eighth pass had: the
+>   extra tile was a random one. Fixed; the deck is drawn from its end.
+> - **The Palazzo tows itself.** Blown off the mainland it is an island like
+>   any other, so its own tow moves it a second square. Written into rule 42
+>   as it plays; whether it should is Timothy's call.
+> - **A windmill pays whoever holds its feature after the gust**, so a holder
+>   standing on the mill in the gust's lane has been blown off it and is not
+>   paid. Written into rule 24.
+> - **With lone walls out, yellow's city bonus is almost gone**: a road runs
+>   into a city only on a tile carrying both, and the Palazzo is now the only
+>   such tile. Written into rule 49.
+>
+> And three stale lines: lying flat had not paid "the lower rate" since
+> districts, a city blown open costs a point a district rather than a tile,
+> and the walk is offered for any feature a sphere pays, not only a finished
+> one.
+
+
 **Question it answers:** is a small board you keep *editing* better than a big
 one you keep *growing*?
 

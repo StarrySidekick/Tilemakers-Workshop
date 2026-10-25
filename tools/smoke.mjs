@@ -529,7 +529,12 @@ for (const [what, mode, mech, kind] of [
   });
   const problems = [];
   const button = page.locator('#claimActions').getByRole('button', { name: 'Set your cloud down and blow' });
-  if (!(await button.count())) problems.push('no cloud button at the follower step');
+  // The panel redraws a frame after the click, so wait for the button.
+  await button.waitFor({ timeout: 3000 }).catch(() => {});
+  if (!(await button.count())) {
+    const phase = await page.evaluate(() => window.LAB.game.phase);
+    problems.push(`no cloud button at the follower step (phase "${phase}")`);
+  }
   else {
     await button.click();
     const was = await page.evaluate(() => ({ phase: window.LAB.game.phase, dir: window.LAB.game.m.myCloud().dir }));
