@@ -22,6 +22,7 @@ import { TILES } from '../src/tiles.js';
 import { liftableCells, BASE_LAYER, allFields, citiesFed } from '../src/mechanics.js';
 import { gust, storm } from '../src/wind.js';
 import { GROUPS } from '../src/tiles.js';
+import { checkRulebook } from './soffiando-rulebook.mjs';
 
 const ALL_GROUPS = GROUPS.map((g) => g.id);
 
@@ -2589,7 +2590,7 @@ function botVsRandom(rounds) {
 
 const avg = (l) => l.reduce((a, b) => a + b, 0) / (l.length || 1);
 
-function main() {
+async function main() {
   const [only, count] = process.argv.slice(2);
   const games = Number(count) || 12;
 
@@ -2597,6 +2598,13 @@ function main() {
   checkPieces();
   checkWind();
   checkSoffiando();
+
+  // Soffiando's rulebook, every rule played on the engine
+  // (tools/soffiando-rulebook.mjs, which also runs on its own).
+  console.log('soffiando rulebook');
+  const broken = await checkRulebook();
+  for (const f of broken) fail('rulebook', f);
+  if (!broken.length) console.log('  ✓ every rule in src/modes/soffiando-rulebook.js holds on the engine');
 
   console.log('\nmodes');
   for (const spec of MODES) {
@@ -2664,4 +2672,4 @@ function main() {
 
 const MODE_OF = (id) => MODES.find((s) => s.id === id);
 
-main();
+await main();

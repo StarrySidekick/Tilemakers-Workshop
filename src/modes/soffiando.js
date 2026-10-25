@@ -29,10 +29,9 @@
 // of it is occupied, however far away that is. So a raft crosses a strait it
 // could never have crossed a square at a time, the leading tile going furthest
 // and the ones behind piling up against it. And one fired down a lane with
-// NOTHING in it never stops, which is to say it falls out of the sky: that is
-// the one thing the wind destroys, and whoever set it off may throw ONE of what
-// fell straight back down, this turn, while the hole is still open. Followers
-// are unchanged by all of it — a person is not a projectile.
+// NOTHING in it never stops, which is to say it flies off the edge of the map
+// and is gone. Followers are unchanged by all of it — a person is not a
+// projectile.
 //
 // AND IT BUILDS. Power used to stop at three; it doesn't any more. A gust that
 // runs over a zephyr blowing the SAME way absorbs it and blows a square harder
@@ -94,10 +93,10 @@
 // which is a game of who claimed fastest in the first ten turns.
 //
 // Eight each. One figure never comes home: one LYING FLAT, which is a follower
-// you have retired into its city on purpose — it keeps the city and the city
-// pays the lower rate for as long as it is the only thing holding it.
+// you have retired into its city on purpose — it keeps the city, and the city
+// never pays the walled double for as long as only flat followers hold it.
 //
-// And a follower whose feature just finished may WALK instead of going home:
+// And one of yours a sphere sends home on your own turn may WALK instead:
 // out along a road connected to where it stood, as far as the road runs, and
 // take up whatever it finds. A dead end is the road itself. A road with
 // somebody else's follower on it is a road you may not use. It is the only way
@@ -810,9 +809,10 @@ export class Soffiando extends Mode {
   /**
    * BLUE — the cities, by their districts: a point a district, plus the
    * variety bonus for its kinds (0, 1, 3, 6, 10 for one to five); a city
-   * walled all round pays double, and one out on an island double again. Finishing a city pays nothing by itself;
-   * what walls it in is a higher rate on every blue sphere still to come, and
-   * a city the wind can no longer push about.
+   * walled all round pays double, and one out on an island double again.
+   * Finishing a city pays nothing by itself; what walls it in is a higher
+   * rate on every blue sphere still to come, and a city the wind can no
+   * longer push about.
    */
   scoreCities() {
     const board = this.game.board;
@@ -856,9 +856,8 @@ export class Soffiando extends Mode {
 
   /**
    * RED — the temples. A point for every tile standing in the eight squares
-   * around one, doubled on an island. A temple already pays its keeper for
-   * every tile that ARRIVES in the parish; red pays them again for the parish
-   * as it stands, so a temple built early and kept is the compounding piece.
+   * around one, doubled on an island. Red is a temple's only income, so a
+   * temple is the one thing on the board whose value is its neighbours.
    */
   scoreTemples() {
     const board = this.game.board;
@@ -1187,7 +1186,7 @@ export class Soffiando extends Mode {
     this.laidFlat = true;
     g.phase = 'meeple';
     g.say(`${g.player.name} lays a follower flat in the city at (${x}, ${y}) — it stays, `
-      + 'and the city pays the lower rate from here on.');
+      + 'and the city will not pay the walled double while only flat followers hold it.');
     g.emit('landmark');
     return true;
   }
@@ -1634,7 +1633,10 @@ export class Soffiando extends Mode {
       g.say(`${gone.length} tile${gone.length > 1 ? 's fly' : ' flies'} off the edge of the map into the aether, gone for good.`);
     }
     if (back.length) {
-      for (const f of back) g.deck.unshift(f.id);
+      // The deck is drawn from its END, so the end is the top. These went on
+      // the front until 2026-10-25, which is the BOTTOM: the tile you caught
+      // was never the one that fell (found writing the rulebook).
+      for (const f of back) g.deck.push(f.id);
       const fired = back.filter((f) => f.why === 'fired').length;
       const bad = back.length - fired;
       const said = [];
@@ -1645,7 +1647,7 @@ export class Soffiando extends Mode {
     if (back.length && this.blame === g.current && !this.caught) {
       this.caught = true;
       g.tilesLeft++;
-      g.say(`${g.player.name} catches one out of the air, and may throw it straight back down.`);
+      g.say(`${g.player.name} catches one out of the air, and throws it straight back down: one more tile this turn.`);
       g.emit('landmark');
     }
 
@@ -1748,7 +1750,7 @@ export class Soffiando extends Mode {
         c.meeple = null;
       }
       fell.push({ x: c.x, y: c.y, type: c.type, rot: c.rot, look: c.seq });
-      this.game.deck.unshift(c.type.id);
+      this.game.deck.push(c.type.id);
       board.remove(c.x, c.y, { quiet: true });
     }
     if (fell.length) {
@@ -1810,7 +1812,7 @@ export class Soffiando extends Mode {
       if (!n) continue;
       for (const p of board.majority(d)) {
         this.pay(p, -REOPENED * n,
-          `${this.game.players[p].name}'s city is blown open — a point a tile`,
+          `${this.game.players[p].name}'s city is blown open — a point a district`,
           cells.map((c) => ({ x: c.x, y: c.y })));
       }
     }
@@ -2333,7 +2335,7 @@ Soffiando.spec = {
     + 'The run downwind ends at a gap, and the last tiles before it come away: power N pops N tiles off and carries each of them N squares. '
     + 'A GUST CANNON — six in the deck — does not carry them, it FIRES them: each flies until the square in front of it is taken, however far that is, and one fired down an empty lane never stops, which is to say it falls out of the sky. '
     + 'It gains a power off every zephyr blowing its own way and off every corner it turns, and it no longer stops at three. '
-    + 'A tile the wind shakes loose of everything HANGS THERE, and every fragment off the biggest landmass is an ISLAND, down to one tile. Anything that does fall goes back on top of the deck, and you may throw one of them straight back down — once a turn. '
+    + 'A tile the wind shakes loose of everything HANGS THERE, and every fragment off the biggest landmass is an ISLAND, down to one tile. Anything that falls goes back on top of the deck, and if your own weather knocked it down you lay one more tile this turn, which is that one — once a turn. '
     + 'The mainland is the only country too big for the wind to get under: everything else adrift sails whole, and slides until it comes to rest against something — so islands meet and merge. '
     + 'Nothing is paid for being finished: closing a SPHERE is the scoring round, and both its halves fire a pass over the whole board. '
     + 'Green scores the farms (1 per two tiles of field), blue the cities, red the temples (1 per tile around one), yellow the roads (1 a tile plus what each city it reaches is worth). '
