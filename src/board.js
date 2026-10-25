@@ -19,7 +19,7 @@
 // ---------------------------------------------------------------------------
 
 import {
-  SIDE_STEP, opposite, CENTRE_FEATURES, CAP, DOCK, edgesMeet,
+  SIDE_STEP, opposite, CENTRE_FEATURES, CAP, DOCK, WALL, edgesMeet,
   HALVES_OF_SIDE, halfPartner,
 } from './tiles.js';
 
@@ -43,12 +43,23 @@ export function meepleWeight(m, d) {
 }
 
 export class Board {
-  constructor({ bounds = null } = {}) {
+  constructor({ bounds = null, wrap = false } = {}) {
     this.cells = new Map();       // "x,y" -> cell (the TOP cell, if stacked)
     this.parent = new Map();      // "x,y#i" -> parent id
     this.data = new Map();        // root id -> component data
     this.scoredParts = new Set(); // "x,y#i" of features already paid out
     this.bounds = bounds;         // {minX,maxX,minY,maxY} or null for unbounded
+    /**
+     * A WRAPPING board has no edge (Soffiando, 2026-10-25: "tiles that are
+     * pushed off the map appear on the other side pac-man style, still
+     * connected"). Its bounds are one turn of a torus: a square off the east
+     * edge IS the square on the west edge, so the tile there is its
+     * neighbour, and every question the board answers about a square asks it
+     * of the square folded back onto the map first. Cells only ever stand on
+     * folded squares; anything that adds a step to a cell's x and asks the
+     * board what is there gets the far side without knowing it.
+     */
+    this.wrap = wrap;
     this.seq = 0;                 // placement counter, for replay order
     /**
      * Bumped by every mutation — placing, shifting, removing, replacing. It
@@ -64,11 +75,41 @@ export class Board {
     this.linked = new Set();      // cells already wired this rebuild — see link()
   }
 
-  get(x, y) { return this.cells.get(keyOf(x, y)); }
+  get(x, y) { return this.cells.get(this.key(x, y)); }
   get size() { return this.cells.size; }
+
+  /** Is this a board whose edges meet? Only a finite one can be. */
+  get wraps() {
+    const b = this.bounds;
+    return !!(this.wrap && b && Number.isFinite(b.minX + b.maxX + b.minY + b.maxY));
+  }
+
+  /** The map's width and height, on a wrapping board. */
+  get span() {
+    const b = this.bounds;
+    return { w: b.maxX - b.minX + 1, h: b.maxY - b.minY + 1 };
+  }
+
+  /** A square folded back onto the map: itself, on a board that doesn't wrap. */
+  norm(x, y) {
+    if (!this.wraps) return { x, y };
+    const b = this.bounds, { w, h } = this.span;
+    return {
+      x: ((((x - b.minX) % w) + w) % w) + b.minX,
+      y: ((((y - b.minY) % h) + h) % h) + b.minY,
+    };
+  }
+
+  /** The cell key of a square, folded. */
+  key(x, y) {
+    if (!this.wraps) return keyOf(x, y);
+    const n = this.norm(x, y);
+    return keyOf(n.x, n.y);
+  }
 
   inBounds(x, y) {
     const b = this.bounds;
+    if (this.wraps) return true;            // every square is on the map, somewhere
     return !b || (x >= b.minX && x <= b.maxX && y >= b.minY && y <= b.maxY);
   }
 
@@ -121,6 +162,7 @@ export class Board {
    *          just can't be reached with a tile in your hand.
    */
   canPlace(x, y, type, rot, { free = false, cover = false, onto = null } = {}) {
+    ({ x, y } = this.norm(x, y));
     if (!this.inBounds(x, y)) return false;
     if (this.cells.has(keyOf(x, y)) && !cover) return false;
     if (onto && this.size > 0) {
@@ -149,7 +191,7 @@ export class Board {
     for (const cell of this.cells.values()) {
       for (let s = 0; s < 4; s++) {
         const [dx, dy] = SIDE_STEP[s];
-        const nx = cell.x + dx, ny = cell.y + dy;
+        const { x: nx, y: ny } = this.norm(cell.x + dx, cell.y + dy);
         const k = keyOf(nx, ny);
         if (!this.cells.has(k) && this.inBounds(nx, ny)) out.set(k, { x: nx, y: ny });
       }
@@ -210,7 +252,7 @@ export class Board {
     return a;
   }
 
-  featureOf(x, y, i) { return this.data.get(this.find(`${keyOf(x, y)}#${i}`)); }
+  featureOf(x, y, i) { return this.data.get(this.find(`${this.key(x, y)}#${i}`)); }
 
   /** Which feature index on this cell belongs to component d, or null. */
   featIndexOn(cell, d) {
@@ -289,6 +331,20 @@ export class Board {
       }
       if (myEdge === CAP) {
         if (theirs != null && here) this.data.get(this.find(id)).open -= 1;
+        continue;
+      }
+      // A CITY WALL ends a road that runs into it, at a gate in its middle,
+      // the way a cap does, and farmland simply stops against it. Only a road
+      // has a slot there to close: a field reaches no side, and a wall
+      // against a wall is two cities back to back.
+      if (theirEdge === WALL) {
+        if (mine != null && here && cell.type.feats[mine].type === 'road') {
+          this.data.get(this.find(`${k}#${mine}`)).open -= 1;
+        }
+        continue;
+      }
+      if (myEdge === WALL) {
+        if (theirs != null && here && nb.type.feats[theirs].type === 'road') this.data.get(this.find(id)).open -= 1;
         continue;
       }
 
@@ -406,18 +462,23 @@ export class Board {
       lo.y = Math.min(lo.y, c.y); hi.y = Math.max(hi.y, c.y);
     }
     span = Math.max(hi.x - lo.x, hi.y - lo.y) + 1;
+    // Round a wrapping board the far side may be behind you: a lap is as far
+    // as any straight line goes before it meets where it started.
+    if (this.wraps) span = Math.max(this.span.w, this.span.h);
     for (const cell of this.cells.values()) {
       // Only two of the four directions, or every hop is found twice.
       for (const s of [1, 2]) {
         if (this.edgeAt(cell, s) !== 'r') continue;
         const [dx, dy] = SIDE_STEP[s];
-        if (this.cells.has(keyOf(cell.x + dx, cell.y + dy))) continue;   // no gap
+        if (this.cells.has(this.key(cell.x + dx, cell.y + dy))) continue;   // no gap
         // Out over the open air until something is there. The board is finite,
         // so this ends; if it ends at nothing, there was nothing to walk to.
         let n = 2;
-        while (n <= span && !this.cells.has(keyOf(cell.x + dx * n, cell.y + dy * n))) n++;
+        while (n <= span && !this.cells.has(this.key(cell.x + dx * n, cell.y + dy * n))) n++;
         const far = this.get(cell.x + dx * n, cell.y + dy * n);
-        if (!far || this.edgeAt(far, opposite(s)) !== 'r') continue;
+        // All the way round a wrapping board and back to its own back edge
+        // is not a road to anywhere.
+        if (!far || far === cell || this.edgeAt(far, opposite(s)) !== 'r') continue;
         const mine = this.featAt(cell, s);
         const theirs = this.featAt(far, opposite(s));
         if (mine == null || theirs == null) continue;
@@ -459,6 +520,7 @@ export class Board {
    */
   place(x, y, type, rot, { over = false, owner = null } = {}) {
     this.version++;
+    ({ x, y } = this.norm(x, y));
     const k = keyOf(x, y);
     const under = over ? this.cells.get(k) || null : null;
     const cell = {
@@ -496,6 +558,8 @@ export class Board {
    */
   shift(from, to) {
     this.version++;
+    from = this.norm(from.x, from.y);
+    to = this.norm(to.x, to.y);
     const fromKey = keyOf(from.x, from.y);
     const toKey = keyOf(to.x, to.y);
     const cell = this.cells.get(fromKey);
@@ -508,6 +572,41 @@ export class Board {
     cell.y = to.y;
     this.cells.set(toKey, cell);
     return cell;
+  }
+
+  /**
+   * Slide several tiles at once, as one thing: every target must be empty or
+   * one of the squares being left. A raft moved tile by tile has to go far
+   * end first or it runs into itself, and round a wrapping board an island
+   * lying across the seam has no far end; lifting all of it before setting
+   * any of it down needs none. Returns the moves that were made, each with
+   * where the tile came from.
+   */
+  shiftAll(moves) {
+    if (!moves.length) return [];
+    this.version++;
+    const leaving = new Set(moves.map((m) => this.key(m.from.x, m.from.y)));
+    const go = [];
+    for (const m of moves) {
+      const from = this.norm(m.from.x, m.from.y), to = this.norm(m.to.x, m.to.y);
+      const cell = this.cells.get(keyOf(from.x, from.y));
+      const toKey = keyOf(to.x, to.y);
+      if (!cell || (this.cells.has(toKey) && !leaving.has(toKey))) continue;
+      go.push({ cell, from, to });
+    }
+    const scored = [];
+    for (const { cell, from } of go) {
+      const k = keyOf(from.x, from.y);
+      this.cells.delete(k);
+      for (const f of cell.type.feats.keys()) if (this.scoredParts.delete(`${k}#${f}`)) scored.push([cell, f]);
+    }
+    for (const { cell, to } of go) {
+      cell.x = to.x;
+      cell.y = to.y;
+      this.cells.set(keyOf(to.x, to.y), cell);
+    }
+    for (const [cell, f] of scored) this.scoredParts.add(`${keyOf(cell.x, cell.y)}#${f}`);
+    return go.map(({ cell, from }) => ({ cell, from }));
   }
 
   /** Is anything at all in the eight cells around this one? Corners count. */
@@ -525,7 +624,7 @@ export class Board {
    */
   remove(x, y, { quiet = false } = {}) {
     this.version++;
-    const k = keyOf(x, y);
+    const k = this.key(x, y);
     const cell = this.cells.get(k);
     if (!cell) return null;
     if (cell.under) this.cells.set(k, cell.under); else this.cells.delete(k);
@@ -537,7 +636,7 @@ export class Board {
   /** Swap a placed tile for another type/rotation in situ (two-faced tiles). */
   replace(x, y, type, rot = null) {
     this.version++;
-    const cell = this.cells.get(keyOf(x, y));
+    const cell = this.cells.get(this.key(x, y));
     if (!cell) return null;
     cell.type = type;
     if (rot != null) cell.rot = rot;
@@ -547,7 +646,7 @@ export class Board {
 
   /** Would the board still be one connected mass without the cell at (x,y)? */
   staysConnected(x, y) {
-    const k = keyOf(x, y);
+    const k = this.key(x, y);
     if (!this.cells.has(k)) return true;
     const remaining = [...this.cells.keys()].filter((c) => c !== k);
     if (remaining.length <= 1) return true;
@@ -556,7 +655,7 @@ export class Board {
     while (queue.length) {
       const [cx, cy] = queue.pop().split(',').map(Number);
       for (const [dx, dy] of SIDE_STEP) {
-        const nk = keyOf(cx + dx, cy + dy);
+        const nk = this.key(cx + dx, cy + dy);
         if (nk === k || seen.has(nk) || !this.cells.has(nk)) continue;
         seen.add(nk);
         queue.push(nk);
@@ -697,7 +796,7 @@ export class Board {
     for (let dx = -1; dx <= 1; dx++) {
       for (let dy = -1; dy <= 1; dy++) {
         if (dx === 0 && dy === 0) continue;
-        if (this.cells.has(keyOf(x + dx, y + dy))) n++;
+        if (this.cells.has(this.key(x + dx, y + dy))) n++;
       }
     }
     return n;
@@ -720,6 +819,7 @@ export class Board {
 
   /** Features closed by the tile just played at (x,y). Marks them scored. */
   completedBy(x, y) {
+    ({ x, y } = this.norm(x, y));
     const done = [];
     const cell = this.get(x, y);
     if (!cell) return done;
@@ -830,7 +930,7 @@ export class Board {
 
   /** A gap enclosed on all four sides — the only place an Abbey may go. */
   isEnclosedGap(x, y) {
-    return !this.cells.has(keyOf(x, y)) && this.inBounds(x, y) && this.degree(x, y) === 4;
+    return !this.cells.has(this.key(x, y)) && this.inBounds(x, y) && this.degree(x, y) === 4;
   }
 
   /** Mean stack height of a component's tiles, for Strata. */

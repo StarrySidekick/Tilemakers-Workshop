@@ -44,9 +44,14 @@ const LEDGE = 'I don\'t know if we did this yet, but meeple that are blown off a
 const DISTRICTS = 'cities have different districts, garden, temple, residential, industrial, and trade, each a different color and texture.';
 const COMPOUND = 'Cities get compounding levels of points depending on how many different districts they have.';
 const CLOUD = 'every player start with a person zephyr that is an entire cloud as a tile, that blows in one direction. it can be moved every turn instead of placing a meeple. it activates when moved. it\'s interacts with zephyrs on tiles the same in that its gust can be amplified by them and vice versa.';
-const BORDER = 'make it the map has a border, and if island tiles are blown off it, they fly off into the aether and are gone. let\'s say it\'s a 16x16 border.';
 const LONE = 'for now remove single castle wall tiles from the tile pool, just want to see what it looks like.';
 const BALENA = 'for now, remove the balena in the default rules';
+// …and of 2026-10-25.
+const D25 = '2026-10-25';
+const SEVENTY_TWO = 'make sure we stick to 72 tiles, and add to the artifact a list of all our tiles, and any extra, and toggle for them all';
+const SEVENTEEN = 'map needs to be 17x17 in order to allow the palazzo to be perfectly in the middle';
+const WRAP = 'instead of flying off the side of the world, tiles that are pushed off the map appear on the other side pac-man style, still connected';
+const GATES = 'since city walls now push to the edges of tiles, farmland can now be placed against a city wall, as well as roads, as if the road is running straight from the middle of the castle wall.';
 
 export const GROUPS = [
   { id: 'game', name: 'The game', ask: 'Who plays, what is on the table, and the map.' },
@@ -75,20 +80,27 @@ export const RULES = [
     text: 'The game starts with one tile on the board, the Palazzo, in the middle of the map. Players take turns in order.',
     from: H('seventh', 'The Palazzo is the seat of the kingdom, the tile the game starts on.') },
   { n: 3, id: 'game-deck', group: 'game',
-    text: 'The deck is 112 tiles, shuffled: every tile of the cloud set, filled up with roads, fields and temples from the base set. For now no tile that is mainly a lone city wall is dealt; a sfera or wind tile that carried one comes without it.',
-    from: T(D24, LONE, 'Tiles whose wall was beside a sfera half or a wind are dealt without the wall rather than taken out, so there are as many spheres and zephyrs as before, and the base set keeps the deck at 112.'),
-    settings: ['capWalls'] },
+    text: 'The deck is 72 tiles, shuffled, each one named in the deck list: 15 districts, 16 sfera halves (four of each colour), 18 zephyrs and cannons, 3 windmills, 4 temples and a temple on a road, 3 Abbazias, 3 flying machines, 2 windvanes and 7 plain roads. Every other tile is an extra, not dealt; lone city walls are among them, for now.',
+    from: T(D25, SEVENTY_TWO, 'Which 72 is Claude\'s call, named to Timothy when it shipped: every sfera half, an end, a corner and a through-piece of each district kind, a quarter of the deck weather; the three-way and all-round districts wait as extras. The lone walls have been out since 2026-10-24 ("' + LONE + '").'),
+    settings: ['deck'], changed: D25,
+    was: 'The deck is 112 tiles, shuffled: every tile of the cloud set, filled up with roads, fields and temples from the base set. For now no tile that is mainly a lone city wall is dealt; a sfera or wind tile that carried one comes without it.' },
   { n: 4, id: 'game-map', group: 'game',
-    text: 'The map is 16 squares a side, with the Palazzo\'s square one off its middle. Nothing is ever laid outside it.',
-    from: T(D24, BORDER, 'One off the middle because a 16 by 16 board has no middle square.') },
+    text: 'The map is 17 squares a side, with the Palazzo\'s square in the very middle.',
+    from: T(D25, SEVENTEEN), changed: D25,
+    was: 'The map is 16 squares a side, with the Palazzo\'s square one off its middle. Nothing is ever laid outside it.' },
+  { n: 67, id: 'game-wrap', group: 'game',
+    text: 'The map wraps round: each edge meets the edge across from it, so the squares along the east edge are next to the squares along the west edge, and the north next to the south. A tile laid on one edge must match what is across the seam, and a tile the wind carries off one edge comes on at the other, still joined to whatever it was joined to. Nothing is ever lost off the map.',
+    from: T(D25, WRAP, 'Read as a map whose edges meet everywhere, for everything: laying, joining, the islands and the wind, not only for a tile in flight.'),
+    added: D25 },
 
   // --- Your turn. -------------------------------------------------------------
   { n: 5, id: 'turn-draw', group: 'turn',
     text: 'On your turn you draw the top tile and lay it. A tile that fits nowhere is set aside and you draw the next.',
     from: CARC() },
   { n: 6, id: 'turn-fit', group: 'turn',
-    text: 'It must touch the country, and every edge it touches must match: road to road, city to city, field to field, sfera half to sfera half. An Abbazia\'s edges match anything. You may turn it first.',
-    from: CARC('With the sfera half and the Abbazia added.') },
+    text: 'It must touch the country, and every edge it touches must match: road to road, city to city, field to field, sfera half to sfera half, and a city wall to a field, a road or another wall (rule 68). An Abbazia\'s edges match anything. You may turn it first.',
+    from: CARC('With the sfera half, the Abbazia and the city wall added.'), changed: D25,
+    was: 'It must touch the country, and every edge it touches must match: road to road, city to city, field to field, sfera half to sfera half. An Abbazia\'s edges match anything. You may turn it first.' },
   { n: 7, id: 'turn-reach', group: 'turn',
     text: 'It must touch the mainland (rule 40), or an island you already have a follower standing on.',
     from: H('eighth', 'No building on islands at all at first; on an island you stand on since the fifteenth pass, and YOUR follower since the twenty-first. Timothy liked the island puzzle in his review of 2026-10-22 (INTENT.md).') },
@@ -124,8 +136,10 @@ export const RULES = [
 
   // --- The wind. -------------------------------------------------------------
   { n: 17, id: 'wind-blows', group: 'wind',
-    text: 'A zephyr blows the moment its tile is laid, down its lane: every square from it the way it points, to the edge of the map.',
-    from: H('first') },
+    text: 'A zephyr blows the moment its tile is laid, down its lane: every square from it the way it points, to the edge of the map. What it pushes over the edge comes on at the other side (rule 67), but the wind takes hold of nothing past the edge.',
+    from: H('first', 'The edge part is Claude\'s call of 2026-10-25, named to Timothy when it shipped: measured with the wind going on round the map to its own back as well, a game had half as many gusts again and twice the falls.'),
+    changed: '2026-10-25',
+    was: 'A zephyr blows the moment its tile is laid, down its lane: every square from it the way it points, to the edge of the map.' },
   { n: 18, id: 'wind-loose-end', group: 'wind',
     text: 'It does nothing to the country it passes through. It moves the loose end: where the line of tiles in its lane stops, the last tiles before the gap come away, as many as the wind\'s power, and each goes that many squares on, stopping early against anything in its way.',
     from: H('thirteenth') },
@@ -165,8 +179,10 @@ export const RULES = [
     text: 'A double zephyr opens at power two.',
     from: H('tenth') },
   { n: 30, id: 'storm-cannon', group: 'storm',
-    text: 'A gust cannon fires the loose end instead of carrying it: each tile flies until the square in front of it is taken, however far, and one with nothing in front flies off the map (rule 33).',
-    from: H('sixteenth', 'Off the map since 2026-10-24; before the map had an edge, a tile fired at nothing went back on the deck.') },
+    text: 'A gust cannon fires the loose end instead of carrying it: each tile flies until the square in front of it is taken, however far, round the map if it has to (rule 67). With nothing else in its row or column, that is the back of its own cannon.',
+    from: H('sixteenth', 'Before the map had an edge a tile fired at nothing went back on the deck; from 2026-10-24 it flew off the map; since the map wraps, it comes round.'),
+    changed: D25,
+    was: 'A gust cannon fires the loose end instead of carrying it: each tile flies until the square in front of it is taken, however far, and one with nothing in front flies off the map (rule 33).' },
 
   // --- Out of the sky. -------------------------------------------------------
   { n: 31, id: 'fall-mismatch', group: 'fall',
@@ -175,12 +191,10 @@ export const RULES = [
   { n: 32, id: 'fall-alone', group: 'fall',
     text: 'A tile touching nothing does not fall: it hangs in the sky.',
     from: H('fourteenth', 'Fragments are where islands come from; dropping them had healed the board back into one mass every turn.') },
-  { n: 33, id: 'fall-edge', group: 'fall',
-    text: 'A tile the wind carries over the edge of the map is gone for good: it does not go back on the deck.',
-    from: T(D24, BORDER, 'Any tile, not only an island\'s, and a cannon shot that meets nothing too.') },
   { n: 34, id: 'fall-followers', group: 'fall',
-    text: 'A follower on a tile that falls, or goes over the edge, goes home.',
-    from: H('fourteenth') },
+    text: 'A follower on a tile that falls goes home.',
+    from: H('fourteenth'), changed: D25,
+    was: 'A follower on a tile that falls, or goes over the edge, goes home.' },
 
   // --- Followers in the wind. ------------------------------------------------
   { n: 35, id: 'blown-lane', group: 'blown',
@@ -190,8 +204,10 @@ export const RULES = [
     text: 'A follower put down on a zephyr is in that wind: it goes on down the zephyr\'s lane as far as its power, and again if that lands it on another.',
     from: H('thirteenth') },
   { n: 37, id: 'blown-fly-on', group: 'blown',
-    text: 'A follower blown off the end of the country keeps flying downwind until it lands on a tile. Only one with no tile anywhere ahead goes home.',
-    from: T(D24, LEDGE, '"Until they land on an island" read as the next tile of any kind in its lane, which is usually an island.') },
+    text: 'A follower blown off the end of the country keeps flying downwind until it lands on a tile, round the map if it has to (rule 67).',
+    from: T(D24, LEDGE, '"Until they land on an island" read as the next tile of any kind in its lane, which is usually an island. Since the map wraps there is always one, so the wind never sends a flier home.'),
+    changed: D25,
+    was: 'A follower blown off the end of the country keeps flying downwind until it lands on a tile. Only one with no tile anywhere ahead goes home.' },
   { n: 38, id: 'blown-occupied', group: 'blown',
     text: 'A follower that would land on a tile with a figure on it stays where it was; if that tile has gone too, it goes home.',
     from: H(null) },
@@ -207,8 +223,9 @@ export const RULES = [
     text: 'Everything on an island pays double.',
     from: H('eighth', 'Half again as much at first; double now.') },
   { n: 42, id: 'land-tow', group: 'land',
-    text: 'When the wind moves the Palazzo, every island slides one square the same way, if all of it can: nothing in its way and no wall across the wind. That includes the Palazzo itself if the gust has left it adrift. A tile towed over the edge is gone, and one towed against an edge it does not match falls.',
-    from: H('eighth', 'Walls across the wind and the edge of the map since 2026-10-24.') },
+    text: 'When the wind moves the Palazzo, every island slides one square the same way, if all of it can: nothing in its way and no wall across the wind. That includes the Palazzo itself if the gust has left it adrift. A tile towed against an edge it does not match falls.',
+    from: H('eighth', 'Walls across the wind since 2026-10-24.'), changed: D25,
+    was: 'When the wind moves the Palazzo, every island slides one square the same way, if all of it can: nothing in its way and no wall across the wind. That includes the Palazzo itself if the gust has left it adrift. A tile towed over the edge is gone, and one towed against an edge it does not match falls.' },
 
   // --- Spheres. --------------------------------------------------------------
   { n: 43, id: 'sphere-halves', group: 'spheres',
@@ -232,8 +249,10 @@ export const RULES = [
     text: 'Red pays each temple\'s keeper a point for every tile in the eight squares around it. An Abbazia with a follower on it counts as a temple.',
     from: H('tenth', 'Red is a temple\'s only income since the temple\'s offering went.') },
   { n: 49, id: 'colour-yellow', group: 'colours',
-    text: 'Yellow pays each road a point a tile, plus 1 for each city it runs into that is still open and 2 for each that is closed. A road runs into a city on a tile that carries both.',
-    from: H('twelfth', 'With lone walls out of the deck (rule 3), the Palazzo is the one tile that carries both.') },
+    text: 'Yellow pays each road a point a tile, plus 1 for each city it runs into that is still open and 2 for each that is closed. A road runs into a city on a tile that carries both, or through a gate in its wall (rule 68).',
+    from: T(D25, GATES, 'A road "running straight from the middle of the castle wall" read as one that arrives at the city behind the wall, so yellow pays for that city. The rest is from the twelfth pass.'),
+    changed: D25,
+    was: 'Yellow pays each road a point a tile, plus 1 for each city it runs into that is still open and 2 for each that is closed. A road runs into a city on a tile that carries both.' },
 
   // --- Cities. ---------------------------------------------------------------
   { n: 50, id: 'city-districts', group: 'cities',
@@ -245,6 +264,10 @@ export const RULES = [
   { n: 52, id: 'city-walled', group: 'cities',
     text: 'A city closed all round by walls pays double.',
     from: T(D24, WALLS, '"More points" read as double.') },
+  { n: 68, id: 'city-gate', group: 'cities',
+    text: 'A district\'s walls stand on the edge of its tile. Farmland may lie against a wall, and stops there; a road may run into one, and ends there, at a gate in the middle of the wall; and two walls may stand back to back.',
+    from: T(D25, GATES, 'A road into a wall is closed at that end, as a road into an Abbazia is. No field runs under a wall any more: until this a district tile carried a strip of farmland on its walled sides that joined the farms on either side of a city through it.'),
+    added: D25 },
   { n: 53, id: 'city-reopen', group: 'cities',
     text: 'If the wind opens a city that was closed, whoever holds it loses a point a district.',
     from: H('twelfth', 'A point a tile until districts, 2026-10-24.') },
@@ -257,8 +280,10 @@ export const RULES = [
     text: 'Every player has a cloud of their own, a whole tile of cloud that blows one way. It starts in hand.',
     from: T(D24, CLOUD), settings: ['clouds'] },
   { n: 56, id: 'cloud-set', group: 'cloud',
-    text: 'Instead of claiming, you may set your cloud down on an open square of sky beside the country, inside the map and not where a cloud is, facing any way. It blows the moment it lands, and your turn ends.',
-    from: T(D24, CLOUD, 'Two calls of Claude\'s, told to Timothy when it shipped: you choose the facing each time, and only beside the country, since a cloud further out in the same lane blows the same tiles.'), settings: ['clouds'] },
+    text: 'Instead of claiming, you may set your cloud down on an open square of sky beside the country, across the seam of the map too (rule 67), and not where a cloud is, facing any way. It blows the moment it lands, and your turn ends.',
+    from: T(D24, CLOUD, 'Two calls of Claude\'s, told to Timothy when it shipped: you choose the facing each time, and only beside the country, since a cloud further out in the same lane blows the same tiles.'), settings: ['clouds'],
+    changed: D25,
+    was: 'Instead of claiming, you may set your cloud down on an open square of sky beside the country, inside the map and not where a cloud is, facing any way. It blows the moment it lands, and your turn ends.' },
   { n: 57, id: 'cloud-zephyr', group: 'cloud',
     text: 'Where it stands, a cloud is a zephyr to every storm (rules 25 to 27), and its own gust is hardened by the zephyrs it crosses.',
     from: T(D24, CLOUD), settings: ['clouds'] },
@@ -298,7 +323,9 @@ export const RULES = [
 ];
 
 /** Rule numbers taken out, never used again. */
-export const RETIRED = [];
+export const RETIRED = [
+  33,   // fall-edge, 2026-10-25: "A tile the wind carries over the edge of the map is gone for good." The map wraps now (rule 67).
+];
 
 export const RULEBOOK = {
   soffiando: { name: 'Soffiando', groups: GROUPS, rules: RULES, retired: RETIRED },

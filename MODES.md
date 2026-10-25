@@ -982,6 +982,64 @@ kingmakes badly, and you'd blame the mechanic instead of the count.
 > districts, a city blown open costs a point a district rather than a tile,
 > and the walk is offered for any feature a sphere pays, not only a finished
 > one.
+>
+> **Twenty-sixth pass: 72 tiles, a map that wraps, gates in the walls.**
+>
+> Timothy, 2026-10-25: "make sure we stick to 72 tiles, and add to the
+> artifact a list of all our tiles, and any extra, and toggle for them all";
+> "i need the ability to comment on rules to then save changes to them";
+> "farmland can now be placed against a city wall, as well as roads, as if
+> the road is running straight from the middle of the castle wall"; "map
+> needs to be 17x17 in order to allow the palazzo to be perfectly in the
+> middle"; "instead of flying off the side of the world, tiles that are
+> pushed off the map appear on the other side pac-man style, still
+> connected".
+>
+> - **The deck is a list** (`src/modes/soffiando-deck.js`): 72 tiles, each
+>   named and counted, every other tile an extra at 0. Which 72 was Claude's
+>   call: every sfera half (the spheres are all the scoring, and a shorter
+>   game needs as many), an end, a corner and a through-piece of each
+>   district kind, a quarter of the deck weather with every special wind,
+>   and the plain country cut. `options.deck` changes counts by tile;
+>   `capWalls` is gone, since the list says which walls are dealt.
+> - **The map is 17 by 17**, the Palazzo in the very middle, and **it wraps**
+>   (`Board`'s `wrap`): every lookup folds the square back onto the map, so
+>   the east edge's tiles are the west edge's neighbours for laying, joining,
+>   islands and the wind alike. An island across the seam is one island and
+>   moves as one (`Board.shiftAll`, because it has no far end to move
+>   first). Past each edge the board draws a faint copy of the far edge.
+> - **A lane still stops at the edge.** Claude first had the wind go on
+>   round the world to its zephyr's back; measured over twelve bot games
+>   that was 152 gusts and 35 falls a game against main's 102 and 33.
+>   Stopping the lane at the edge and letting only what it pushes, fires or
+>   blows cross the seam gave 100 and 19. Cannon shots and blown followers
+>   do go round, and always come down: a shot at nothing meets its own
+>   cannon's back.
+> - **Walls stand on the edge**, with an edge letter of their own (`WALL`,
+>   `#`): a wall meets farmland, a road (which it closes, at a gate drawn
+>   by the renderer) or another wall. District tiles lost the strip of
+>   farmland that ran under their walls and joined the farms on both sides
+>   of a city through it. Yellow pays a road for the city behind its gate.
+> - **The rulebook page takes changes.** Each rule has a comment, new words
+>   and "take it out"; each part has "suggest a new rule"; each tile has a
+>   toggle and a count, with the deck's total against 72. They are kept in
+>   the artifact's database (`book/changes`), read and built when Timothy
+>   says "apply the Soffiando Rulebook".
+>
+> | twelve bot games, two players | main | this pass |
+> |---|---|---|
+> | tiles laid | 96 (the backstop) | 91 (the deck runs out) |
+> | gusts | 102 | 100 |
+> | tiles fallen | 33 | 19 |
+> | tiles lost off the map | 17 | 0 |
+> | spheres closed | 1.5 | 1.8 |
+> | islands at the end | 6.5 | 6.8 |
+> | roads paid for a city | 0.6 | 1.8 |
+> | score a player | 76 | 72 |
+>
+> Rules 3, 4, 6, 17, 30, 34, 37, 42, 49 and 56 changed; 67 (the map wraps)
+> and 68 (walls and gates) are new; 33 (blown off the edge, gone) is
+> retired.
 
 
 **Question it answers:** is a small board you keep *editing* better than a big

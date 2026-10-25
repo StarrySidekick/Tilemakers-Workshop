@@ -21,8 +21,21 @@ as the [Soffiando Rulebook](https://claude.ai/artifact/BVoPcDWcuKSphtdZ2WJkXr).
 - Say who a rule came from (`from`): his words, quoted, with the date; a call
   of Claude's, with why (named to him when it ships); the design history in
   `MODES.md`, by pass, where nobody wrote down who decided; or Carcassonne.
-- After a change to the rulebook, rebuild the page
-  (`node tools/rulebook-page.mjs <file>`) and publish it to the same link.
+- **The deck is a list too**, [`src/modes/soffiando-deck.js`](src/modes/soffiando-deck.js):
+  72 tiles (Timothy, 2026-10-25: "make sure we stick to 72 tiles"), every
+  other tile an extra at 0. A change to it is a change to how the game plays
+  and moves rule 3 with it.
+- After a change to the rulebook or the deck, rebuild the page
+  (`node tools/rulebook-page.mjs <file>`; it draws each tile's picture in
+  Playwright's browser, so set `CHROME_PATH` if that is not found) and
+  publish it to the same link, keeping its `db` capability.
+- **"Apply the Soffiando Rulebook"** means: read the page's database
+  (ArtifactData, collection `book`, doc `changes`): `rules` holds, by rule
+  id, his comment (`note`), new words (`text`) or `out`, and rules of his own
+  under ids starting `new-` (with their `group`); `tiles` holds the counts he
+  wants, by tile id. Build each (rule words, test, `changed` / `was`, the
+  deck), answer each comment that asks something, then clear what was built
+  from that document, pinned to the version read, and republish the page.
 - When the rulebook and the docs (README, the mode's header, its in-game
   hint) disagree, the rulebook is the one that is tested: fix the docs.
 

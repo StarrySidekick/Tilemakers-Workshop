@@ -195,9 +195,22 @@ export const CAP = '*';
  */
 export const DOCK = '~';
 
-/** Do two edges meet? Same letter, or one of them takes anything. */
+/**
+ * A CITY WALL standing on the tile's edge: every side of a district that the
+ * city does not run on through (Timothy, 2026-10-25: "since city walls now
+ * push to the edges of tiles, farmland can now be placed against a city
+ * wall, as well as roads, as if the road is running straight from the middle
+ * of the castle wall"). It meets farmland, which simply stops at it; a road,
+ * which ends there at a gate in the middle of the wall; and another wall,
+ * back to back. Never an open city or a sfera half.
+ */
+export const WALL = '#';
+const TO_WALL = new Set([WALL, 'f', 'r']);
+
+/** Do two edges meet? Same letter, one of them takes anything, or a wall and what stands against it. */
 export const edgesMeet = (a, b) => a === b || a === CAP || b === CAP
-  || a === DOCK || b === DOCK;
+  || a === DOCK || b === DOCK
+  || (a === WALL && TO_WALL.has(b)) || (b === WALL && TO_WALL.has(a));
 
 /** Edge letter per feature type. Two edges match only if their letters do. */
 export const EDGE_LETTER = {
@@ -898,6 +911,15 @@ function prepare(list) {
       if (f.shield) t.shields++;
       if (t.wild || t.dock) continue;          // an Abbazia or a ship takes anything
       for (const s of f.sides) t.edges[s] = EDGE_LETTER[f.type] || 'r';
+    }
+    // A district's walls stand ON its edge, so there is no strip of country
+    // between them and the next tile: those sides present the wall, and the
+    // tile has no fields at all. Until 2026-10-25 they presented farmland and
+    // a field ran under every wall, out of sight, joining the farms on either
+    // side of a city through the city itself.
+    if (t.feats.some((f) => f.district)) {
+      for (const s of wallSides(t)) t.edges[s] = WALL;
+      t.fields = [];
     }
 
     // Fields become real features, appended AFTER the edge letters are worked
