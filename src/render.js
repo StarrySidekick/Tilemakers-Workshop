@@ -9,7 +9,7 @@
 import { drawTile, drawMeeple, drawPig, drawIngots, drawBuilding, PLAYER_COLORS } from './art.js';
 import { tileSprite, spriteFrame } from './sprites.js';
 import {
-  pixelTile, pixelSky, pixelAether, pixelCloudSpirit, paintCoasts, pixelSails, PX, SAIL_FRAMES, turbineHub,
+  pixelTile, pixelSky, pixelAether, paintCoasts, pixelSails, PX, SAIL_FRAMES, turbineHub,
   setPixelFigures, pixelWhale, pixelWhaleShadow, pixelGate,
 } from './pixel.js';
 import { LIGHT } from './light.js';
@@ -240,7 +240,11 @@ export class Renderer {
 
     if (game.phase === 'lift') this.drawCellTargets(game.m.allLiftable ? game.m.allLiftable() : liftableCells(game.board), THEME.violet, '107,90,140');
     if (game.phase === 'balena') this.drawCellTargets(game.m.balenaTargets(), THEME.teal, '95,191,174');
-    if (game.phase === 'cloud') this.drawCellTargets(game.m.cloudTargets(), THEME.teal, '95,191,174');
+    // A tile that no longer fits, in gold, and the squares it can move on to.
+    if (game.phase === 'astray' && game.m.astrayAt) {
+      this.drawCellTargets(game.m.astrayAt.targets, THEME.teal, '95,191,174');
+      this.drawCellTargets([game.m.astrayAt.cell], THEME.gold, '212,175,95');
+    }
     // The stick: every tile it could go against this way, and under the
     // pointer the whole train that push would move.
     if (game.phase === 'stick') {
@@ -256,7 +260,6 @@ export class Renderer {
     if (game.phase === 'place') this.drawPlacementHints(game);
 
     this.drawMeeples(game);
-    if (game.m?.clouds?.length) this.drawClouds(game);
     if (game.phase === 'meeple' && !this.hideMeepleTargets) this.drawMeepleTargets(game);
     // With the claim panel doing the aiming, the board still says WHICH tile
     // is being claimed on — otherwise the two read as unrelated things.
@@ -955,37 +958,6 @@ export class Renderer {
     ctx.imageSmoothingEnabled = true;
   }
 
-  /**
-   * The players' clouds, over the tiles and the sky alike, each bobbing a
-   * whole sprite pixel at its own pace; and while one is being set down, a
-   * ghost of it on the square under the pointer, facing the way it will blow.
-   */
-  drawClouds(game) {
-    const ctx = this.ctx;
-    const z = this.cam.zoom;
-    const k = z / PX;
-    const t = performance.now() / 1000;
-    const draw = (c, x, y, alpha) => {
-      if (!this.onScreen(x, y)) return;
-      const [sx, sy] = this.toScreen(x, y);
-      const bob = Math.round(Math.sin(t * 1.1 + c.player * 1.7) * 1.2);
-      ctx.save();
-      ctx.globalAlpha = alpha;
-      ctx.imageSmoothingEnabled = this.shrinking(z);
-      ctx.drawImage(pixelCloudSpirit(PLAYER_COLORS[c.player], c.dir),
-        Math.round(sx), Math.round(sy + bob * k), Math.round(z), Math.round(z));
-      ctx.restore();
-    };
-    for (const c of game.m.clouds) {
-      if (c.x == null) continue;
-      const holding = game.phase === 'cloud' && c.player === game.current;
-      draw(c, c.x, c.y, holding ? 0.4 : 1);
-    }
-    const h = this.hover;
-    if (game.phase === 'cloud' && h && game.m.cloudTargets().some((q) => q.x === h.x && q.y === h.y)) {
-      draw(game.m.myCloud(), h.x, h.y, 0.85);
-    }
-  }
 
   /**
    * The Balena in pixels: the same sky whale on the board's grid, a little

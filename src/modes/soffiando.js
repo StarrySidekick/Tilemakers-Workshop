@@ -73,12 +73,13 @@
 //     somebody standing on is somewhere you may lay a tile — so the wind makes
 //     the seed and the players grow it.
 //
-// WHAT FALLS IS A TILE THAT NO LONGER FITS. One the wind MOVED that comes to
-// rest with ANY edge against country it cannot meet falls (Timothy,
+// A TILE THAT NO LONGER FITS MOVES ON. One the wind MOVED that comes to rest
+// with ANY edge against country it cannot meet does not stay (Timothy,
 // 2026-10-24: "roads can no longer mismatch in any way and still stay
-// together"): a road jammed against a field, a field against a city. It used
-// to take every edge being wrong; one is enough now. A tile with no neighbours
-// at all has nothing to disagree with, so it floats.
+// together"): a road jammed against a field, a field against a city. From
+// 2026-10-24 it fell; from 2026-10-26 it slides on to where it fits, and only
+// one with nowhere to go falls (see the stick, below). A tile with no
+// neighbours at all has nothing to disagree with, so it floats.
 //
 // FOLLOWERS ARE BLOWN LIKE TILES, WHICH IS NOT WHAT HAPPENS TO THE TILES. One
 // standing on the raft rides it and never notices. Every other follower in the
@@ -160,12 +161,30 @@
 // cannot be pushed by it. A wind running along the wall moves it like
 // anything else.
 //
-// EVERY PLAYER HAS A CLOUD (Timothy, 2026-10-24): a whole cloud the size of a
-// tile, with a face, blowing one way. Instead of placing a follower you may
-// set it down on open sky beside the country, facing whichever way you like,
-// and it blows the moment it lands. Where it stands it is a zephyr to every
-// storm: absorbed by a gust blowing its way, woken by one that isn't, and its
-// own gust hardened by the zephyrs it crosses.
+// EVERY PLAYER HAS A STICK (Timothy, 2026-10-26: "an actual little like stick
+// that you use to push tiles ... you're going to be able to push like entire
+// lanes of tiles ... But I also want to still somehow make it so that it's
+// possible for islands to form really often"). It took the place of the
+// player's cloud, which blew like a zephyr from 2026-10-24. Instead of
+// claiming, once a turn, you put it against a tile and push: that tile and
+// every tile touching in front of it, up to the first gap, go one square, as
+// a row of real tiles goes in front of a real stick. At most three; a longer
+// train is too heavy (`STICK_MOST`, Claude's call, measured). Everything
+// behind the stick stays, so the lane splits where it went in, and the train
+// slides past the lanes beside it. A push is not wind: it wakes no zephyr,
+// pays no windmill, blows nobody along and tows nothing; a follower on the
+// train rides it. A wall square across the push holds it still, as it holds
+// against the wind.
+//
+// AND WHAT NO LONGER FITS MOVES ON (Timothy, 2026-10-26: "if there's room for
+// that tile to move, then you can basically move the tile one space away [of]
+// your choice so that it is no longer mismatched with anything. If it is
+// completely surrounded by tiles, then yes, it still falls"). A tile the
+// wind, the Palazzo or a stick has moved that comes to rest against an edge
+// it does not meet slides on, the way the player whose turn it is chooses,
+// to the first empty square where every edge meets what is beside it ("it
+// keeps going"). Only one with every way blocked falls. Until it moves, the
+// seam it does not meet joins nothing (Board.cracks).
 //
 // THE MAP WRAPS (Timothy, 2026-10-25: "tiles that are pushed off the map
 // appear on the other side pac-man style, still connected"). It is seventeen
@@ -182,28 +201,6 @@
 // THE DECK IS A LIST of 72 (soffiando-deck.js), and LONE WALLS are out of it,
 // for now: a city closes on its districts' own walls and on the Abbazia,
 // whose four walls are drawn as a district's are.
-//
-// TWO SWITCHES FOR THE TABLE (Timothy, 2026-10-26: "when I make the physical
-// game, being like an actual little stick that you use to push tiles ... you're
-// going to be able to push entire lanes of tiles ... But I also want to still
-// somehow make it so that it's possible for islands to form really often").
-// Both are off unless a game turns them on.
-//
-//   THE STICK (`options.stick`) takes the place of the cloud. Instead of
-//     claiming, once a turn, you put it against a tile and push: that tile
-//     and every tile touching in front of it, up to the first gap, go one
-//     square, as a row of real tiles goes in front of a real stick. At most
-//     three; a longer train is too heavy (`STICK_MOST`, Claude's call, to be
-//     measured). Everything behind the stick stays, so the lane splits where
-//     it went in, and the train slides past the lanes beside it. A push is
-//     not wind: it wakes no zephyr, pays no windmill, blows nobody along and
-//     tows nothing; a follower on the train rides it. A wall square across
-//     the push holds its train still, as it holds against the wind.
-//   CRACKS (`options.cracks`): a tile the weather or a stick moves that no
-//     longer fits does not fall. The seam it does not meet is a crack, and
-//     joins nothing: no road, no city, no field, and no country, so the land
-//     either side of it is two pieces, and one of them is an island. Pushing
-//     a lane past its neighbours mostly cracks it off them.
 //
 // THE BALENA, a sky whale the size of a district, is OUT of the default rules
 // (Timothy, 2026-10-24) and plays only with `options.balena`. Whatever tile it
@@ -313,7 +310,7 @@ export const SOFFIANDO_WEIGHTS = {
   gust: 1.84,        // everything a gust does, as one dial
   gustBlow: 1,       // shoving a follower — ours out, theirs off
   whale: 0,          // points of shelter before the Balena is worth a turn
-  cloud: 1,          // what a cloud's gust must be worth before it beats skipping
+  push: 1,           // what a push must be worth, at least, before it beats a claim
   walk: 2,           // what a walk has to be worth before it beats the supply
 };
 
@@ -474,20 +471,21 @@ export class Soffiando extends Mode {
     // it and nothing in the panel about it. City walls are now the brake.
     this.balena = this.game.options?.balena ? { x: 0, y: 0 } : null;
     this.settleBalena();
-    // EVERY PLAYER HAS A CLOUD (Timothy, 2026-10-24): a wind of their own, a
-    // whole cloud the size of a tile, in hand at the start. See "the player
-    // clouds" below. `options.clouds === false` plays without them.
-    // THE STICK AND CRACKS (2026-10-26), two switches for the table; see the
-    // header. The stick takes the cloud's place.
-    this.stick = !!this.game.options?.stick;
+    // THE STICK (2026-10-26), in the cloud's place; see the header.
+    // `options.stickMost` overrides how many tiles one push moves, for
+    // measuring; nothing in the game sets it.
     this.stickMost = this.game.options?.stickMost ?? STICK_MOST;
     this.stickDir = 1;
     this.pushed = false;       // …and whether this turn's push has been made
     this.pushes = 0;
-    this.game.board.cracks = !!this.game.options?.cracks;
-    this.clouds = this.game.options?.clouds === false || this.stick ? []
-      : this.game.players.map((p) => ({ player: p.id, x: null, y: null, dir: 1 }));
-    this.cloudMoved = false;   // …and whether this turn's has blown yet
+    // …and what no longer fits moves on: until it does, the seam it does
+    // not meet joins nothing (Board.cracks).
+    this.game.board.cracks = true;
+    this.movedNow = new Set(); // tiles moved since the last look for loose ones
+    this.astray = [];          // loose tiles still to move on, first first
+    this.astrayAt = null;      // …the one whose way is being chosen, and where it can go
+    this.astrayThen = 'meeple';
+    this.movedOn = 0;
   }
 
   // --- the mainland, and everything adrift from it ---------------------------
@@ -636,7 +634,12 @@ export class Soffiando extends Mode {
     // unconditionally overwrote the walk the moment it was offered: 25 walks
     // offered across twelve bot games, none of them ever reachable, by a bot
     // or by anybody else.
-    return this.game.phase === 'stroll' ? 'stroll' : 'meeple';
+    // What the weather moved and no longer fits moves on first, and the
+    // follower step waits for it.
+    this.astrayThen = 'meeple';
+    if (this.resolveAstray()) return 'astray';
+    if (this.game.phase === 'over') return null;
+    return this.game.phase === 'stroll' || this.beginStroll() ? 'stroll' : 'meeple';
   }
 
   endTurn() {
@@ -647,8 +650,10 @@ export class Soffiando extends Mode {
     this.strollers.length = 0;
     this.laidFlat = false;
     this.balenaMoved = false;
-    this.cloudMoved = false;
     this.pushed = false;
+    this.astray = [];
+    this.astrayAt = null;
+    this.movedNow.clear();
     if (this.laid >= STORM_LIMIT) {
       this.game.say('The season turns, and the wind drops.');
       this.game.finish();
@@ -1106,6 +1111,8 @@ export class Soffiando extends Mode {
   }
 
   beginStroll() {
+    // A walk waits for the tiles that no longer fit to move on.
+    if (this.astrayAt || this.collectAstray().length) return false;
     const next = this.nextStroll();
     if (!next) return false;
     this.stroll = next;
@@ -1152,9 +1159,9 @@ export class Soffiando extends Mode {
   afterScoring() {
     const g = this.game;
     if (g.phase !== 'meeple') return;
-    // The cloud was blown INSTEAD of a follower: once its weather has been
+    // The stick was used INSTEAD of a follower: once its push has been
     // scored and walked, the turn is over.
-    if (this.cloudMoved || (!g.meepleOptions().length && !this.holdsMeeplePhase())) g.endTurn();
+    if (this.pushed || (!g.meepleOptions().length && !this.holdsMeeplePhase())) g.endTurn();
   }
 
   // --- retiring a follower into a city ---------------------------------------
@@ -1268,7 +1275,7 @@ export class Soffiando extends Mode {
   holdsMeeplePhase() {
     return !!this.lifted || this.flightLifts().length > 0 || this.canLieDown()
       || (!this.balenaMoved && this.balenaTargets().length > 0)
-      || (!this.cloudMoved && this.cloudTargets().length > 0);
+      || (!this.pushed && [0, 1, 2, 3].some((d) => this.stickTargets(d).length > 0));
   }
 
   /** Instead of putting a follower down: send the whale somewhere. */
@@ -1283,8 +1290,8 @@ export class Soffiando extends Mode {
     if (this.game.phase === 'stroll') return this.strollTo(x, y);
     if (this.game.phase === 'flat') return this.flatAt(x, y);
     if (this.game.phase === 'flight') return this.liftAt(x, y);
-    if (this.game.phase === 'cloud') return this.blowCloud(x, y);
     if (this.game.phase === 'stick') return this.pushAt(x, y);
+    if (this.game.phase === 'astray') return this.sendAstray(x, y);
     if (this.game.phase !== 'balena') return false;
     if (!this.balenaTargets().some((t) => t.x === x && t.y === y)) return false;
     this.balena = { x, y };
@@ -1296,117 +1303,25 @@ export class Soffiando extends Mode {
     return true;
   }
 
-  // --- the player clouds ----------------------------------------------------
-  //
-  // Timothy, 2026-10-24: "every player start with a person zephyr that is an
-  // entire cloud as a tile, that blows in one direction. it can be moved every
-  // turn instead of placing a meeple. it activates when moved."
-  //
-  // So each player has a cloud with a face, the size of a tile, that blows one
-  // way. It starts in hand. On your follower step you may, INSTEAD of putting
-  // a follower down, set it down on any open square of sky beside the country
-  // (the first time, or anywhere else after that), facing whichever way you
-  // like, and it blows the moment it lands. Where it stands it is a zephyr to
-  // every storm: one blowing its way is absorbed and blows a square harder
-  // past it, one blowing any other way wakes it and the storm turns down its
-  // lane, a power harder. And its own gust is hardened by every zephyr it
-  // crosses, the same as anybody's. Nothing the wind does moves a cloud; tiles
-  // slide under it as under the sky. Only its owner moves it.
-
-  /** The current player's cloud, if this game has them. */
-  myCloud() {
-    return this.clouds.find((c) => c.player === this.game.current) || null;
-  }
-
-  /** The clouds standing on the map, as the wind engine's spirits. */
-  spirits() {
-    return this.clouds.filter((c) => c.x != null).map((c) => ({ x: c.x, y: c.y, dir: c.dir, push: 1, cloud: c }));
-  }
-
-  /**
-   * Where a cloud may be set down: open sky inside the map, beside the
-   * country, and not where a cloud already is. Beside, because a cloud
-   * further out in the same lane blows exactly the same country and only
-   * makes the board harder to read.
-   */
-  cloudTargets() {
-    const me = this.myCloud();
-    if (!me) return [];
-    const board = this.game.board;
-    const taken = new Set(this.clouds.filter((c) => c.x != null).map((c) => `${c.x},${c.y}`));
-    const out = [];
-    const seen = new Set();
-    for (const cell of board.cells.values()) {
-      for (let s = 0; s < 4; s++) {
-        const [dx, dy] = SIDE_STEP[s];
-        const { x, y } = board.norm(cell.x + dx, cell.y + dy);
-        const k = `${x},${y}`;
-        if (seen.has(k)) continue;
-        seen.add(k);
-        if (board.get(x, y) || !board.inBounds(x, y) || taken.has(k)) continue;
-        out.push({ x, y });
-      }
-    }
-    return out;
-  }
-
-  canBlow() {
-    return this.game.phase === 'meeple' && !this.cloudMoved && this.cloudTargets().length > 0;
-  }
-
-  /** Instead of putting a follower down: pick the cloud up. */
-  beginBlow() {
-    if (!this.canBlow()) return false;
-    this.game.phase = 'cloud';
-    this.game.say(`${this.game.player.name} takes up their cloud.`);
-    return true;
-  }
-
-  cancelBlow() {
-    if (this.game.phase !== 'cloud') return false;
-    this.game.phase = 'meeple';
-    return true;
-  }
-
-  /** R, or the button: the cloud in hand turns a quarter. */
-  turnOther(dir = 1) {
-    if (this.game.phase === 'stick') { this.stickDir = (this.stickDir + dir + 4) % 4; return true; }
-    if (this.game.phase !== 'cloud') return false;
-    const me = this.myCloud();
-    me.dir = (me.dir + dir + 4) % 4;
-    return true;
-  }
-
-  /** Set the cloud down, and it blows. */
-  blowCloud(x, y) {
-    const g = this.game;
-    if (g.phase !== 'cloud') return false;
-    if (!this.cloudTargets().some((t) => t.x === x && t.y === y)) return false;
-    const me = this.myCloud();
-    me.x = x; me.y = y;
-    this.cloudMoved = true;
-    g.phase = 'meeple';
-    g.say(`${g.player.name}'s cloud settles at (${x}, ${y}) and blows ${DIR_NAMES[me.dir]}.`);
-    g.emit('landmark');
-    this.weather([{ dir: me.dir, from: { x, y }, push: 1, cloud: me }], g.current);
-    this.joinSferas();
-    // A sphere the gust closed may have opened a walk; the turn ends when it
-    // has been walked. Otherwise it ends now.
-    if (g.phase === 'meeple') g.endTurn();
-    return true;
-  }
-
-  // --- the stick (options.stick) --------------------------------------------
+  // --- the stick ------------------------------------------------------------
   //
   // Timothy, 2026-10-26: "an actual little stick that you use to push tiles".
-  // It replaces the cloud. Instead of claiming, once a turn: turn it (R) to
-  // the way you mean to push, then pick the tile to put it against. That tile
-  // and every one touching in front of it, up to the first gap, go a square
-  // (wind.js `trainOf`, `shove`). The lane splits where the stick went in.
+  // It took the place of the cloud (2026-10-24 to 26), in the game rather than
+  // as a switch ("we need to weave these rules into the actual game, not as
+  // toggles"). Instead of claiming, once a turn: turn it (R) to the way you
+  // mean to push, then pick the tile to put it against. That tile and every
+  // one touching in front of it, up to the first gap, go a square (wind.js
+  // `trainOf`, `shove`). The lane splits where the stick went in.
+
+  /** R, or the button: the stick in hand turns a quarter. */
+  turnOther(dir = 1) {
+    if (this.game.phase !== 'stick') return false;
+    this.stickDir = (this.stickDir + dir + 4) % 4;
+    return true;
+  }
 
   /** The tiles a push the current way could go against. */
   stickTargets(dir = this.stickDir) {
-    if (!this.stick) return [];
     const board = this.game.board;
     const pinned = (c, d) => this.pinned(c, d);
     const out = [];
@@ -1422,7 +1337,7 @@ export class Soffiando extends Mode {
   }
 
   canPush() {
-    return this.stick && this.game.phase === 'meeple' && !this.pushed
+    return this.game.phase === 'meeple' && !this.pushed
       && [0, 1, 2, 3].some((d) => this.stickTargets(d).length);
   }
 
@@ -1468,8 +1383,167 @@ export class Soffiando extends Mode {
     const queued = this.queued.splice(0);
     for (const [spec, by] of queued) this.weather(spec, by);
     this.joinSferas();
-    if (g.phase === 'meeple') g.endTurn();
+    // What no longer fits moves on, and then the turn ends.
+    this.astrayThen = 'end';
+    if (this.resolveAstray()) return true;
+    this.afterAstray();
     return true;
+  }
+
+  // --- a tile that no longer fits moves on -------------------------------------
+  //
+  // Timothy, 2026-10-26: "Instead of the tiles that crack falling ... into
+  // nowhere land, if there's room for that tile to move, then you can
+  // basically move the tile one space away [of] your choice so that it is no
+  // longer mismatched with anything. If it is completely surrounded by tiles,
+  // then yes, it still falls into nowhere land." Asked, he chose that it MUST
+  // move when it can, and that one with room but no square that fits beside
+  // it "keeps going".
+  //
+  // So a tile the wind, the Palazzo or a stick moved that comes to rest
+  // against an edge it does not meet moves on, before anything else happens:
+  // the player whose turn it is picks a way, and it slides that way square by
+  // square to the first empty square where every edge meets what is beside it
+  // (or nothing is). It cannot pass through a tile, so a way blocked before
+  // it fits is no way. With one way it just goes; with none it falls, back on
+  // top of the deck. Until then the seam it does not meet joins nothing
+  // (Board.cracks), so it is loose from everything it disagrees with.
+
+  /** The tiles moved this turn that meet a neighbour they do not match, in the order they moved. */
+  collectAstray() {
+    const board = this.game.board;
+    const loose = (c) => board.get(c.x, c.y) === c && board.degree(c.x, c.y) > 0 && !fitsAll(board, c);
+    for (const c of this.movedNow) if (!this.astray.includes(c)) this.astray.push(c);
+    this.movedNow.clear();
+    this.astray = this.astray.filter(loose);
+    return this.astray;
+  }
+
+  /** Could `cell` stand on the square `sq` with every edge meeting what is beside it? */
+  fitsAt(cell, sq) {
+    const board = this.game.board;
+    for (let s = 0; s < 4; s++) {
+      const [dx, dy] = SIDE_STEP[s];
+      const nb = board.get(sq.x + dx, sq.y + dy);
+      if (!nb || nb === cell) continue;
+      if (!edgesMeet(board.edgeAt(cell, s), board.edgeAt(nb, opposite(s)))) return false;
+    }
+    return true;
+  }
+
+  /**
+   * Where a loose tile can move on to: each way, the first empty square it
+   * fits on, if it gets there before running into a tile. Round the seam of
+   * the map, at most a lap.
+   */
+  astrayTargets(cell) {
+    const board = this.game.board;
+    const out = [];
+    for (let dir = 0; dir < 4; dir++) {
+      const [dx, dy] = SIDE_STEP[dir];
+      const lap = board.wraps ? (dx === 0 ? board.span.h : board.span.w) : 64;
+      for (let n = 1; n < lap; n++) {
+        const sq = board.norm(cell.x + dx * n, cell.y + dy * n);
+        if (board.bounds && !board.wraps && !board.inBounds(sq.x, sq.y)) break;
+        if (board.get(sq.x, sq.y)) break;                // a tile in the way
+        if (this.fitsAt(cell, sq)) { out.push({ x: sq.x, y: sq.y, dir, n }); break; }
+      }
+    }
+    return out;
+  }
+
+  /**
+   * Settle every loose tile that leaves nothing to choose (one way, or none),
+   * and stop at the first with a choice. True if a choice is waiting.
+   */
+  resolveAstray() {
+    const g = this.game;
+    for (let guard = 0; guard < 200; guard++) {
+      this.collectAstray();
+      const cell = this.astray[0];
+      if (!cell) break;
+      const targets = this.astrayTargets(cell);
+      if (targets.length > 1) {
+        this.astrayAt = { cell, targets };
+        g.phase = 'astray';
+        return true;
+      }
+      this.astray.shift();
+      if (targets.length) this.moveOn(cell, targets[0]); else this.fallLoose(cell);
+    }
+    this.astrayAt = null;
+    return false;
+  }
+
+  /** The player's choice for the loose tile in question: a square it can move on to. */
+  sendAstray(x, y) {
+    const g = this.game;
+    if (g.phase !== 'astray' || !this.astrayAt) return false;
+    const t = this.astrayAt.targets.find((q) => q.x === x && q.y === y);
+    if (!t) return false;
+    const { cell } = this.astrayAt;
+    this.astray.shift();
+    this.astrayAt = null;
+    this.moveOn(cell, t);
+    if (this.resolveAstray()) return true;
+    this.afterAstray();
+    return true;
+  }
+
+  /** Slide a loose tile on to where it fits, and settle what that changes. */
+  moveOn(cell, t) {
+    const g = this.game;
+    const from = { x: cell.x, y: cell.y };
+    if (!g.board.shift(from, { x: t.x, y: t.y })) return;
+    g.board.rebuild();
+    this.movedOn++;
+    g.say(`The tile at (${from.x}, ${from.y}) no longer fits, and moves on ${t.n} square${t.n > 1 ? 's' : ''} ${DIR_NAMES[t.dir]}.`);
+    g.emit('gust', { dir: t.dir, delay: 120, moves: [this.slide(cell, from, t.dir, t.n)], fell: [] });
+    this.settleBalena();
+    this.reopen();
+    this.settle(g.current);
+    this.joinSferas();
+  }
+
+  /** A loose tile with every way blocked falls, back on top of the deck. */
+  fallLoose(cell) {
+    const g = this.game;
+    const fell = { x: cell.x, y: cell.y, type: cell.type, rot: cell.rot, look: cell.seq };
+    if (cell.meeple) {
+      g.players[cell.meeple.player].meeples++;
+      if (cell.meeple.big) g.players[cell.meeple.player].big++;
+      g.say(`${g.players[cell.meeple.player].name}'s follower goes down with its tile and comes home.`);
+      cell.meeple = null;
+    }
+    g.board.remove(cell.x, cell.y);
+    g.deck.push(cell.type.id);
+    this.fallen++;
+    g.say(`The tile at (${fell.x}, ${fell.y}) no longer fits and has nowhere to go: it falls, back to the top of the deck.`);
+    g.emit('gust', { dir: 0, delay: 120, moves: [], fell: [fell] });
+    // Out of the sky by your own hand: one more tile this turn (rule 9).
+    if (!this.caught) {
+      this.caught = true;
+      g.tilesLeft++;
+      g.say(`${g.player.name} catches it, and throws it straight back down: one more tile this turn.`);
+    }
+    this.settleBalena();
+    this.reopen();
+    this.settle(g.current);
+    this.joinSferas();
+  }
+
+  /**
+   * Every loose tile has moved on or fallen: carry on with the turn. A walk a
+   * sphere opened meanwhile comes first; then the follower step after a
+   * placement, or the end of the turn after a push.
+   */
+  afterAstray() {
+    const g = this.game;
+    if (g.phase === 'over') return;
+    if (this.beginStroll() || g.phase === 'stroll') return;
+    g.phase = 'meeple';
+    if (this.astrayThen === 'end') { g.endTurn(); return; }
+    if (!g.meepleOptions().length && !this.holdsMeeplePhase()) g.endTurn();
   }
 
   // --- flying machines ------------------------------------------------------
@@ -1622,12 +1696,7 @@ export class Soffiando extends Mode {
         // what the mainland IS.
         const rooted = () => this.land().mainKeys;
         const pinned = (c, d) => this.pinned(c, d);
-        // The clouds are zephyrs to every storm. A storm a cloud starts is
-        // tied to that cloud's own spirit, so it can never wake itself.
-        const spirits = this.spirits();
-        const specs = (Array.isArray(job[0]) ? job[0] : [job[0]])
-          .map((sp) => (sp.cloud ? { ...sp, spirit: spirits.find((s) => s.cloud === sp.cloud) } : sp));
-        for (const report of storm(this.game.board, specs, { rooted, pinned, spirits })) this.applyGust(report);
+        for (const report of storm(this.game.board, job[0], { rooted, pinned })) this.applyGust(report);
         this.settleBalena();
         this.reopen();
         this.settle(job[1]);
@@ -1645,6 +1714,7 @@ export class Soffiando extends Mode {
   applyGust(r) {
     const g = this.game;
     if (r.stick) this.pushes++; else this.gusts++;
+    for (const m of r.moved) this.movedNow.add(m.cell);
     const at = this.stormAt || 0;
     // The first gusts of a storm take a full beat; later ones come quicker, so
     // a six-gust chain reads as weather picking up pace rather than a queue.
@@ -1669,9 +1739,8 @@ export class Soffiando extends Mode {
     }
     // Every zephyr this gust wakes flashes just before its own gust plays.
     for (const zz of r.zephyrs) {
-      const w = zz.cell || zz.spirit;
+      const w = zz.cell;
       g.emit('wake', { at: { x: w.x + 0.5, y: w.y + 0.5 }, blast: !!zz.blast, delay: at + BEAT * 0.55 });
-      if (zz.spirit) g.say(`${g.players[zz.spirit.cloud.player].name}'s cloud is woken and blows ${DIR_NAMES[zz.dir]}.`);
     }
     if (acted) { this.stormAt = at + BEAT; this.stormN = (this.stormN || 0) + 1; }
     this.payTurbines(r.turbines);
@@ -1886,6 +1955,7 @@ export class Soffiando extends Mode {
       }
       for (const m of board.shiftAll(go)) {
         towed.push(m.cell);
+        this.movedNow.add(m.cell);
         moves.push(this.slide(m.cell, m.from, dir, 1));
       }
     }
@@ -1894,7 +1964,7 @@ export class Soffiando extends Mode {
     // cannot meet, it falls, exactly as one the wind moved would.
     const fell = [];
     for (const c of towed) {
-      if (board.cracks) break;                     // with cracks, a crack instead
+      if (board.cracks) break;                     // a tile that does not fit moves on instead
       if (board.get(c.x, c.y) !== c || c.balena || !board.degree(c.x, c.y) || fitsAll(board, c)) continue;
       if (c.meeple) {
         this.game.players[c.meeple.player].meeples++;
@@ -2198,14 +2268,12 @@ export class Soffiando extends Mode {
     const g = this.game;
     const w = weightsFor(this, seat);
     if (g.current === seat && g.phase === 'stroll') return this.botStroll();
-    if (g.current === seat && g.phase === 'cloud') return this.botCloud(seat);
     if (g.current === seat && g.phase === 'stick') return this.botPush(seat);
     if (g.current !== seat || g.phase !== 'meeple') return false;
     // The stick, instead of a follower, when the push is worth more than the
-    // best claim on offer: both are priced in what they will pay (valueOf),
-    // which the cloud's gust is not, so its bar is no use here. Measured
-    // against the cloud's bar the bots pushed three times as often as they
-    // ever blew, and scored a fifth as much.
+    // best claim on offer: both are priced in what they will pay (valueOf).
+    // Measured against the old cloud's bar, a flat 4, the bots pushed three
+    // times as often as they had ever blown, and scored a fifth as much.
     if (this.canPush()) {
       const best = this.bestPush(seat);
       let claim = 0;
@@ -2213,21 +2281,10 @@ export class Soffiando extends Mode {
         const d = g.board.featureOf(o.x, o.y, o.i);
         if (d) claim = Math.max(claim, this.valueOf(d) || 0);
       }
-      const bar = Math.max(w.cloud ?? 1, claim);
+      const bar = Math.max(w.push ?? 1, claim);
       if (best && best.value > bar && this.beginPush()) {
         this.stickDir = best.dir;
         return this.pushAt(best.x, best.y);
-      }
-    }
-    // The cloud, instead of a follower: when nothing is worth claiming and its
-    // gust is worth something, or when the gust is worth a good deal more than
-    // the usual claim.
-    if (this.canBlow()) {
-      const best = this.bestCloud(seat);
-      const bar = (w.cloud ?? 1) * (g.meepleOptions().length ? 4 : 1);
-      if (best && best.value > bar && this.beginBlow()) {
-        this.myCloud().dir = best.dir;
-        return this.blowCloud(best.x, best.y);
       }
     }
     if (!this.canSwim()) return false;
@@ -2247,16 +2304,25 @@ export class Soffiando extends Mode {
     return this.onCellClick(best.x, best.y);
   }
 
-  /** The best square and facing for this seat's cloud, by what its gust would do. */
-  bestCloud(seat) {
+  /**
+   * A choice the rules force on whoever's turn it is, which every computer
+   * player answers whatever its level: where a tile that no longer fits moves
+   * on to. Where it leaves this seat's followers best placed (`holding`).
+   */
+  botMust(seat) {
+    const g = this.game;
+    if (g.current !== seat || g.phase !== 'astray' || !this.astrayAt) return false;
+    const { cell, targets } = this.astrayAt;
+    const board = g.board;
     let best = null;
-    for (const t of this.cloudTargets()) {
-      for (let dir = 0; dir < 4; dir++) {
-        const value = this.gustValue(t, dir, seat);
-        if (!best || value > best.value) best = { ...t, dir, value };
-      }
+    for (const t of targets) {
+      const from = { x: cell.x, y: cell.y };
+      board.shift(from, t); board.rebuild();
+      const value = this.holding(seat);
+      board.shift(t, from); board.rebuild();
+      if (!best || value > best.value) best = { ...t, value };
     }
-    return best;
+    return this.sendAstray(best.x, best.y);
   }
 
   /**
@@ -2293,7 +2359,15 @@ export class Soffiando extends Mode {
     const was = [...board.cells.values()].map((c) => ({ c, x: c.x, y: c.y, meeple: c.meeple }));
     const scored = [...board.scoredParts];
     try {
-      shove(board, { at, dir, most: this.stickMost, pinned: (c, d) => this.pinned(c, d) });
+      const r = shove(board, { at, dir, most: this.stickMost, pinned: (c, d) => this.pinned(c, d) });
+      // …and what no longer fits moves on, the nearest way it can, or falls.
+      for (const m of r.moved) {
+        const c = m.cell;
+        if (board.get(c.x, c.y) !== c || !board.degree(c.x, c.y) || fitsAll(board, c)) continue;
+        const t = this.astrayTargets(c).sort((a, b) => a.n - b.n)[0];
+        if (t) board.shift({ x: c.x, y: c.y }, t); else board.remove(c.x, c.y, { quiet: true });
+      }
+      board.rebuild();
       return fn();
     } finally {
       board.cells.clear();
@@ -2424,13 +2498,6 @@ export class Soffiando extends Mode {
     return value;
   }
 
-  /** Already holding the cloud: put it where it does most, or put it back. */
-  botCloud(seat) {
-    const best = this.bestCloud(seat);
-    if (!best) return this.cancelBlow();
-    this.myCloud().dir = best.dir;
-    return this.blowCloud(best.x, best.y);
-  }
 
   /**
    * The walk, for a computer player. It used to be answered by the first
@@ -2568,12 +2635,6 @@ export class Soffiando extends Mode {
     if (g.phase === 'balena') {
       return [{ label: 'Leave the Balena where it is', fn: () => this.cancelSwim() }];
     }
-    if (g.phase === 'cloud') {
-      return [
-        { label: `Turn it (blowing ${DIR_NAMES[this.myCloud().dir]})`, key: 'R', fn: () => g.rotate(1) },
-        { label: 'Keep it where it is', fn: () => this.cancelBlow() },
-      ];
-    }
     if (g.phase === 'flight') {
       return [{ label: 'Leave them where they are', fn: () => this.cancelLift() }];
     }
@@ -2589,16 +2650,7 @@ export class Soffiando extends Mode {
       fn: () => this.beginSwim(),
       disabled: !this.canSwim(),
     }] : [];
-    if (this.myCloud()) {
-      out.unshift({
-        label: this.myCloud().x == null ? 'Set your cloud down and blow' : 'Move your cloud and blow',
-        fn: () => this.beginBlow(),
-        disabled: !this.canBlow(),
-      });
-    }
-    if (this.stick) {
-      out.unshift({ label: 'Push with your stick', fn: () => this.beginPush(), disabled: !this.canPush() });
-    }
+    out.unshift({ label: 'Push with your stick', fn: () => this.beginPush(), disabled: !this.canPush() });
     if (this.canLift()) {
       out.unshift({ label: 'Fly out and pick a follower up', fn: () => this.beginLift() });
     }
@@ -2611,9 +2663,9 @@ export class Soffiando extends Mode {
     return out;
   }
 
-  /** What the panel names that the host's own signature does not see: which way the cloud and the stick face. */
+  /** What the panel names that the host's own signature does not see: which way the stick faces, and which loose tile is moving on. */
   signature() {
-    return `${this.myCloud()?.dir ?? '-'}/${this.stick ? this.stickDir : '-'}`;
+    return `${this.stickDir}/${this.astrayAt ? `${this.astrayAt.cell.x},${this.astrayAt.cell.y}` : '-'}`;
   }
 
   cancelLift() {
@@ -2634,7 +2686,7 @@ export class Soffiando extends Mode {
     return `${this.laid} tiles laid · mainland of ${main.length}`
       + ` · ${isles.length} island${isles.length === 1 ? '' : 's'} (${adrift} tiles)`
       + ` · ${this.gusts} gust${this.gusts === 1 ? '' : 's'}`
-      + (this.stick ? ` · ${this.pushes} push${this.pushes === 1 ? '' : 'es'}` : '')
+      + ` · ${this.pushes} push${this.pushes === 1 ? '' : 'es'}`
       + (this.drifts ? ` · ${this.drifts} towed by the Palazzo` : '');
   }
 
@@ -2681,10 +2733,8 @@ Soffiando.spec = {
   minPlayers: 1,
   maxPlayers: 4,
   // The mode's own switches, ticked in the Game panel and passed in as
-  // options for the next new game (rules 66, 69 and 70).
+  // options for the next new game (rule 66).
   switches: [
-    { id: 'stick', name: 'The stick', note: 'A stick instead of a cloud: push a tile and the tiles touching in front of it a square, three at most.' },
-    { id: 'cracks', name: 'Cracks', note: 'A moved tile that no longer fits stays, and the crack joins nothing.' },
     { id: 'balena', name: 'The Balena', note: 'A sky whale no wind moves, sent anywhere instead of claiming.' },
   ],
   tideStart: 5,
@@ -2693,15 +2743,15 @@ Soffiando.spec = {
     + 'The run downwind ends at a gap, and the last tiles before it come away: power N pops N tiles off and carries each of them N squares. '
     + 'A GUST CANNON — three in the deck — does not carry them, it FIRES them: each flies until the square in front of it is taken, however far that is, round the map if it has to. '
     + 'It gains a power off every zephyr blowing its own way and off every corner it turns, and it no longer stops at three. '
-    + 'A tile the wind shakes loose of everything HANGS THERE, and every fragment off the biggest landmass is an ISLAND, down to one tile. Anything that falls goes back on top of the deck, and if your own weather knocked it down you lay one more tile this turn, which is that one — once a turn. '
+    + 'A tile the wind shakes loose of everything HANGS THERE, and every fragment off the biggest landmass is an ISLAND, down to one tile. Anything that falls goes back on top of the deck, and if your own weather or stick knocked it down you lay one more tile this turn, which is that one — once a turn. '
     + 'The mainland is the only country too big for the wind to get under: everything else adrift sails whole, and slides until it comes to rest against something — so islands meet and merge. '
     + 'Nothing is paid for being finished: closing a SPHERE is the scoring round, and both its halves fire a pass over the whole board. '
     + 'Green scores the farms (1 per two tiles of field), blue the cities, red the temples (1 per tile around one), yellow the roads (1 a tile plus what each city it reaches is worth). '
     + 'A city is made of DISTRICTS (garden, temple, residential, industrial, trade) and pays a point per district, plus 1, 3, 6 or 10 for having two, three, four or five different kinds; walled all round, double that. '
-    + 'A wall square across the wind holds its tile still; a wind along it does not. A tile the wind moves falls if ANY of its edges no longer meets its neighbour. '
+    + 'A wall square across the wind holds its tile still; a wind along it does not. A tile the wind or a stick moves that no longer meets ALL its neighbours MOVES ON: you pick a way, and it slides that way to the first empty square where it fits. Only one with every way blocked falls. '
     + 'Any half fits any other, so the pairing is the decision. '
     + 'You may only build onto the mainland, or an island you are already standing on; islands pay double. '
-    + 'Every player has a CLOUD of their own: instead of a follower, set it down on open sky beside the country, facing any way (R turns it), and it blows. Where it stands it is a zephyr to every storm, absorbed or woken like any other. '
+    + 'Every player has a STICK: instead of a follower, push a tile (R turns the push) and every tile touching in front of it, up to the first gap, goes a square, three at most. Everything behind it stays, so the lane splits where the stick went in. A push is not wind: no zephyr wakes, nobody is blown along. '
     + 'The map is 17 squares a side and its edges meet: a tile blown off one side comes on at the other, still joined to what it was joined to. '
     + 'A city wall stands on its tile\'s edge: farmland stops against it, and a road may run into it, ending at a gate, and yellow pays that road for the city behind. '
     + 'A follower blown onto a zephyr rides it, and again, and again; one blown off a ledge flies on until it lands on country. A feature that scores hands its followers back — or they walk on down a road, out over any amount of open air as long as a road points off the cliff on both sides.',

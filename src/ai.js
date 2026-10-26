@@ -126,6 +126,10 @@ export class Bot {
 
   decide() {
     const g = this.game;
+    // A choice the rules force on whoever's turn it is, which only the mode
+    // can make and every level must (Soffiando: where a tile that no longer
+    // fits moves on to).
+    if (g.m.botMust?.(this.seat)) return;
     // Some modes offer a move that replaces the turn rather than decorating it
     // — Soffiando sends the Balena instead of putting a follower down. Only the
     // mode can price that, so it gets asked before we start pricing squares.

@@ -1305,7 +1305,7 @@ const PHASE_TEXT = {
   crop: 'A crop circle — choose what everyone does',
   rob: 'Post your robber on an opponent',
   balena: 'Send the Balena — click any tile on the board',
-  cloud: 'Set your cloud down beside the country — R turns it',
+  astray: 'A tile no longer fits: click where it moves on to',
   stick: 'Push with your stick: click a tile, and it and the tiles in front of it go a square — R turns the push',
   flight: 'Click one of your followers on the flight to pick it up',
   stroll: 'Walk the follower on down the road, or send it home',

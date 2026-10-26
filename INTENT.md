@@ -70,9 +70,11 @@ that you use to push tiles ... you're going to be able to push like entire
 lanes of tiles ... But I also want to still somehow make it so that it's
 possible for islands to form really often." He chose a stick that cuts the
 lane where it goes in, and cracks instead of falls ("yea i like one and
-two"). Both are switches (`options.stick`, `options.cracks`), measured in
-the twenty-seventh pass: with cracks, whole lanes make more islands, not
-fewer. Not merged until he says.
+two"), then "weave these rules into the actual game, not as toggles", and
+that a tile which no longer fits moves on, the way its player picks, to
+where it fits, falling only when "completely surrounded". The stick has
+taken the cloud's place. That is the twenty-seventh pass. Not merged until
+he says.
 
 **Fields: settled 2026-09-06, and Timothy was right.** They are fully built.
 `src/tiles.js` cuts the perimeter into eight half-edges with `halfPartner` as the

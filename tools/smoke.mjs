@@ -528,34 +528,48 @@ for (const [what, mode, mech, kind] of [
     }
   });
   const problems = [];
-  const button = page.locator('#claimActions').getByRole('button', { name: 'Set your cloud down and blow' });
+  const button = page.locator('#claimActions').getByRole('button', { name: 'Push with your stick' });
   // The panel redraws a frame after the click, so wait for the button.
   await button.waitFor({ timeout: 3000 }).catch(() => {});
   if (!(await button.count())) {
     const phase = await page.evaluate(() => window.LAB.game.phase);
-    problems.push(`no cloud button at the follower step (phase "${phase}")`);
+    problems.push(`no stick button at the follower step (phase "${phase}")`);
   }
   else {
     await button.click();
-    const was = await page.evaluate(() => ({ phase: window.LAB.game.phase, dir: window.LAB.game.m.myCloud().dir }));
+    const was = await page.evaluate(() => ({ phase: window.LAB.game.phase, dir: window.LAB.game.m.stickDir }));
     await page.keyboard.press('r');
+    // Whichever way it now faces, a tile it can push, clicked on the canvas.
     const t = await page.evaluate(() => {
       const g = window.LAB.game, r = window.LAB.renderer;
-      const q = g.m.cloudTargets()[0];
+      while (!g.m.stickTargets().length) g.rotate(1);
+      const q = g.m.stickTargets()[0];
       const [sx, sy] = r.toScreen(q.x + 0.5, q.y + 0.5);
       const rect = r.canvas.getBoundingClientRect();
-      return { q, x: rect.left + sx, y: rect.top + sy, dir: g.m.myCloud().dir };
+      return { q, x: rect.left + sx, y: rect.top + sy, dir: g.m.stickDir, pushes: g.m.pushes };
     });
     await page.mouse.click(t.x, t.y);
-    const after = await page.evaluate(() => ({ cloud: window.LAB.game.m.clouds[0], current: window.LAB.game.current }));
-    if (was.phase !== 'cloud') problems.push(`the button led to "${was.phase}"`);
-    if (t.dir === was.dir) problems.push('R did not turn the cloud');
-    if (after.cloud.x !== t.q.x || after.cloud.y !== t.q.y) problems.push('the click did not set the cloud down');
-    if (after.current !== 1) problems.push('the turn did not pass');
+    // A tile that no longer fits moves on: pick its first square.
+    for (let i = 0; i < 6; i++) {
+      const loose = await page.evaluate(() => {
+        const g = window.LAB.game, r = window.LAB.renderer;
+        if (g.phase !== 'astray') return null;
+        const q = g.m.astrayAt.targets[0];
+        const [sx, sy] = r.toScreen(q.x + 0.5, q.y + 0.5);
+        const rect = r.canvas.getBoundingClientRect();
+        return { x: rect.left + sx, y: rect.top + sy };
+      });
+      if (!loose) break;
+      await page.mouse.click(loose.x, loose.y);
+    }
+    const after = await page.evaluate(() => ({ pushes: window.LAB.game.m.pushes, current: window.LAB.game.current, phase: window.LAB.game.phase }));
+    if (was.phase !== 'stick') problems.push(`the button led to "${was.phase}"`);
+    if (after.pushes !== t.pushes + 1) problems.push('the click did not push');
+    if (after.current !== 1) problems.push(`the turn did not pass (phase "${after.phase}")`);
   }
   if (errors.length) problems.push(errors[0].split('\n')[0]);
-  if (problems.length) { failures++; console.log(`  ✗ soffiando cloud: ${problems.join(' · ')}`); }
-  else console.log('  ✓ soffiando cloud     taken up, turned, set down, blown');
+  if (problems.length) { failures++; console.log(`  ✗ soffiando stick: ${problems.join(' · ')}`); }
+  else console.log('  ✓ soffiando stick     taken up, turned, pushed, what moved on settled');
 }
 
 // The endgame tally: many features settle in one frame, and they have to be

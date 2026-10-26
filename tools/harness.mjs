@@ -94,6 +94,9 @@ function state(game) {
     // Soffiando offers walks one follower at a time, and turning one down to
     // be offered the next moves nothing else on this list.
     game.m.strollers?.length ?? '',
+    // …and a tile that no longer fits moving on is a shift: same size, same
+    // placements, a different board.
+    game.m.movedOn ?? '',
   ].join('|');
 }
 
@@ -153,24 +156,20 @@ function step(game, rng) {
       if (!game.cellClick(t.x, t.y)) game.m.cancelSwim();
       return;
     }
-    // …and the player's own cloud: set down beside the country, turned at
-    // random, and it blows.
-    case 'cloud': {
-      const spots = game.m.cloudTargets();
-      if (!spots.length) return void game.m.cancelBlow();
-      for (let i = Math.floor(rng() * 4); i > 0; i--) game.rotate(1);
-      const t = pick(spots);
-      if (!game.cellClick(t.x, t.y)) game.m.cancelBlow();
-      return;
-    }
-    // …or, with the stick (2026-10-26), a push: turned at random, against
-    // any tile it can move that way.
+    // …and the player's stick (2026-10-26): a push, turned at random,
+    // against any tile it can move that way.
     case 'stick': {
       for (let i = Math.floor(rng() * 4); i > 0; i--) game.rotate(1);
       const spots = game.m.stickTargets();
       if (!spots.length) return void game.m.cancelPush();
       const t = pick(spots);
       if (!game.cellClick(t.x, t.y)) game.m.cancelPush();
+      return;
+    }
+    // …and a tile that no longer fits, moving on to any square it can.
+    case 'astray': {
+      const t = pick(game.m.astrayAt?.targets || []);
+      if (t) game.cellClick(t.x, t.y);
       return;
     }
     case 'magic': { game.magicAuto(); return; }
@@ -182,7 +181,6 @@ function step(game, rng) {
       if (game.m.canLieDown?.() && rng() < 0.3) return void game.m.beginFlat();
       if (game.m.canLift?.() && rng() < 0.25) return void game.m.beginLift();
       if (game.m.canSwim?.() && rng() < 0.15) return void game.m.beginSwim();
-      if (game.m.canBlow?.() && rng() < 0.2) return void game.m.beginBlow();
       if (game.m.canPush?.() && rng() < 0.2) return void game.m.beginPush();
       if (game.canPlaceBuilding?.() && rng() < 0.5) game.placeBuilding();
       if (game.canBuildBridge?.() && rng() < 0.4) game.buildBridge();
@@ -1041,8 +1039,10 @@ function checkSoffiando() {
     lay(b, 5, 6, 'Kz');                       // two tiles adrift: an island
     b.rebuild();
     // THE MAINLAND IS WHATEVER IS BIGGEST, and the seat is only a passenger:
-    // build the kingdom out so it outweighs the pair adrift.
-    lay(b, 0, -1, 'Kz'); lay(b, 0, -2, 'Kz');
+    // build the kingdom out so it outweighs the pair adrift. South, where the
+    // seat is field: its north is city, and a seam that does not meet is a
+    // crack that joins nothing.
+    lay(b, 0, 1, 'Kz'); lay(b, 0, 2, 'Kz');
     b.rebuild();
     const opts = h.m.placeOpts();
     if (!opts.onto.has('0,0')) return fail('the biggest landmass is the mainland', 'the big one is not in it');
@@ -1050,8 +1050,8 @@ function checkSoffiando() {
     if (b.canPlace(6, 5, TILES.Kz, 0, opts)) {
       return fail('you may not build onto an island', 'a square beside one was legal');
     }
-    if (!b.canPlace(0, 1, TILES.Kz, 0, opts)) {     // the seat's open south side
-      return fail('you may build onto the mainland', 'a square beside the seat was refused');
+    if (!b.canPlace(0, 3, TILES.Kz, 0, opts)) {     // the kingdom's open south end
+      return fail('you may build onto the mainland', 'a square beside it was refused');
     }
     // EVERY fragment off the mainland is an island now, down to a single tile —
     // which is what makes a rock you are standing on somewhere you may build,
@@ -1452,7 +1452,7 @@ function checkSoffiando() {
     const h = fresh(46);
     const b = h.board;
     lay(b, 0, 0, 'Kpz');
-    lay(b, 0, -1, 'Kz'); lay(b, 0, -2, 'Kz');   // …so the kingdom outweighs the rock
+    lay(b, 0, 1, 'Kz'); lay(b, 0, 2, 'Kz');     // …so the kingdom outweighs the rock
     lay(b, 5, 5, 'Kz');
     lay(b, 5, 6, 'Kz');
     b.rebuild();
@@ -1595,7 +1595,7 @@ function checkSoffiando() {
     const h = fresh(14);
     const b = h.board;
     lay(b, 0, 0, 'Kpz');                      // the mainland, far away…
-    lay(b, 0, -1, 'Kz'); lay(b, 0, -2, 'Kz'); // …and big enough to BE the mainland
+    lay(b, 0, 1, 'Kz'); lay(b, 0, 2, 'Kz');   // …and big enough to BE the mainland
     lay(b, 5, 5, 'DEg', 1);                   // a two-district city, adrift and walled
     lay(b, 6, 5, 'DEt', 3);
     b.addMeeple(5, 5, 0, 0);
@@ -1611,70 +1611,43 @@ function checkSoffiando() {
     }
   }
 
-  // EVERY PLAYER HAS A CLOUD. It starts in hand; instead of a follower it is
-  // set down on open sky beside the country, facing any way, and it blows.
+  // EVERY PLAYER HAS A STICK (2026-10-26). Instead of a follower: the tile
+  // it goes against and every tile touching in front of it go a square, and
+  // everything behind stays.
   {
     const h = fresh(61);
     const b = h.board;
     for (const x of [0, 1, 2]) lay(b, x, 0, 'U');
     b.rebuild();
-    if (h.m.clouds.length !== 2 || h.m.clouds.some((c) => c.x != null)) {
-      return fail('every player starts with a cloud in hand', JSON.stringify(h.m.clouds));
-    }
+    if (h.m.clouds) return fail('the stick has taken the cloud\'s place', 'there are still clouds');
     h.phase = 'meeple';
-    if (!h.m.canBlow() || !h.m.beginBlow()) return fail('the cloud can be taken up instead of a follower', 'it could not');
-    while (h.m.myCloud().dir !== 1) h.rotate(1);       // R turns it
-    if (!h.cellClick(-1, 0)) return fail('the cloud is set down beside the country', 'the click was refused');
-    if (h.m.clouds[0].x !== -1 || h.m.clouds[0].y !== 0) return fail('the cloud stays where it was set', JSON.stringify(h.m.clouds[0]));
-    if (b.get(2, 0) || !b.get(3, 0)) return fail('a cloud blows when it is set down', 'the loose end did not move');
-    if (h.current !== 1) return fail('blowing the cloud is the turn\'s follower step', `still player ${h.current}`);
-    if (h.m.cloudTargets().some((t) => t.x === -1 && t.y === 0)) {
-      return fail('two clouds never share a square', 'the first cloud\'s square was offered');
+    if (!h.m.canPush() || !h.m.beginPush()) return fail('the stick can be taken up instead of a follower', 'it could not');
+    while (h.m.stickDir !== 1) h.rotate(1);           // R turns it
+    if (!h.cellClick(1, 0)) return fail('the stick goes against a tile', 'the click was refused');
+    if (!b.get(0, 0) || b.get(1, 0) || !b.get(2, 0) || !b.get(3, 0)) {
+      return fail('a push moves the train in front of the stick a square, and nothing behind it', JSON.stringify([...b.cells.keys()]));
     }
+    if (h.current !== 1) return fail('the push is the turn\'s follower step', `still player ${h.current}`);
   }
 
-  // A cloud's gust is hardened by the zephyrs it crosses, like anyone's…
+  // A TILE THAT NO LONGER FITS MOVES ON (2026-10-26), the way its player
+  // chooses, to the first square where it fits.
   {
     const h = fresh(62);
     const b = h.board;
-    lay(b, 0, 0, 'Kz', 1);                    // a zephyr blowing east, in the lane
-    lay(b, 1, 0, 'U'); lay(b, 2, 0, 'U');
+    lay(b, 0, 0, 'B'); lay(b, 1, 0, 'U');            // a road running north and south…
+    lay(b, 2, 1, 'B');                               // …about to be pushed onto a field
     b.rebuild();
     h.phase = 'meeple';
-    h.m.beginBlow();
-    while (h.m.myCloud().dir !== 1) h.rotate(1);
-    h.cellClick(-1, 0);
-    if (!b.get(3, 0) || !b.get(4, 0) || b.get(1, 0)) {
-      return fail('a cloud\'s gust absorbs a zephyr blowing its way', JSON.stringify([...b.cells.keys()]));
+    h.m.beginPush();
+    while (h.m.stickDir !== 1) h.rotate(1);
+    h.cellClick(1, 0);
+    if (h.phase !== 'astray' || !h.m.astrayAt || h.m.astrayAt.targets.length !== 3) {
+      return fail('a pushed tile that no longer fits waits for its player to choose a way', `phase ${h.phase}, ${JSON.stringify(h.m.astrayAt?.targets)}`);
     }
-  }
-
-  // …and a zephyr's gust is hardened by a cloud blowing its way, or wakes one
-  // that blows any other way and turns down its lane.
-  {
-    const h = fresh(63);
-    const b = h.board;
-    lay(b, -2, 0, 'Kz', 1);                   // east, across the cloud's square
-    lay(b, 0, 0, 'U'); lay(b, 1, 0, 'U');
-    b.rebuild();
-    Object.assign(h.m.clouds[1], { x: -1, y: 0, dir: 1 });
-    h.m.weather([{ dir: 1, from: { x: -2, y: 0 } }], 0);
-    if (!b.get(2, 0) || !b.get(3, 0) || b.get(0, 0)) {
-      return fail('a cloud blowing the gust\'s way hardens it', JSON.stringify([...b.cells.keys()]));
+    if (!h.cellClick(3, 0) || b.get(3, 0)?.type.id !== 'U' || b.get(2, 0) || h.current !== 1 || h.m.fallen) {
+      return fail('it moves on where its player chose, and the turn goes on', JSON.stringify([...b.cells.keys()]));
     }
-  }
-  {
-    const h = fresh(64);
-    const b = h.board;
-    lay(b, -2, 0, 'Kz', 1);                   // east, at a cloud facing south
-    lay(b, -1, 1, 'U'); lay(b, -1, 2, 'U');
-    b.rebuild();
-    Object.assign(h.m.clouds[1], { x: -1, y: 0, dir: 2 });
-    h.m.weather([{ dir: 1, from: { x: -2, y: 0 } }], 0);
-    if (!b.get(-1, 3) || !b.get(-1, 4) || b.get(-1, 1)) {
-      return fail('a gust wakes a cloud facing another way, a power harder', JSON.stringify([...b.cells.keys()]));
-    }
-    if (h.m.clouds[1].x !== -1 || h.m.clouds[1].y !== 0) return fail('the wind never moves a cloud', 'it moved');
   }
 
   // THE MAP WRAPS (2026-10-25): a tile blown off the east edge comes on at
@@ -1745,7 +1718,7 @@ function checkSoffiando() {
     const h = fresh(16);
     const b = h.board;
     lay(b, 0, 0, 'Kpz');
-    lay(b, 0, -1, 'Kz'); lay(b, 0, -2, 'Kz'); // …so the seat is on the mainland
+    lay(b, 0, 1, 'Kz'); lay(b, 0, 2, 'Kz');   // …so the seat is on the mainland
     lay(b, 4, 0, 'Kz');
     lay(b, 4, 1, 'Kz');
     b.rebuild();
@@ -1776,7 +1749,7 @@ function checkSoffiando() {
     const h = fresh(17);
     const b = h.board;
     lay(b, 0, 0, 'Kpz');
-    for (const [x, y] of [[0, -1], [0, -2], [0, -3]]) lay(b, x, y, 'Kz');   // the mainland
+    for (const [x, y] of [[0, 1], [0, 2], [0, 3]]) lay(b, x, y, 'Kz');      // the mainland
     for (const [x, y] of [[5, 0], [5, 1], [9, 0], [9, 1]]) lay(b, x, y, 'Kz');
     b.rebuild();
     b.get(5, 0).meeple = { player: 0, feat: null, big: false };
@@ -2620,15 +2593,11 @@ async function main() {
   for (const f of broken) fail('rulebook', f);
   if (!broken.length) console.log('  ✓ every rule in src/modes/soffiando-rulebook.js holds on the engine');
 
-  // Soffiando's two switches for the table (2026-10-26): the stick, and
-  // cracks, by random play and by bots, to the end of the season.
-  console.log('\nsoffiando, the stick and cracks');
+  // Soffiando's stick and the tiles that move on (2026-10-26), played to
+  // the end of the season by bots, which push and choose where a tile goes.
+  console.log('\nsoffiando, the stick and what moves on');
   if (!only || only === 'soffiando') {
-    const soff = MODE_OF('soffiando');
-    runMode(soff, Math.max(4, games / 2), { options: { stick: true } }, '+stick');
-    runMode(soff, Math.max(4, games / 2), { options: { cracks: true } }, '+cracks');
-    runMode(soff, Math.max(4, games / 2), { options: { stick: true, cracks: true } }, '+stick+cracks');
-    runMode(soff, Math.max(2, games / 4), { options: { stick: true, cracks: true }, bots: 'all' }, '+stick+cracks +bots');
+    runMode(MODE_OF('soffiando'), Math.max(2, games / 4), { bots: 'all' }, ' +bots');
   }
 
   console.log('\nmodes');

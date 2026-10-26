@@ -52,6 +52,20 @@ function put(g, x, y, type, p, flat = false) {
   }
 }
 const blow = (g, x, y, dir, more = {}, by = g.current) => g.m.weather([{ dir, from: { x, y }, ...more }], by);
+/** …and what no longer fits moves on, as it does after a gust in a turn (rule 31). True if a choice is waiting. */
+const settleLoose = (g) => g.m.resolveAstray();
+/**
+ * A pocket a road is blown into where it fits nothing and every way is
+ * blocked: a zephyr at (x, y) blowing east, the road beside it, a field under
+ * its square (so it cannot go back), and at its landing a field under, a road
+ * over and a wall east that the wind cannot move.
+ */
+function pocket(g, x, y) {
+  lay(g, x, y, 'Kz', 1); lay(g, x + 1, y, 'U');
+  lay(g, x + 1, y + 1, 'B');
+  lay(g, x + 2, y + 1, 'B'); lay(g, x + 2, y - 1, 'U'); lay(g, x + 3, y, 'DIg', 1);
+  g.board.rebuild();
+}
 /** Every line the game says while `fn` runs. */
 function said(g, fn) {
   const out = [];
@@ -205,7 +219,7 @@ prove('turn-step', (ok) => {
   g.board.rebuild();
   put(g, 3, 0, 'city', 0);
   ok(layHand(g, 'U', 0, 2) && g.phase === 'meeple', 'after laying, the follower step');
-  ok(g.meepleOptions().length > 0 && g.m.canBlow(), 'a claim or your cloud on offer');
+  ok(g.meepleOptions().length > 0 && g.m.canPush(), 'a claim or your stick on offer');
   ok(g.m.canLieDown() && g.m.beginFlat() && g.cellClick(3, 0), 'lying flat first');
   ok(g.phase === 'meeple' && g.meepleOptions().length > 0, 'still your follower step after');
   ok(!g.m.canLieDown(), 'once a turn');
@@ -215,27 +229,17 @@ prove('turn-step', (ok) => {
 });
 prove('turn-catch', (ok) => {
   const g = fresh(11);
-  lay(g, 0, 0, 'Kz', 1);                   // east
-  lay(g, 1, 0, 'U');                        // the loose end, a road
-  lay(g, 2, 1, 'B');                        // a field below where it lands
-  g.board.rebuild();
+  pocket(g, 0, 0);
   const left = g.tilesLeft;
-  blow(g, 0, 0, 1);
-  ok(!at(g, 2, 0) && g.deck[g.deck.length - 1] === 'U', 'the fallen tile is on top of the deck');
+  blow(g, 0, 0, 1); settleLoose(g);
+  ok(!at(g, 2, 0) && !at(g, 1, 0) && g.deck[g.deck.length - 1] === 'U', 'the fallen tile is on top of the deck');
   ok(g.tilesLeft === left + 1, 'and you lay one more tile this turn');
-  lay(g, 5, 0, 'Kz', 1); lay(g, 6, 0, 'U'); lay(g, 7, 1, 'B');
-  g.board.rebuild();
-  blow(g, 5, 0, 1);
-  ok(g.tilesLeft === left + 1, 'once a turn, however many fall');
+  pocket(g, 0, 4);
+  blow(g, 0, 4, 1); settleLoose(g);
+  ok(!at(g, 2, 4) && g.tilesLeft === left + 1, 'once a turn, however many fall');
   g.phase = 'meeple';
   g.skipMeeple();
   ok(g.current === 0 && g.phase === 'place' && g.tile?.id === 'U', 'the extra tile is the last that fell');
-  const h = fresh(12);
-  lay(h, 0, 0, 'Kz', 1); lay(h, 1, 0, 'U'); lay(h, 2, 1, 'B');
-  h.board.rebuild();
-  const l2 = h.tilesLeft;
-  blow(h, 0, 0, 1, {}, 1);                 // somebody else's weather
-  ok(h.tilesLeft === l2, 'only your own weather');
 });
 
 // --- Followers. -----------------------------------------------------------------
@@ -464,7 +468,7 @@ prove('wind-walls', (ok) => {
   const k = fresh(32);
   lay(k, 0, 0, 'Kz', 1);
   for (const y of [1, 2, 3, 4]) lay(k, 0, y, 'B');
-  lay(k, 3, 0, 'B'); lay(k, 3, 1, 'DEg', 0);   // an island with a wall across an east wind
+  lay(k, 3, 0, 'B'); lay(k, 3, 1, 'DEg', 2);   // an island with a wall across an east wind (and its wall meets the field above)
   k.board.rebuild();
   blow(k, 0, 0, 1);
   ok(at(k, 3, 0) && at(k, 3, 1), 'an island with such a tile stays where it is');
@@ -563,14 +567,36 @@ prove('storm-cannon', (ok) => {
 
 // --- Out of the sky. ------------------------------------------------------------
 prove('fall-mismatch', (ok) => {
-  const g = fresh(41);
-  lay(g, 0, 0, 'Kz', 1); lay(g, 1, 0, 'U');
-  lay(g, 2, -1, 'U');                       // a road above where it lands: that edge matches
-  lay(g, 2, 1, 'B');                        // a field below: that one does not
-  for (const y of [1, 2]) lay(g, 0, y, 'B');
+  // A road pushed onto a field moves on, the way its player picks.
+  let g = fresh(41);
+  lay(g, 0, 0, 'B'); lay(g, 1, 0, 'U');      // a road running north and south
+  lay(g, 2, 1, 'B');                         // a field under where it is pushed
+  lay(g, 3, 1, 'B');                         // …and under the square east of that
+  lay(g, 2, -1, 'B');                        // a tile over it: north is no way
   g.board.rebuild();
+  put(g, 1, 0, 'road', 0);
+  g.phase = 'meeple'; g.m.beginPush();
+  while (g.m.stickDir !== 1) g.rotate(1);
+  g.cellClick(1, 0);
+  const ways = g.phase === 'astray' ? g.m.astrayAt.targets : [];
+  ok(ways.length === 2, `it waits for its player to pick a way (${ways.length})`);
+  ok(ways.some((t) => t.x === 4 && t.y === 0 && t.n === 2), 'east it keeps going, past a square where it does not fit');
+  ok(ways.some((t) => t.x === 1 && t.y === 0) && !ways.some((t) => t.dir === 0 || t.dir === 2), 'a tile in the way is no way');
+  ok(g.cellClick(4, 0) && at(g, 4, 0)?.type.id === 'U' && !at(g, 2, 0) && g.m.fallen === 0, 'it slides where its player chose');
+  ok(at(g, 4, 0)?.meeple?.player === 0, 'and its follower rides it');
+  ok(g.current === 1, 'and then the turn goes on');
+  // One way: it just goes.
+  g = fresh(42);
+  lay(g, 0, 0, 'B'); lay(g, 1, 0, 'U'); lay(g, 2, 1, 'B'); lay(g, 2, -1, 'B'); lay(g, 3, 0, 'B');
+  g.board.rebuild();
+  g.phase = 'meeple'; g.m.beginPush();
+  while (g.m.stickDir !== 1) g.rotate(1);
+  ok(g.cellClick(1, 0) && at(g, 1, 0)?.type.id === 'U' && !at(g, 2, 0) && g.current === 1, 'with one way it just goes, without asking');
+  // No way: it falls, back on top of the deck.
+  g = fresh(43);
+  pocket(g, 0, 0);
   blow(g, 0, 0, 1);
-  ok(!at(g, 2, 0) && g.deck[g.deck.length - 1] === 'U', 'one wrong edge and it falls, onto the top of the deck');
+  ok(!settleLoose(g) && !at(g, 2, 0) && g.m.fallen === 1 && g.deck[g.deck.length - 1] === 'U', 'every way blocked: it falls, onto the top of the deck');
 });
 prove('fall-alone', (ok) => {
   const g = fresh(42);
@@ -582,11 +608,9 @@ prove('fall-alone', (ok) => {
 });
 prove('fall-followers', (ok) => {
   const g = fresh(44);
-  lay(g, 0, 0, 'Kz', 1); lay(g, 1, 0, 'U'); lay(g, 2, 1, 'B');
-  for (const y of [1, 2]) lay(g, 0, y, 'B');
-  g.board.rebuild();
+  pocket(g, 0, 0);
   put(g, 1, 0, 'road', 0);
-  blow(g, 0, 0, 1);
+  blow(g, 0, 0, 1); settleLoose(g);
   ok(!at(g, 2, 0) && g.players[0].meeples === 8, 'a follower on a tile that falls goes home');
 });
 
@@ -683,7 +707,7 @@ prove('land-tow', (ok) => {
   ok(at(g, 2, 0)?.type.id === 'Kpz', 'the Palazzo moves, and blown adrift it is an island and goes on with them');
   ok(at(g, 4, 5) && !at(g, 3, 5), 'every island slides one square with it');
   ok(!at(g, 8, -3) && at(g, -8, -3)?.type.id === 'Kz' && g.m.lost === 0, 'towed off the east edge, on at the west');
-  ok(!at(g, -2, 2) && !at(g, -3, 2), 'towed against an edge it does not match, it falls');
+  ok(settleLoose(g) && g.m.astrayAt?.cell === at(g, -2, 2) && g.m.sendAstray(-3, 2) && at(g, -3, 2)?.type.id === 'U' && g.m.fallen === 0, 'towed against an edge it does not match, it moves on (rule 31)');
 });
 
 // --- Spheres. -------------------------------------------------------------------
@@ -865,63 +889,6 @@ prove('city-abbazia', (ok) => {
 });
 
 // --- Your cloud. ----------------------------------------------------------------
-prove('cloud-start', (ok) => {
-  const g = new Game({ mode: 'soffiando', players: 3, seed: 63 });
-  ok(g.m.clouds.length === 3 && g.m.clouds.every((c, i) => c.player === i && c.x == null), 'one each, in hand');
-  ok(!new Game({ mode: 'soffiando', players: 2, seed: 63, options: { clouds: false } }).m.clouds.length, 'none with clouds switched off');
-});
-prove('cloud-set', (ok) => {
-  const g = fresh(64);
-  for (const x of [0, 1, 2]) lay(g, x, 0, 'U');
-  lay(g, 8, 5, 'B');
-  g.board.rebuild();
-  g.phase = 'meeple';
-  const t = g.m.cloudTargets();
-  const b = SPEC.bounds;
-  ok(t.every((q) => !at(g, q.x, q.y) && q.x >= b.minX && q.x <= b.maxX && q.y >= b.minY && q.y <= b.maxY), 'on open sky, a square of the map');
-  ok(t.every((q) => [[0, -1], [1, 0], [0, 1], [-1, 0]].some(([dx, dy]) => at(g, q.x + dx, q.y + dy))), 'beside the country');
-  ok(t.some((q) => q.x === -8 && q.y === 5), 'across the seam too');
-  ok(g.m.beginBlow(), 'instead of claiming');
-  while (g.m.myCloud().dir !== 1) g.rotate(1);
-  ok(g.cellClick(-1, 0) && at(g, 3, 0) && !at(g, 2, 0), 'facing any way, it blows as it lands');
-  ok(g.current === 1, 'and your turn ends');
-  ok(!g.m.cloudTargets().some((q) => q.x === -1 && q.y === 0), 'not where a cloud is');
-});
-prove('cloud-zephyr', (ok) => {
-  let g = fresh(65);
-  lay(g, -2, 0, 'Kz', 1); lay(g, 0, 0, 'B'); lay(g, 1, 0, 'B');
-  for (const y of [1, 2, 3]) lay(g, -2, y, 'B');
-  g.board.rebuild();
-  Object.assign(g.m.clouds[1], { x: -1, y: 0, dir: 1 });
-  blow(g, -2, 0, 1);
-  ok(at(g, 2, 0) && at(g, 3, 0) && !at(g, 0, 0), 'absorbed like a zephyr');
-  g = fresh(66);
-  lay(g, -2, 0, 'Kz', 1); lay(g, -1, 1, 'B'); lay(g, -1, 2, 'B');
-  for (const y of [1, 2, 3]) lay(g, -2, y, 'B');
-  g.board.rebuild();
-  Object.assign(g.m.clouds[1], { x: -1, y: 0, dir: 2 });
-  blow(g, -2, 0, 1);
-  ok(at(g, -1, 3) && at(g, -1, 4) && !at(g, -1, 1), 'woken like a zephyr, a power harder');
-  g = fresh(67);
-  lay(g, 0, 0, 'Kz', 1); lay(g, 1, 0, 'B'); lay(g, 2, 0, 'B');
-  for (const y of [1, 2, 3]) lay(g, 0, y, 'B');
-  g.board.rebuild();
-  g.phase = 'meeple'; g.m.beginBlow();
-  while (g.m.myCloud().dir !== 1) g.rotate(1);
-  g.cellClick(-1, 0);
-  ok(at(g, 3, 0) && at(g, 4, 0) && !at(g, 1, 0), 'its own gust hardened by the zephyr it crosses');
-});
-prove('cloud-fixed', (ok) => {
-  const g = fresh(68);
-  lay(g, 0, 0, 'Kz', 1); lay(g, 1, 0, 'B');
-  for (const y of [1, 2]) lay(g, 0, y, 'B');
-  g.board.rebuild();
-  Object.assign(g.m.clouds[1], { x: 2, y: 0, dir: 1 });
-  blow(g, 0, 0, 1);
-  ok(g.m.clouds[1].x === 2 && g.m.clouds[1].y === 0, 'the wind never moves it');
-  ok(at(g, 2, 0), 'a tile slides under it');
-});
-
 // --- Windmills and flying machines. ---------------------------------------------
 prove('windmill-finish', (ok) => {
   const g = fresh(69);
@@ -1037,47 +1004,19 @@ prove('option-balena', (ok) => {
   ok(g.m.canSwim() && g.m.beginSwim() && g.cellClick(0, 2) && g.m.balena.y === 2, 'sent to any tile instead of claiming');
 });
 
-prove('option-cracks', (ok) => {
-  ok(!new Game({ mode: 'soffiando', players: 2, seed: 82 }).board.cracks, 'off unless switched on');
-  // The tile the wind lays against a field it cannot meet (as in rule 31).
-  const g = fresh(41, { cracks: true });
-  lay(g, 0, 0, 'Kz', 1); lay(g, 1, 0, 'U');
-  lay(g, 2, -1, 'U');                       // a road above where it lands: that edge matches
-  lay(g, 2, 1, 'B');                        // a field below: that one does not
-  for (const y of [1, 2]) lay(g, 0, y, 'B');
+prove('fall-loose', (ok) => {
+  ok(new Game({ mode: 'soffiando', players: 2, seed: 82 }).board.cracks === true, 'in every game');
+  const g = fresh(45);
+  lay(g, 0, 0, 'U'); lay(g, 0, -1, 'B');     // the road runs north into a field: a seam that does not meet
   g.board.rebuild();
-  const deck = g.deck.length;
-  blow(g, 0, 0, 1);
-  ok(at(g, 2, 0)?.type.id === 'U' && g.deck.length === deck && g.m.fallen === 0, 'it does not fall');
-  const pieces = g.board.groups();
-  const of = (x, y) => pieces.find((p) => p.includes(at(g, x, y)));
-  ok(of(2, 0) === of(2, -1) && of(2, 0) !== of(2, 1), 'the seam it meets holds; the crack joins no country');
-  // On a board with cracks, a road against a field joins no field across it either.
-  const field = (b) => b.allComponents().some((d) => d.type === 'field' && d.tiles.has('0,0') && d.tiles.has('0,-1'));
-  for (const cracks of [false, true]) {
-    const b = raw();
-    b.cracks = cracks;
-    rlay(b, 0, 0, 'U'); rlay(b, 0, -1, 'B');   // U's road runs north into B's field
-    b.rebuild();
-    if (!cracks) ok(field(b) && b.groups().length === 1, 'without cracks such a seam is one field and one piece (the wind never leaves one)');
-    else ok(!field(b) && b.groups().length === 2, 'with cracks, no field and no country across it');
-  }
-  // …and the Palazzo's tow (rule 42) cracks rather than drops.
-  const h = fresh(83, { cracks: true });
-  lay(h, 0, 0, 'Kpz'); lay(h, -1, 0, 'U', 1);
-  for (const x of [1, 2, 3, 4, 5]) lay(h, x, 0, 'U', 1);
-  lay(h, 4, 1, 'U');                         // its road meets the mainland's field: cracked off already
-  h.board.rebuild();
-  ok(h.m.onIsland(at(h, 4, 1)), 'a crack makes an island');
-  h.m.driftIslands(1);
-  const towed = at(h, 5, 1);
-  ok(towed?.type.id === 'U' && !edgesMeet(h.board.edgeAt(towed, 0), h.board.edgeAt(at(h, 5, 0), 2)) && h.m.fallen === 0, 'a tile towed against an edge it cannot meet cracks too');
+  ok(!g.board.allComponents().some((d) => d.type === 'field' && d.tiles.has('0,0') && d.tiles.has('0,-1')), 'no field runs across it');
+  ok(g.board.groups().length === 2 && g.m.land().isles.length === 1, 'nor country: they are two pieces, and one is an island');
 });
-prove('option-stick', (ok) => {
-  const plain = new Game({ mode: 'soffiando', players: 2, seed: 84 });
-  ok(!plain.m.stick && plain.m.clouds.length === 2, 'off unless switched on');
-  let g = fresh(85, { stick: true });
-  ok(g.m.stick && !g.m.clouds.length, 'a stick instead of a cloud');
+
+// --- Your stick. ----------------------------------------------------------------
+prove('stick-push', (ok) => {
+  let g = fresh(85);
+  ok(!g.m.clouds && g.m.stickMost === 3, 'every player has a stick, and no cloud');
   for (const x of [0, 1, 2, 3]) lay(g, x, 0, 'B');
   lay(g, 0, 1, 'B');
   g.board.rebuild();
@@ -1087,7 +1026,7 @@ prove('option-stick', (ok) => {
   ok(!g.m.stickTargets().some((t) => t.x === 0 && t.y === 0), 'not four tiles: too heavy');
   ok(g.cellClick(1, 0) && at(g, 0, 0) && !at(g, 1, 0) && [2, 3, 4].every((x) => at(g, x, 0)), 'the tile against it and those touching in front go a square; behind it, nothing');
   ok(g.current === 1, 'and your turn ends');
-  g = fresh(86, { stick: true });
+  g = fresh(86);
   lay(g, 7, 0, 'B'); lay(g, 8, 0, 'B'); lay(g, 0, 0, 'B');
   g.board.rebuild();
   g.phase = 'meeple';
@@ -1095,9 +1034,9 @@ prove('option-stick', (ok) => {
   while (g.m.stickDir !== 1) g.rotate(1);
   ok(g.cellClick(7, 0) && at(g, -8, 0) && at(g, 8, 0) && !at(g, 7, 0), 'round the seam of the map');
 });
-prove('option-stick-push', (ok) => {
+prove('stick-not-wind', (ok) => {
   // A zephyr in the train wakes nothing; a follower on it rides; one beside it stays.
-  let g = fresh(87, { stick: true });
+  let g = fresh(87);
   lay(g, 0, 0, 'B'); lay(g, 1, 0, 'Kz', 2);   // blowing south
   lay(g, 1, 1, 'B'); lay(g, 1, 2, 'B');
   lay(g, 0, -1, 'B');
@@ -1108,7 +1047,7 @@ prove('option-stick-push', (ok) => {
   ok(g.cellClick(1, 0) && at(g, 2, 0)?.meeple?.player === 0 && at(g, 1, 1) && at(g, 1, 2) && !at(g, 1, 3), 'no zephyr wakes, and the one on the tile rides it');
   ok(at(g, 0, -1)?.meeple?.player === 1 && g.m.gusts === 0 && g.m.pushes === 1, 'nobody else is moved, and it is not a gust');
   // A windmill pushed pays nobody.
-  g = fresh(88, { stick: true });
+  g = fresh(88);
   lay(g, 0, 0, 'B'); lay(g, 1, 0, 'Ktb');
   g.board.rebuild();
   put(g, 1, 0, 'city', 0);
@@ -1116,35 +1055,27 @@ prove('option-stick-push', (ok) => {
   while (g.m.stickDir !== 1) g.rotate(1);
   ok(g.cellClick(1, 0) && at(g, 2, 0) && g.players[0].score === 0, 'a windmill pushed pays nobody');
   // The Palazzo pushed tows no island.
-  g = fresh(89, { stick: true });
+  g = fresh(89);
   lay(g, 0, 0, 'Kpz'); lay(g, -1, 0, 'U', 1); lay(g, -2, 0, 'U', 1);
   lay(g, 5, 5, 'B');
   g.board.rebuild();
   g.phase = 'meeple'; g.m.beginPush();
   while (g.m.stickDir !== 1) g.rotate(1);
-  ok(g.cellClick(0, 0) && at(g, 1, 0)?.type.id === 'Kpz' && at(g, 5, 5) && !at(g, 6, 5) && g.m.drifts === 0, 'pushing the Palazzo tows nothing');
+  const pushed = g.cellClick(0, 0);
+  if (g.phase === 'astray') g.m.sendAstray(g.m.astrayAt.targets[0].x, g.m.astrayAt.targets[0].y);
+  ok(pushed && at(g, 5, 5) && !at(g, 6, 5) && g.m.drifts === 0, 'pushing the Palazzo tows nothing');
   // A wall square across the push holds it; one along it does not.
-  g = fresh(90, { stick: true });
+  g = fresh(90);
   lay(g, 0, 0, 'DIg');                       // walls north and south
   g.board.rebuild();
   ok(!g.m.trainAt(0, 0, 0) && !g.m.trainAt(0, 0, 2) && g.m.trainAt(0, 0, 1), 'a wall across the push holds; along it, it goes');
-  // A pushed tile that no longer fits falls, and you lay it again.
-  g = fresh(91, { stick: true });
-  lay(g, 0, 0, 'B'); lay(g, 1, 0, 'U');      // a road running north and south
-  lay(g, 2, 1, 'B');                         // …about to land on a field below
-  g.board.rebuild();
-  g.phase = 'meeple'; g.tilesLeft = 1; g.m.beginPush();
-  while (g.m.stickDir !== 1) g.rotate(1);
-  const pushed = g.cellClick(1, 0);
-  ok(pushed && !at(g, 2, 0) && g.m.fallen === 1 && g.tile?.id === 'U', 'it falls onto the top of the deck');
-  ok(g.current === 0 && g.phase === 'place', 'and you lay one more: that tile');
-  // With cracks it stays.
-  g = fresh(92, { stick: true, cracks: true });
+  // A pushed tile that no longer fits moves on.
+  g = fresh(91);
   lay(g, 0, 0, 'B'); lay(g, 1, 0, 'U'); lay(g, 2, 1, 'B');
   g.board.rebuild();
   g.phase = 'meeple'; g.m.beginPush();
   while (g.m.stickDir !== 1) g.rotate(1);
-  ok(g.cellClick(1, 0) && at(g, 2, 0)?.type.id === 'U' && g.m.fallen === 0, 'with cracks, it cracks');
+  ok(g.cellClick(1, 0) && g.phase === 'astray' && g.m.astrayAt.cell.type.id === 'U', 'a pushed tile that no longer fits moves on (rule 31)');
 });
 
 // --- Run them. ------------------------------------------------------------------

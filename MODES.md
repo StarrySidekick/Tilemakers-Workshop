@@ -1041,8 +1041,8 @@ kingmakes badly, and you'd blame the mechanic instead of the count.
 > and 68 (walls and gates) are new; 33 (blown off the edge, gone) is
 > retired.
 >
-> **Twenty-seventh pass: a stick for the table, and cracks.** Two switches,
-> both off unless a game turns them on.
+> **Twenty-seventh pass: a stick in the cloud's place, and what no longer
+> fits moves on.**
 >
 > Timothy, 2026-10-26: "when I make the physical game, being like an actual
 > little like stick that you use to push tiles ... you're going to be able to
@@ -1050,7 +1050,15 @@ kingmakes badly, and you'd blame the mechanic instead of the count.
 > also want to still somehow make it so that it's possible for islands to
 > form really often." Claude offered three ways (the stick as a knife at a
 > seam of your choosing; cracks instead of falls; anchors that split a
-> push) and he chose the first two: "yea i like one and two".
+> push) and he chose the first two, "yea i like one and two". Built first as
+> two switches and measured (below); then "we need to weave these rules into
+> the actual game, not as toggles", and: "Instead of the tiles that crack
+> falling ... into nowhere land, if there's room for that tile to move, then
+> you can basically move the tile one space away [of] your choice so that it
+> is no longer mismatched with anything. If it is completely surrounded by
+> tiles, then yes, it still falls into nowhere land." Asked, he chose that it
+> must move when it can, and that one with room but no square beside it that
+> fits "keeps going".
 >
 > - **Pushing joins; separating makes islands.** A row of touching tiles in
 >   front of a stick goes as one train, which presses country together. Two
@@ -1059,50 +1067,74 @@ kingmakes badly, and you'd blame the mechanic instead of the count.
 >   every tile in it meets a new neighbour and most of those edges disagree.
 >   The wind's loose-end rule was already a stick in disguise: count the
 >   power back from the gap, put the stick in the seam there, push.
-> - **The stick** (`options.stick`, rules 70 and 71) takes the cloud's
->   place: instead of claiming, once a turn, against any tile and side,
+> - **The stick** (rules 70 and 71) takes the cloud's place (rules 55 to 58
+>   retired): instead of claiming, once a turn, against any tile and side,
 >   the train in front of it (to the first gap, round the seam too) goes a
 >   square, three tiles at most (`STICK_MOST`). Not wind: no zephyrs, no
 >   windmills, no followers carried but its riders, no tow. Walls across it
->   hold it. In the engine it is `trainOf` and `shove` in `src/wind.js`.
-> - **Cracks** (`options.cracks`, rule 69): a moved tile that no longer
->   fits stays, and the seam is a crack that joins no feature, field or
->   country (`Board.cracks`, `Board.seamHolds`; `groups`, `linkFields` and
->   the wind's `regionOf` all ask it). The Palazzo's tow cracks too.
-> - **The bot** weighs a push by making it and taking it back
->   (`tryPush`, `holding`): what every follower stands in, before and
->   after, with the few pushes a quick guess ranks best. On the guess alone
->   (which ignored that a crack also cuts what a follower stands in) it
->   pushed most turns and scored a fifth as much.
+>   hold it. In the engine, `trainOf` and `shove` in `src/wind.js`.
+> - **What no longer fits moves on** (rule 31, which was "it falls"): a tile
+>   the wind, the Palazzo or a stick moved that meets a neighbour it does not
+>   match waits for the player whose turn it is to pick a way, and slides
+>   that way to the first empty square where every edge meets (or nothing is
+>   beside it). It cannot pass through a tile; with one way it just goes;
+>   only one with every way blocked falls. It happens before anything else:
+>   the follower step, a walk a sphere opened, the end of a push's turn all
+>   wait for it (the `astray` phase; `resolveAstray`, `moveOn`, `fallLoose`).
+> - **Until then the seam joins nothing** (rule 69; `Board.cracks`,
+>   `Board.seamHolds`): no feature, field or country across an edge that
+>   does not meet, so a loose tile is not the mainland's while it waits.
+> - **The bot** weighs a push by making it and taking it back (`tryPush`,
+>   `holding`), with what no longer fits moved on the nearest way; and it
+>   chooses where a loose tile goes the same way (`botMust`, which every
+>   level answers, since the rules force the choice).
+> - **The Game panel shows a mode's own switches** (`spec.switches`); in
+>   Soffiando only the Balena is one now.
 >
-> | twelve bot games, two players | today | cracks | stick | stick + cracks |
+> As switches first, twelve bot games a setting, two players:
+>
+> | | main | cracks | stick | stick + cracks |
 > |---|---|---|---|---|
 > | islands on the board, on average | 3.3 | 3.6 | 4.4 | 4.1 |
-> | …of three tiles or more | 0.9 | 0.9 | 1.1 | 1.3 |
 > | islands at the end | 5.3 | 6.5 | 9.0 | 8.6 |
 > | tiles off the mainland at the end | 17.8 | 21.3 | 21.0 | 20.7 |
-> | the mainland at the end | 53.6 | 51.8 | 38.6 | 52.2 |
 > | tiles fallen | 18.4 | 0 | 37.7 | 0 |
-> | clouds or pushes | 20.9 | 18.0 | 39.5 | 40.3 |
-> | claims | 36.4 | 30.8 | 39.9 | 19.0 |
 > | spheres closed | 4.8 | 4.1 | 3.3 | 2.7 |
 > | score a player | 120 | 128 | 69 | 71 |
 >
 > How heavy a train may be, with cracks: islands on average 3.9 at one
-> tile, 4.6 at two, 4.1 at three, 4.2 at five and 4.4 for a whole lane; of
-> three tiles or more 0.8, 1.4, 1.3, 1.5, 1.5; tiles off the mainland at
-> the end 16.9, 26.2, 20.7, 20.2, 30.3. **A stick that pushes whole lanes
-> does not stop islands forming: with cracks it makes more of them than
-> today, and bigger.** The limit decides how big, hardly how many (twelve
-> games a setting: read the differences of half an island as noise).
+> tile, 4.6 at two, 4.1 at three, 4.2 at five, 4.4 for a whole lane; tiles
+> off the mainland at the end 16.9, 26.2, 20.7, 20.2, 30.3. A stick that
+> pushes whole lanes does not stop islands forming; the limit decides how
+> big they are, hardly how many.
 >
-> What it costs, and what is open: without cracks a stick drops two tiles a
-> game for every one the wind does, and the mainland shrinks to 39; with
-> cracks nothing falls. And the bots use the stick about every other turn,
-> mostly to put their own followers out on an island (78 of 126 pushes
-> measured; 82 made a new island), so they claim less, half as many spheres
-> close and they score little more than half. Whether people would push
-> that often, and whether the stick wants a cost, is for the table to say.
+> And as the game now plays, the stick in the cloud's place and what no
+> longer fits moving on, against main (twelve bot games each):
+>
+> | | main | this pass |
+> |---|---|---|
+> | islands on the board, on average | 3.3 | 5.0 |
+> | …of three tiles or more | 0.9 | 1.2 |
+> | islands at the end | 5.3 | 8.6 |
+> | tiles off the mainland at the end | 17.8 | 23.6 |
+> | tiles fallen | 18.4 | 5.2 |
+> | tiles that moved on | 0 | 18.8 |
+> | clouds or pushes | 20.9 | 43.8 |
+> | claims | 36.4 | 23.6 |
+> | spheres closed | 4.8 | 3.1 |
+> | score a player | 120 | 79 |
+>
+> Half again as many islands on the board, and a tile that no longer fits
+> nearly always finds somewhere to go: four falls in a game where there were
+> eighteen. What it costs is the same as the switches showed: the bots use
+> the stick about every other turn, mostly to put their own followers out on
+> an island, so they claim less, fewer spheres close and they score two
+> thirds as much. Whether people push that often, and whether the stick
+> wants a cost, is for the table to say.
+>
+> Rules 8, 9, 31 and 42 changed; 69 (a loose seam joins nothing), 70 (the
+> stick) and 71 (a push is not wind) are new; 55 to 58 (the cloud) are
+> retired.
 
 
 **Question it answers:** is a small board you keep *editing* better than a big
