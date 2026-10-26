@@ -241,6 +241,13 @@ export class Renderer {
     if (game.phase === 'lift') this.drawCellTargets(game.m.allLiftable ? game.m.allLiftable() : liftableCells(game.board), THEME.violet, '107,90,140');
     if (game.phase === 'balena') this.drawCellTargets(game.m.balenaTargets(), THEME.teal, '95,191,174');
     if (game.phase === 'cloud') this.drawCellTargets(game.m.cloudTargets(), THEME.teal, '95,191,174');
+    // The stick: every tile it could go against this way, and under the
+    // pointer the whole train that push would move.
+    if (game.phase === 'stick') {
+      this.drawCellTargets(game.m.stickTargets(), THEME.teal, '95,191,174');
+      const h = this.hover, train = h && game.m.trainAt(h.x, h.y);
+      if (train) this.drawCellTargets(train, THEME.gold, '212,175,95');
+    }
     if (game.phase === 'flight') this.drawCellTargets(game.m.flightLifts(), THEME.teal, '95,191,174');
     if (game.phase === 'flat') this.drawCellTargets(game.m.flatTargets(), THEME.gold, '212,175,95');
     if (game.phase === 'stroll') this.drawCellTargets(game.m.stroll?.targets || [], MOVE_OK.line, MOVE_OK.rgb);

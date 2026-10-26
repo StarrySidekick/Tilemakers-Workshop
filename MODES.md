@@ -1040,6 +1040,69 @@ kingmakes badly, and you'd blame the mechanic instead of the count.
 > Rules 3, 4, 6, 17, 30, 34, 37, 42, 49 and 56 changed; 67 (the map wraps)
 > and 68 (walls and gates) are new; 33 (blown off the edge, gone) is
 > retired.
+>
+> **Twenty-seventh pass: a stick for the table, and cracks.** Two switches,
+> both off unless a game turns them on.
+>
+> Timothy, 2026-10-26: "when I make the physical game, being like an actual
+> little like stick that you use to push tiles ... you're going to be able to
+> push like entire lanes of tiles, which could be really interesting. But I
+> also want to still somehow make it so that it's possible for islands to
+> form really often." Claude offered three ways (the stick as a knife at a
+> seam of your choosing; cracks instead of falls; anchors that split a
+> push) and he chose the first two: "yea i like one and two".
+>
+> - **Pushing joins; separating makes islands.** A row of touching tiles in
+>   front of a stick goes as one train, which presses country together. Two
+>   things separate it: a SPLIT, where part of a lane moves and the part
+>   behind stays, and SHEAR, a lane sliding past the lanes beside it so
+>   every tile in it meets a new neighbour and most of those edges disagree.
+>   The wind's loose-end rule was already a stick in disguise: count the
+>   power back from the gap, put the stick in the seam there, push.
+> - **The stick** (`options.stick`, rules 70 and 71) takes the cloud's
+>   place: instead of claiming, once a turn, against any tile and side,
+>   the train in front of it (to the first gap, round the seam too) goes a
+>   square, three tiles at most (`STICK_MOST`). Not wind: no zephyrs, no
+>   windmills, no followers carried but its riders, no tow. Walls across it
+>   hold it. In the engine it is `trainOf` and `shove` in `src/wind.js`.
+> - **Cracks** (`options.cracks`, rule 69): a moved tile that no longer
+>   fits stays, and the seam is a crack that joins no feature, field or
+>   country (`Board.cracks`, `Board.seamHolds`; `groups`, `linkFields` and
+>   the wind's `regionOf` all ask it). The Palazzo's tow cracks too.
+> - **The bot** weighs a push by making it and taking it back
+>   (`tryPush`, `holding`): what every follower stands in, before and
+>   after, with the few pushes a quick guess ranks best. On the guess alone
+>   (which ignored that a crack also cuts what a follower stands in) it
+>   pushed most turns and scored a fifth as much.
+>
+> | twelve bot games, two players | today | cracks | stick | stick + cracks |
+> |---|---|---|---|---|
+> | islands on the board, on average | 3.3 | 3.6 | 4.4 | 4.1 |
+> | …of three tiles or more | 0.9 | 0.9 | 1.1 | 1.3 |
+> | islands at the end | 5.3 | 6.5 | 9.0 | 8.6 |
+> | tiles off the mainland at the end | 17.8 | 21.3 | 21.0 | 20.7 |
+> | the mainland at the end | 53.6 | 51.8 | 38.6 | 52.2 |
+> | tiles fallen | 18.4 | 0 | 37.7 | 0 |
+> | clouds or pushes | 20.9 | 18.0 | 39.5 | 40.3 |
+> | claims | 36.4 | 30.8 | 39.9 | 19.0 |
+> | spheres closed | 4.8 | 4.1 | 3.3 | 2.7 |
+> | score a player | 120 | 128 | 69 | 71 |
+>
+> How heavy a train may be, with cracks: islands on average 3.9 at one
+> tile, 4.6 at two, 4.1 at three, 4.2 at five and 4.4 for a whole lane; of
+> three tiles or more 0.8, 1.4, 1.3, 1.5, 1.5; tiles off the mainland at
+> the end 16.9, 26.2, 20.7, 20.2, 30.3. **A stick that pushes whole lanes
+> does not stop islands forming: with cracks it makes more of them than
+> today, and bigger.** The limit decides how big, hardly how many (twelve
+> games a setting: read the differences of half an island as noise).
+>
+> What it costs, and what is open: without cracks a stick drops two tiles a
+> game for every one the wind does, and the mainland shrinks to 39; with
+> cracks nothing falls. And the bots use the stick about every other turn,
+> mostly to put their own followers out on an island (78 of 126 pushes
+> measured; 82 made a new island), so they claim less, half as many spheres
+> close and they score little more than half. Whether people would push
+> that often, and whether the stick wants a cost, is for the table to say.
 
 
 **Question it answers:** is a small board you keep *editing* better than a big

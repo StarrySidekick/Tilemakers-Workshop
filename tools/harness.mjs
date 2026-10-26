@@ -163,6 +163,16 @@ function step(game, rng) {
       if (!game.cellClick(t.x, t.y)) game.m.cancelBlow();
       return;
     }
+    // …or, with the stick (2026-10-26), a push: turned at random, against
+    // any tile it can move that way.
+    case 'stick': {
+      for (let i = Math.floor(rng() * 4); i > 0; i--) game.rotate(1);
+      const spots = game.m.stickTargets();
+      if (!spots.length) return void game.m.cancelPush();
+      const t = pick(spots);
+      if (!game.cellClick(t.x, t.y)) game.m.cancelPush();
+      return;
+    }
     case 'magic': { game.magicAuto(); return; }
     case 'rob': { if (rng() < 0.5) game.robAuto(); else game.robSkip(); return; }
     case 'crop': { game.cropChoose(rng() < 0.5 ? 'add' : 'remove'); return; }
@@ -173,6 +183,7 @@ function step(game, rng) {
       if (game.m.canLift?.() && rng() < 0.25) return void game.m.beginLift();
       if (game.m.canSwim?.() && rng() < 0.15) return void game.m.beginSwim();
       if (game.m.canBlow?.() && rng() < 0.2) return void game.m.beginBlow();
+      if (game.m.canPush?.() && rng() < 0.2) return void game.m.beginPush();
       if (game.canPlaceBuilding?.() && rng() < 0.5) game.placeBuilding();
       if (game.canBuildBridge?.() && rng() < 0.4) game.buildBridge();
       const opts = game.meepleOptions();
@@ -2608,6 +2619,17 @@ async function main() {
   const broken = await checkRulebook();
   for (const f of broken) fail('rulebook', f);
   if (!broken.length) console.log('  ✓ every rule in src/modes/soffiando-rulebook.js holds on the engine');
+
+  // Soffiando's two switches for the table (2026-10-26): the stick, and
+  // cracks, by random play and by bots, to the end of the season.
+  console.log('\nsoffiando, the stick and cracks');
+  if (!only || only === 'soffiando') {
+    const soff = MODE_OF('soffiando');
+    runMode(soff, Math.max(4, games / 2), { options: { stick: true } }, '+stick');
+    runMode(soff, Math.max(4, games / 2), { options: { cracks: true } }, '+cracks');
+    runMode(soff, Math.max(4, games / 2), { options: { stick: true, cracks: true } }, '+stick+cracks');
+    runMode(soff, Math.max(2, games / 4), { options: { stick: true, cracks: true }, bots: 'all' }, '+stick+cracks +bots');
+  }
 
   console.log('\nmodes');
   for (const spec of MODES) {

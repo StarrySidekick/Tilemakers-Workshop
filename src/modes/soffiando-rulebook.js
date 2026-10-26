@@ -51,6 +51,9 @@ const D25 = '2026-10-25';
 const SEVENTY_TWO = 'make sure we stick to 72 tiles, and add to the artifact a list of all our tiles, and any extra, and toggle for them all';
 const SEVENTEEN = 'map needs to be 17x17 in order to allow the palazzo to be perfectly in the middle';
 const WRAP = 'instead of flying off the side of the world, tiles that are pushed off the map appear on the other side pac-man style, still connected';
+// …and of 2026-10-26.
+const D26 = '2026-10-26';
+const STICK = 'when I make the physical game, being like an actual little like stick that you use to push tiles, because it just sounds really fun. So with that said, that means that like That means you\'re going to be able to push like entire lanes of tiles, which could be really interesting. But I also want to still somehow make it so that it\'s possible for islands to form really often.';
 const GATES = 'since city walls now push to the edges of tiles, farmland can now be placed against a city wall, as well as roads, as if the road is running straight from the middle of the castle wall.';
 
 export const GROUPS = [
@@ -320,6 +323,18 @@ export const RULES = [
   { n: 66, id: 'option-balena', group: 'options',
     text: 'With the Balena (off unless a game turns it on), a sky whale lies on one tile, which no wind moves and no gust passes; instead of claiming you may send it to any tile.',
     from: T(D24, BALENA), settings: ['balena'] },
+  { n: 69, id: 'option-cracks', group: 'options',
+    text: 'With cracks (off unless a game turns it on), a tile the wind, the Palazzo or a stick moves that no longer fits does not fall (rules 31 and 42). The seam it does not meet is a crack: it joins no road, city, field or country, so the land on each side of it is a piece of its own, and any piece but the biggest is an island (rule 40).',
+    from: T(D26, STICK, 'Cracks were one of three ways Claude offered to keep islands forming when a stick can push whole lanes, and he chose it with the stick ("yea i like one and two").'),
+    settings: ['cracks'], added: D26 },
+  { n: 70, id: 'option-stick', group: 'options',
+    text: 'With the stick (off unless a game turns it on), each player has a stick instead of a cloud (rules 55 to 58). Instead of claiming, once a turn, you may put it against any tile, on any side, and push: that tile and every tile touching in front of it, up to the first gap, go one square, round the seam of the map too (rule 67), as long as that is three tiles or fewer. Everything behind the stick stays where it is, and your turn ends.',
+    from: T(D26, STICK, 'Claude\'s calls, named to Timothy when it shipped: the stick takes the cloud\'s place, a push goes one square, and three tiles is the most it can move (measured against one, two, five and a whole lane in MODES.md).'),
+    settings: ['stick'], added: D26 },
+  { n: 71, id: 'option-stick-push', group: 'options',
+    text: 'A push is not wind: it wakes no zephyr, pays no windmill, moves no follower but those on the tiles it pushes, and tows no islands (rule 42). A tile with a wall square across the push holds the whole push still, as against the wind (rule 22). A pushed tile that no longer fits falls as a blown one does (rule 31), unless there are cracks (rule 69), and if yours falls you lay one more (rule 9).',
+    from: C('A stick is a hand on the table, not weather, so it does what pushing real tiles does and no more; a wall that stands up to the wind stands up to a stick, or a walled city could be shoved where it could never be blown.'),
+    settings: ['stick'], added: D26 },
 ];
 
 /** Rule numbers taken out, never used again. */

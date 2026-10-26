@@ -73,6 +73,26 @@ export class Board {
     this.links = [];              // extra unions (tunnels) that survive a rebuild
     this.hops = [];               // one-square road hops a follower may cross
     this.linked = new Set();      // cells already wired this rebuild — see link()
+    /**
+     * CRACKS (Soffiando's `cracks` switch, 2026-10-26). Placement always
+     * matches every edge, but a mode that moves tiles can leave two edges
+     * that do not meet side by side. Without cracks a mode drops such a tile
+     * (Soffiando: it falls). With them it stays, and the seam is a crack: it
+     * joins no feature, no field and no country, so the land on either side
+     * of it is two pieces. `seamHolds` is the one question everything asks.
+     */
+    this.cracks = false;
+  }
+
+  /**
+   * Does the seam on side `s` of this cell join it to its neighbour there? A
+   * neighbour is always joined, unless the board has cracks and the two
+   * facing edges do not meet.
+   */
+  seamHolds(cell, s) {
+    const nb = this.neighbor(cell.x, cell.y, s);
+    if (!nb || nb === cell) return false;
+    return !this.cracks || edgesMeet(this.edgeAt(cell, s), this.edgeAt(nb, opposite(s)));
   }
 
   get(x, y) { return this.cells.get(this.key(x, y)); }
@@ -376,6 +396,9 @@ export class Board {
     for (let s = 0; s < 4; s++) {
       const nb = this.neighbor(cell.x, cell.y, s);
       if (!nb || nb === cell) continue;
+      // A crack joins no field either: farmland meets farmland across a road
+      // edge's two halves, but a road shoved against a field is not a seam.
+      if (this.cracks && !this.seamHolds(cell, s)) continue;
       for (const h of HALVES_OF_SIDE[s]) {
         const mine = this.fieldAt(cell, h);
         const theirs = this.fieldAt(nb, halfPartner(h));
@@ -664,7 +687,7 @@ export class Board {
     return seen.size === remaining.length;
   }
 
-  /** Connected runs of cells passing `sameGroup`, as arrays of cells. */
+  /** Connected runs of cells passing `sameGroup(cell, neighbour, side)`, as arrays of cells. */
   regions(sameGroup) {
     const seen = new Set();
     const out = [];
@@ -678,7 +701,7 @@ export class Board {
         group.push(cur);
         for (let s = 0; s < 4; s++) {
           const nb = this.neighbor(cur.x, cur.y, s);
-          if (!nb || seen.has(keyOf(nb.x, nb.y)) || !sameGroup(cur, nb)) continue;
+          if (!nb || seen.has(keyOf(nb.x, nb.y)) || !sameGroup(cur, nb, s)) continue;
           seen.add(keyOf(nb.x, nb.y));
           queue.push(nb);
         }
@@ -691,10 +714,12 @@ export class Board {
   /**
    * The board as separate pieces of country, biggest first. Orthogonal only:
    * two tiles touching at a corner are held up by each other but are not the
-   * same island, which is exactly the distinction Soffiando scores on.
+   * same island, which is exactly the distinction Soffiando scores on. With
+   * cracks, only across seams that hold.
    */
   groups() {
-    return this.regions(() => true).sort((a, b) => b.length - a.length);
+    const join = this.cracks ? (a, b, s) => this.seamHolds(a, s) : () => true;
+    return this.regions(join).sort((a, b) => b.length - a.length);
   }
 
   /** Empty cells fully surrounded by tiles — courtyards, for Sprawl. */

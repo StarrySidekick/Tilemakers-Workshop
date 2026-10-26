@@ -183,6 +183,28 @@
 // for now: a city closes on its districts' own walls and on the Abbazia,
 // whose four walls are drawn as a district's are.
 //
+// TWO SWITCHES FOR THE TABLE (Timothy, 2026-10-26: "when I make the physical
+// game, being like an actual little stick that you use to push tiles ... you're
+// going to be able to push entire lanes of tiles ... But I also want to still
+// somehow make it so that it's possible for islands to form really often").
+// Both are off unless a game turns them on.
+//
+//   THE STICK (`options.stick`) takes the place of the cloud. Instead of
+//     claiming, once a turn, you put it against a tile and push: that tile
+//     and every tile touching in front of it, up to the first gap, go one
+//     square, as a row of real tiles goes in front of a real stick. At most
+//     three; a longer train is too heavy (`STICK_MOST`, Claude's call, to be
+//     measured). Everything behind the stick stays, so the lane splits where
+//     it went in, and the train slides past the lanes beside it. A push is
+//     not wind: it wakes no zephyr, pays no windmill, blows nobody along and
+//     tows nothing; a follower on the train rides it. A wall square across
+//     the push holds its train still, as it holds against the wind.
+//   CRACKS (`options.cracks`): a tile the weather or a stick moves that no
+//     longer fits does not fall. The seam it does not meet is a crack, and
+//     joins nothing: no road, no city, no field, and no country, so the land
+//     either side of it is two pieces, and one of them is an island. Pushing
+//     a lane past its neighbours mostly cracks it off them.
+//
 // THE BALENA, a sky whale the size of a district, is OUT of the default rules
 // (Timothy, 2026-10-24) and plays only with `options.balena`. Whatever tile it
 // lies on cannot be moved by any wind, and on your turn, instead of placing a
@@ -230,7 +252,7 @@
 
 import { Mode } from './mode.js';
 import {
-  CENTRE_FEATURES, SIDE_STEP, opposite, wallSides, WALL,
+  CENTRE_FEATURES, SIDE_STEP, opposite, wallSides, WALL, edgesMeet,
 } from '../tiles.js';
 import { PLAYER_COLORS } from '../theme.js';
 import { DECK_COUNTS } from './soffiando-deck.js';
@@ -238,6 +260,7 @@ import { DESIGN } from '../design.js';
 import { claimableFeatures, citiesFed, hasMark } from '../mechanics.js';
 import {
   storm, zephyrDirs, zephyrPush, isCannon, worldDir, turbineOn, isTemple, MAX_STRENGTH, fitsAll,
+  trainOf, shove,
 } from '../wind.js';
 
 /**
@@ -303,6 +326,7 @@ const FLIGHT_RANGE = 24;     // squares, before we assume the zephyrs are a loop
 const ARCHIPELAGO = 10;      // at the end, to whoever stands on the most islands
 const EXTRA_FOLLOWERS = 1;   // …on top of everyone's usual seven
 const SUPPLY = 8;            // …which is what the panel draws
+const STICK_MOST = 3;        // with the stick: the most tiles one push moves
 
 /**
  * What everything pays, on the mainland and out on an island — and everything
@@ -453,7 +477,15 @@ export class Soffiando extends Mode {
     // EVERY PLAYER HAS A CLOUD (Timothy, 2026-10-24): a wind of their own, a
     // whole cloud the size of a tile, in hand at the start. See "the player
     // clouds" below. `options.clouds === false` plays without them.
-    this.clouds = this.game.options?.clouds === false ? []
+    // THE STICK AND CRACKS (2026-10-26), two switches for the table; see the
+    // header. The stick takes the cloud's place.
+    this.stick = !!this.game.options?.stick;
+    this.stickMost = this.game.options?.stickMost ?? STICK_MOST;
+    this.stickDir = 1;
+    this.pushed = false;       // …and whether this turn's push has been made
+    this.pushes = 0;
+    this.game.board.cracks = !!this.game.options?.cracks;
+    this.clouds = this.game.options?.clouds === false || this.stick ? []
       : this.game.players.map((p) => ({ player: p.id, x: null, y: null, dir: 1 }));
     this.cloudMoved = false;   // …and whether this turn's has blown yet
   }
@@ -616,6 +648,7 @@ export class Soffiando extends Mode {
     this.laidFlat = false;
     this.balenaMoved = false;
     this.cloudMoved = false;
+    this.pushed = false;
     if (this.laid >= STORM_LIMIT) {
       this.game.say('The season turns, and the wind drops.');
       this.game.finish();
@@ -1251,6 +1284,7 @@ export class Soffiando extends Mode {
     if (this.game.phase === 'flat') return this.flatAt(x, y);
     if (this.game.phase === 'flight') return this.liftAt(x, y);
     if (this.game.phase === 'cloud') return this.blowCloud(x, y);
+    if (this.game.phase === 'stick') return this.pushAt(x, y);
     if (this.game.phase !== 'balena') return false;
     if (!this.balenaTargets().some((t) => t.x === x && t.y === y)) return false;
     this.balena = { x, y };
@@ -1336,6 +1370,7 @@ export class Soffiando extends Mode {
 
   /** R, or the button: the cloud in hand turns a quarter. */
   turnOther(dir = 1) {
+    if (this.game.phase === 'stick') { this.stickDir = (this.stickDir + dir + 4) % 4; return true; }
     if (this.game.phase !== 'cloud') return false;
     const me = this.myCloud();
     me.dir = (me.dir + dir + 4) % 4;
@@ -1357,6 +1392,82 @@ export class Soffiando extends Mode {
     this.joinSferas();
     // A sphere the gust closed may have opened a walk; the turn ends when it
     // has been walked. Otherwise it ends now.
+    if (g.phase === 'meeple') g.endTurn();
+    return true;
+  }
+
+  // --- the stick (options.stick) --------------------------------------------
+  //
+  // Timothy, 2026-10-26: "an actual little stick that you use to push tiles".
+  // It replaces the cloud. Instead of claiming, once a turn: turn it (R) to
+  // the way you mean to push, then pick the tile to put it against. That tile
+  // and every one touching in front of it, up to the first gap, go a square
+  // (wind.js `trainOf`, `shove`). The lane splits where the stick went in.
+
+  /** The tiles a push the current way could go against. */
+  stickTargets(dir = this.stickDir) {
+    if (!this.stick) return [];
+    const board = this.game.board;
+    const pinned = (c, d) => this.pinned(c, d);
+    const out = [];
+    for (const cell of board.cells.values()) {
+      if (trainOf(board, cell, dir, { most: this.stickMost, pinned })) out.push({ x: cell.x, y: cell.y });
+    }
+    return out;
+  }
+
+  /** The train a push against (x, y) the current way would move, or null. */
+  trainAt(x, y, dir = this.stickDir) {
+    return trainOf(this.game.board, { x, y }, dir, { most: this.stickMost, pinned: (c, d) => this.pinned(c, d) });
+  }
+
+  canPush() {
+    return this.stick && this.game.phase === 'meeple' && !this.pushed
+      && [0, 1, 2, 3].some((d) => this.stickTargets(d).length);
+  }
+
+  /** Instead of putting a follower down: take up the stick. */
+  beginPush() {
+    if (!this.canPush()) return false;
+    this.game.phase = 'stick';
+    this.game.say(`${this.game.player.name} takes up their stick.`);
+    return true;
+  }
+
+  cancelPush() {
+    if (this.game.phase !== 'stick') return false;
+    this.game.phase = 'meeple';
+    return true;
+  }
+
+  /** Push the train against (x, y), and the turn ends. */
+  pushAt(x, y) {
+    const g = this.game;
+    if (g.phase !== 'stick') return false;
+    const train = this.trainAt(x, y);
+    if (!train) return false;
+    const dir = this.stickDir;
+    this.pushed = true;
+    g.phase = 'meeple';
+    g.say(`${g.player.name} pushes ${train.length > 1 ? `${train.length} tiles` : 'a tile'} a square ${DIR_NAMES[dir]} with their stick.`);
+    g.emit('landmark');
+    this.blowing = true;
+    this.stormAt = 0;
+    this.stormN = 0;
+    this.blame = g.current;
+    try {
+      this.applyGust(shove(g.board, { at: { x, y }, dir, most: this.stickMost, pinned: (c, d) => this.pinned(c, d) }));
+      this.settleBalena();
+      this.reopen();
+      this.settle(g.current);
+    } finally {
+      this.blowing = false;
+      this.blame = null;
+    }
+    // Anything the push set off (a closure raising weather) runs after it.
+    const queued = this.queued.splice(0);
+    for (const [spec, by] of queued) this.weather(spec, by);
+    this.joinSferas();
     if (g.phase === 'meeple') g.endTurn();
     return true;
   }
@@ -1533,7 +1644,7 @@ export class Soffiando extends Mode {
   /** Turn one gust's report into points, losses, log lines and pictures. */
   applyGust(r) {
     const g = this.game;
-    this.gusts++;
+    if (r.stick) this.pushes++; else this.gusts++;
     const at = this.stormAt || 0;
     // The first gusts of a storm take a full beat; later ones come quicker, so
     // a six-gust chain reads as weather picking up pace rather than a queue.
@@ -1669,7 +1780,8 @@ export class Soffiando extends Mode {
 
     // …and if the seat of government itself has just been shoved, the whole
     // archipelago is towed along behind it.
-    if (r.moved.some((m) => isPalazzo(m.cell))) this.driftIslands(r.dir);
+    // A stick is not wind, and tows nothing.
+    if (!r.stick && r.moved.some((m) => isPalazzo(m.cell))) this.driftIslands(r.dir);
     this.joinSferas();
   }
 
@@ -1782,6 +1894,7 @@ export class Soffiando extends Mode {
     // cannot meet, it falls, exactly as one the wind moved would.
     const fell = [];
     for (const c of towed) {
+      if (board.cracks) break;                     // with cracks, a crack instead
       if (board.get(c.x, c.y) !== c || c.balena || !board.degree(c.x, c.y) || fitsAll(board, c)) continue;
       if (c.meeple) {
         this.game.players[c.meeple.player].meeples++;
@@ -2086,7 +2199,26 @@ export class Soffiando extends Mode {
     const w = weightsFor(this, seat);
     if (g.current === seat && g.phase === 'stroll') return this.botStroll();
     if (g.current === seat && g.phase === 'cloud') return this.botCloud(seat);
+    if (g.current === seat && g.phase === 'stick') return this.botPush(seat);
     if (g.current !== seat || g.phase !== 'meeple') return false;
+    // The stick, instead of a follower, when the push is worth more than the
+    // best claim on offer: both are priced in what they will pay (valueOf),
+    // which the cloud's gust is not, so its bar is no use here. Measured
+    // against the cloud's bar the bots pushed three times as often as they
+    // ever blew, and scored a fifth as much.
+    if (this.canPush()) {
+      const best = this.bestPush(seat);
+      let claim = 0;
+      for (const o of g.meepleOptions()) {
+        const d = g.board.featureOf(o.x, o.y, o.i);
+        if (d) claim = Math.max(claim, this.valueOf(d) || 0);
+      }
+      const bar = Math.max(w.cloud ?? 1, claim);
+      if (best && best.value > bar && this.beginPush()) {
+        this.stickDir = best.dir;
+        return this.pushAt(best.x, best.y);
+      }
+    }
     // The cloud, instead of a follower: when nothing is worth claiming and its
     // gust is worth something, or when the gust is worth a good deal more than
     // the usual claim.
@@ -2125,6 +2257,171 @@ export class Soffiando extends Mode {
       }
     }
     return best;
+  }
+
+  /**
+   * The best push of this seat's stick. Every push is guessed at quickly by
+   * what it would do to the islands (`pushValue`), and the few that guess
+   * best are then MADE, priced and taken back (`tryPush`, `holding`): a crack
+   * that puts a follower out on an island usually cuts what it stands in as
+   * well, and only the board after the push can say how much. On the guess
+   * alone the bots pushed most turns and scored less than half as much.
+   */
+  bestPush(seat) {
+    const guesses = [];
+    for (let dir = 0; dir < 4; dir++) {
+      for (const t of this.stickTargets(dir)) guesses.push({ ...t, dir, guess: this.pushValue(t, dir, seat) });
+    }
+    if (!guesses.length) return null;
+    guesses.sort((a, b) => b.guess - a.guess);
+    const base = this.holding(seat);
+    let best = null;
+    for (const g of guesses.slice(0, 10)) {
+      const value = this.tryPush(g, g.dir, () => this.holding(seat)) - base;
+      if (!best || value > best.value) best = { x: g.x, y: g.y, dir: g.dir, value };
+    }
+    return best;
+  }
+
+  /**
+   * Make a push, ask `fn` about the board it leaves, and put every tile,
+   * follower and finished feature back as it was. For a computer player
+   * weighing a push it has not made.
+   */
+  tryPush(at, dir, fn) {
+    const board = this.game.board;
+    const was = [...board.cells.values()].map((c) => ({ c, x: c.x, y: c.y, meeple: c.meeple }));
+    const scored = [...board.scoredParts];
+    try {
+      shove(board, { at, dir, most: this.stickMost, pinned: (c, d) => this.pinned(c, d) });
+      return fn();
+    } finally {
+      board.cells.clear();
+      for (const w of was) {
+        w.c.x = w.x; w.c.y = w.y; w.c.meeple = w.meeple;
+        board.cells.set(board.key(w.x, w.y), w.c);
+      }
+      board.scoredParts.clear();
+      for (const p of scored) board.scoredParts.add(p);
+      board.version++;
+      board.rebuild();
+    }
+  }
+
+  /**
+   * What the board as it stands is worth to a seat: what its followers stand
+   * in (valueOf, which doubles it out on an island), less a little of what
+   * everybody else's do, and 2 for every separate island it is standing on
+   * (the archipelago's 10, a little at a time).
+   */
+  holding(seat) {
+    const board = this.game.board;
+    const { isles } = this.land();
+    const isleOf = new Map();
+    isles.forEach((grp, i) => { for (const c of grp) isleOf.set(c, i); });
+    const mine = new Set();
+    let value = 0;
+    for (const c of board.cells.values()) {
+      if (!c.meeple || c.meeple.feat == null) continue;
+      const d = board.featureOf(c.x, c.y, c.meeple.feat);
+      const worth = (d && this.valueOf(d)) || 0;
+      if (c.meeple.player !== seat) { value -= 0.7 * worth; continue; }
+      value += worth;
+      if (isleOf.has(c)) mine.add(isleOf.get(c));
+    }
+    return value + 2 * mine.size;
+  }
+
+  /** Already holding the stick: push where it does most, or put it down. */
+  botPush(seat) {
+    const best = this.bestPush(seat);
+    if (!best) return this.cancelPush();
+    this.stickDir = best.dir;
+    return this.pushAt(best.x, best.y);
+  }
+
+  /**
+   * What a push is worth to a seat, worked out on the board as it would be
+   * after it rather than by making it: where every tile would stand, which
+   * of the moved ones would fall (without cracks), and then which pieces of
+   * country there would be. A follower of ours that ends up out on an island
+   * is worth what it stands in again (an island pays double), one brought
+   * back to the mainland the same taken away, and a rival's the other way
+   * round at a little less; standing on more separate islands is the
+   * archipelago's 10; a follower that goes down with its tile is lost.
+   */
+  pushValue(at, dir, seat) {
+    const board = this.game.board;
+    const train = this.trainAt(at.x, at.y, dir);
+    if (!train) return -Infinity;
+    const [dx, dy] = SIDE_STEP[dir];
+    const moving = new Set(train);
+    const where = new Map();                       // square -> cell, after the push
+    const pos = new Map();                         // cell -> its square after
+    for (const c of board.cells.values()) {
+      const p = moving.has(c) ? board.norm(c.x + dx, c.y + dy) : { x: c.x, y: c.y };
+      where.set(board.key(p.x, p.y), c);
+      pos.set(c, p);
+    }
+    const near = (c, s) => {
+      const p = pos.get(c);
+      const [sx, sy] = SIDE_STEP[s];
+      return where.get(board.key(p.x + sx, p.y + sy)) || null;
+    };
+    const meets = (c, s, nb) => edgesMeet(board.edgeAt(c, s), board.edgeAt(nb, opposite(s)));
+    const fell = new Set();
+    if (!board.cracks) {
+      for (const c of train) {
+        for (let s = 0; s < 4; s++) {
+          const nb = near(c, s);
+          if (nb && !meets(c, s, nb)) { fell.add(c); break; }
+        }
+      }
+      for (const c of fell) where.delete(board.key(pos.get(c).x, pos.get(c).y));
+    }
+    // The pieces of country after, biggest first.
+    const piece = new Map();
+    const sizes = [];
+    for (const c of where.values()) {
+      if (piece.has(c)) continue;
+      const id = sizes.length;
+      let n = 0;
+      const queue = [c];
+      piece.set(c, id);
+      while (queue.length) {
+        const cur = queue.pop();
+        n++;
+        for (let s = 0; s < 4; s++) {
+          const nb = near(cur, s);
+          if (!nb || fell.has(nb) || piece.has(nb)) continue;
+          if (board.cracks && !meets(cur, s, nb)) continue;
+          piece.set(nb, id);
+          queue.push(nb);
+        }
+      }
+      sizes.push(n);
+    }
+    const main = sizes.indexOf(Math.max(...sizes));
+    const w = weightsFor(this, seat);
+    let value = 0;
+    const islesBefore = new Set(), islesAfter = new Set();
+    for (const c of board.cells.values()) {
+      if (!c.meeple) continue;
+      const mine = c.meeple.player === seat;
+      const d = c.meeple.feat != null ? board.featureOf(c.x, c.y, c.meeple.feat) : null;
+      const stake = Math.max(1, (d && this.valueOf(d)) || 0);
+      const was = this.onIsland(c);
+      if (fell.has(c)) { value += (mine ? -2 : 1.4) * w.gustBlow; continue; }
+      const now = piece.get(c) !== main;
+      if (mine) {
+        if (was) islesBefore.add(this.land().isles.findIndex((grp) => grp.includes(c)));
+        if (now) islesAfter.add(piece.get(c));
+      }
+      if (was === now) continue;
+      value += (now ? stake : -stake) * (mine ? 1 : -0.7);
+    }
+    value += (islesAfter.size - islesBefore.size) * 2;
+    return value;
   }
 
   /** Already holding the cloud: put it where it does most, or put it back. */
@@ -2280,6 +2577,12 @@ export class Soffiando extends Mode {
     if (g.phase === 'flight') {
       return [{ label: 'Leave them where they are', fn: () => this.cancelLift() }];
     }
+    if (g.phase === 'stick') {
+      return [
+        { label: `Turn it (pushing ${DIR_NAMES[this.stickDir]})`, key: 'R', fn: () => g.rotate(1) },
+        { label: 'Put the stick down', fn: () => this.cancelPush() },
+      ];
+    }
     if (g.phase !== 'meeple') return [];
     const out = this.balena ? [{
       label: 'Send the Balena (anywhere)',
@@ -2293,6 +2596,9 @@ export class Soffiando extends Mode {
         disabled: !this.canBlow(),
       });
     }
+    if (this.stick) {
+      out.unshift({ label: 'Push with your stick', fn: () => this.beginPush(), disabled: !this.canPush() });
+    }
     if (this.canLift()) {
       out.unshift({ label: 'Fly out and pick a follower up', fn: () => this.beginLift() });
     }
@@ -2303,6 +2609,11 @@ export class Soffiando extends Mode {
       out.unshift({ label: 'Bring the lifted follower home', fn: () => g.skipMeeple(), wide: true });
     }
     return out;
+  }
+
+  /** What the panel names that the host's own signature does not see: which way the cloud and the stick face. */
+  signature() {
+    return `${this.myCloud()?.dir ?? '-'}/${this.stick ? this.stickDir : '-'}`;
   }
 
   cancelLift() {
@@ -2323,6 +2634,7 @@ export class Soffiando extends Mode {
     return `${this.laid} tiles laid · mainland of ${main.length}`
       + ` · ${isles.length} island${isles.length === 1 ? '' : 's'} (${adrift} tiles)`
       + ` · ${this.gusts} gust${this.gusts === 1 ? '' : 's'}`
+      + (this.stick ? ` · ${this.pushes} push${this.pushes === 1 ? '' : 'es'}` : '')
       + (this.drifts ? ` · ${this.drifts} towed by the Palazzo` : '');
   }
 
@@ -2368,6 +2680,13 @@ Soffiando.spec = {
   meeples: true,
   minPlayers: 1,
   maxPlayers: 4,
+  // The mode's own switches, ticked in the Game panel and passed in as
+  // options for the next new game (rules 66, 69 and 70).
+  switches: [
+    { id: 'stick', name: 'The stick', note: 'A stick instead of a cloud: push a tile and the tiles touching in front of it a square, three at most.' },
+    { id: 'cracks', name: 'Cracks', note: 'A moved tile that no longer fits stays, and the crack joins nothing.' },
+    { id: 'balena', name: 'The Balena', note: 'A sky whale no wind moves, sent anywhere instead of claiming.' },
+  ],
   tideStart: 5,
   opening: 'A first stone hangs in the cloud. Everything else is weather.',
   hint: 'A zephyr does nothing to the country it blows through — it tears the LOOSE END off it. '

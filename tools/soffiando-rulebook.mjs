@@ -1037,6 +1037,116 @@ prove('option-balena', (ok) => {
   ok(g.m.canSwim() && g.m.beginSwim() && g.cellClick(0, 2) && g.m.balena.y === 2, 'sent to any tile instead of claiming');
 });
 
+prove('option-cracks', (ok) => {
+  ok(!new Game({ mode: 'soffiando', players: 2, seed: 82 }).board.cracks, 'off unless switched on');
+  // The tile the wind lays against a field it cannot meet (as in rule 31).
+  const g = fresh(41, { cracks: true });
+  lay(g, 0, 0, 'Kz', 1); lay(g, 1, 0, 'U');
+  lay(g, 2, -1, 'U');                       // a road above where it lands: that edge matches
+  lay(g, 2, 1, 'B');                        // a field below: that one does not
+  for (const y of [1, 2]) lay(g, 0, y, 'B');
+  g.board.rebuild();
+  const deck = g.deck.length;
+  blow(g, 0, 0, 1);
+  ok(at(g, 2, 0)?.type.id === 'U' && g.deck.length === deck && g.m.fallen === 0, 'it does not fall');
+  const pieces = g.board.groups();
+  const of = (x, y) => pieces.find((p) => p.includes(at(g, x, y)));
+  ok(of(2, 0) === of(2, -1) && of(2, 0) !== of(2, 1), 'the seam it meets holds; the crack joins no country');
+  // On a board with cracks, a road against a field joins no field across it either.
+  const field = (b) => b.allComponents().some((d) => d.type === 'field' && d.tiles.has('0,0') && d.tiles.has('0,-1'));
+  for (const cracks of [false, true]) {
+    const b = raw();
+    b.cracks = cracks;
+    rlay(b, 0, 0, 'U'); rlay(b, 0, -1, 'B');   // U's road runs north into B's field
+    b.rebuild();
+    if (!cracks) ok(field(b) && b.groups().length === 1, 'without cracks such a seam is one field and one piece (the wind never leaves one)');
+    else ok(!field(b) && b.groups().length === 2, 'with cracks, no field and no country across it');
+  }
+  // …and the Palazzo's tow (rule 42) cracks rather than drops.
+  const h = fresh(83, { cracks: true });
+  lay(h, 0, 0, 'Kpz'); lay(h, -1, 0, 'U', 1);
+  for (const x of [1, 2, 3, 4, 5]) lay(h, x, 0, 'U', 1);
+  lay(h, 4, 1, 'U');                         // its road meets the mainland's field: cracked off already
+  h.board.rebuild();
+  ok(h.m.onIsland(at(h, 4, 1)), 'a crack makes an island');
+  h.m.driftIslands(1);
+  const towed = at(h, 5, 1);
+  ok(towed?.type.id === 'U' && !edgesMeet(h.board.edgeAt(towed, 0), h.board.edgeAt(at(h, 5, 0), 2)) && h.m.fallen === 0, 'a tile towed against an edge it cannot meet cracks too');
+});
+prove('option-stick', (ok) => {
+  const plain = new Game({ mode: 'soffiando', players: 2, seed: 84 });
+  ok(!plain.m.stick && plain.m.clouds.length === 2, 'off unless switched on');
+  let g = fresh(85, { stick: true });
+  ok(g.m.stick && !g.m.clouds.length, 'a stick instead of a cloud');
+  for (const x of [0, 1, 2, 3]) lay(g, x, 0, 'B');
+  lay(g, 0, 1, 'B');
+  g.board.rebuild();
+  g.phase = 'meeple';
+  ok(g.m.canPush() && g.m.beginPush(), 'instead of claiming');
+  while (g.m.stickDir !== 1) g.rotate(1);
+  ok(!g.m.stickTargets().some((t) => t.x === 0 && t.y === 0), 'not four tiles: too heavy');
+  ok(g.cellClick(1, 0) && at(g, 0, 0) && !at(g, 1, 0) && [2, 3, 4].every((x) => at(g, x, 0)), 'the tile against it and those touching in front go a square; behind it, nothing');
+  ok(g.current === 1, 'and your turn ends');
+  g = fresh(86, { stick: true });
+  lay(g, 7, 0, 'B'); lay(g, 8, 0, 'B'); lay(g, 0, 0, 'B');
+  g.board.rebuild();
+  g.phase = 'meeple';
+  g.m.beginPush();
+  while (g.m.stickDir !== 1) g.rotate(1);
+  ok(g.cellClick(7, 0) && at(g, -8, 0) && at(g, 8, 0) && !at(g, 7, 0), 'round the seam of the map');
+});
+prove('option-stick-push', (ok) => {
+  // A zephyr in the train wakes nothing; a follower on it rides; one beside it stays.
+  let g = fresh(87, { stick: true });
+  lay(g, 0, 0, 'B'); lay(g, 1, 0, 'Kz', 2);   // blowing south
+  lay(g, 1, 1, 'B'); lay(g, 1, 2, 'B');
+  lay(g, 0, -1, 'B');
+  g.board.rebuild();
+  put(g, 1, 0, 'field', 0); put(g, 0, -1, 'monastery', 1);
+  g.phase = 'meeple'; g.m.beginPush();
+  while (g.m.stickDir !== 1) g.rotate(1);
+  ok(g.cellClick(1, 0) && at(g, 2, 0)?.meeple?.player === 0 && at(g, 1, 1) && at(g, 1, 2) && !at(g, 1, 3), 'no zephyr wakes, and the one on the tile rides it');
+  ok(at(g, 0, -1)?.meeple?.player === 1 && g.m.gusts === 0 && g.m.pushes === 1, 'nobody else is moved, and it is not a gust');
+  // A windmill pushed pays nobody.
+  g = fresh(88, { stick: true });
+  lay(g, 0, 0, 'B'); lay(g, 1, 0, 'Ktb');
+  g.board.rebuild();
+  put(g, 1, 0, 'city', 0);
+  g.phase = 'meeple'; g.m.beginPush();
+  while (g.m.stickDir !== 1) g.rotate(1);
+  ok(g.cellClick(1, 0) && at(g, 2, 0) && g.players[0].score === 0, 'a windmill pushed pays nobody');
+  // The Palazzo pushed tows no island.
+  g = fresh(89, { stick: true });
+  lay(g, 0, 0, 'Kpz'); lay(g, -1, 0, 'U', 1); lay(g, -2, 0, 'U', 1);
+  lay(g, 5, 5, 'B');
+  g.board.rebuild();
+  g.phase = 'meeple'; g.m.beginPush();
+  while (g.m.stickDir !== 1) g.rotate(1);
+  ok(g.cellClick(0, 0) && at(g, 1, 0)?.type.id === 'Kpz' && at(g, 5, 5) && !at(g, 6, 5) && g.m.drifts === 0, 'pushing the Palazzo tows nothing');
+  // A wall square across the push holds it; one along it does not.
+  g = fresh(90, { stick: true });
+  lay(g, 0, 0, 'DIg');                       // walls north and south
+  g.board.rebuild();
+  ok(!g.m.trainAt(0, 0, 0) && !g.m.trainAt(0, 0, 2) && g.m.trainAt(0, 0, 1), 'a wall across the push holds; along it, it goes');
+  // A pushed tile that no longer fits falls, and you lay it again.
+  g = fresh(91, { stick: true });
+  lay(g, 0, 0, 'B'); lay(g, 1, 0, 'U');      // a road running north and south
+  lay(g, 2, 1, 'B');                         // …about to land on a field below
+  g.board.rebuild();
+  g.phase = 'meeple'; g.tilesLeft = 1; g.m.beginPush();
+  while (g.m.stickDir !== 1) g.rotate(1);
+  const pushed = g.cellClick(1, 0);
+  ok(pushed && !at(g, 2, 0) && g.m.fallen === 1 && g.tile?.id === 'U', 'it falls onto the top of the deck');
+  ok(g.current === 0 && g.phase === 'place', 'and you lay one more: that tile');
+  // With cracks it stays.
+  g = fresh(92, { stick: true, cracks: true });
+  lay(g, 0, 0, 'B'); lay(g, 1, 0, 'U'); lay(g, 2, 1, 'B');
+  g.board.rebuild();
+  g.phase = 'meeple'; g.m.beginPush();
+  while (g.m.stickDir !== 1) g.rotate(1);
+  ok(g.cellClick(1, 0) && at(g, 2, 0)?.type.id === 'U' && g.m.fallen === 0, 'with cracks, it cracks');
+});
+
 // --- Run them. ------------------------------------------------------------------
 /**
  * Every rule against its test. Returns the failures, so the harness can run it

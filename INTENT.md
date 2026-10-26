@@ -65,6 +65,14 @@ other side pac-man style, still connected", and farmland and roads may meet a
 city wall, "as if the road is running straight from the middle of the castle
 wall". He wants to comment on rules and toggle tiles in the rulebook page and
 have Claude save the changes. That is the twenty-sixth pass.
+On 2026-10-26, thinking of the physical game: "an actual little like stick
+that you use to push tiles ... you're going to be able to push like entire
+lanes of tiles ... But I also want to still somehow make it so that it's
+possible for islands to form really often." He chose a stick that cuts the
+lane where it goes in, and cracks instead of falls ("yea i like one and
+two"). Both are switches (`options.stick`, `options.cracks`), measured in
+the twenty-seventh pass: with cracks, whole lanes make more islands, not
+fewer. Not merged until he says.
 
 **Fields: settled 2026-09-06, and Timothy was right.** They are fully built.
 `src/tiles.js` cuts the perimeter into eight half-edges with `halfPartner` as the
