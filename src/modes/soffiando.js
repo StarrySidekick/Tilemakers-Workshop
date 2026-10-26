@@ -1961,23 +1961,8 @@ export class Soffiando extends Mode {
     }
     if (!moves.length && !gone.length) return;
     // A towed tile is a blown tile: if it has come to rest against an edge it
-    // cannot meet, it falls, exactly as one the wind moved would.
+    // cannot meet, it moves on (rule 31), from `movedNow` like the rest.
     const fell = [];
-    for (const c of towed) {
-      if (board.cracks) break;                     // a tile that does not fit moves on instead
-      if (board.get(c.x, c.y) !== c || c.balena || !board.degree(c.x, c.y) || fitsAll(board, c)) continue;
-      if (c.meeple) {
-        this.game.players[c.meeple.player].meeples++;
-        c.meeple = null;
-      }
-      fell.push({ x: c.x, y: c.y, type: c.type, rot: c.rot, look: c.seq });
-      this.game.deck.push(c.type.id);
-      board.remove(c.x, c.y, { quiet: true });
-    }
-    if (fell.length) {
-      this.fallen += fell.length;
-      this.game.say(`${fell.length} tile${fell.length > 1 ? 's' : ''} towed against country ${fell.length > 1 ? 'they' : 'it'} cannot meet, and fall${fell.length > 1 ? '' : 's'}.`);
-    }
     if (gone.length) {
       this.fallen += gone.length;
       this.lost += gone.length;
