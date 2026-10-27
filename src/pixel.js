@@ -1321,6 +1321,14 @@ function paintCanonical(type, look = 0) {
   if (kind) districtGround(p, kind);
   else p.layer(INK.meadow, (pen) => pen.rect(0, 0, PX, PX), { cut: 128, busy: false });
   const cityMask = paintWalls(p, type);
+  // A quarter of a big tower is walled on its two outer sides, like an
+  // Abbazia, and like an Abbazia's those edges take anything (Timothy,
+  // 2026-10-27: "the sun and black hole tiles should have castle walls on
+  // the field sides so they can be placed sort of no matter what").
+  if (type.capOut) {
+    const inner = new Set(type.feats.flatMap((f) => (f.quarter ? f.sides : [])));
+    drawWalls(p, new Set([0, 1, 2, 3].filter((s) => !inner.has(s))), true);
+  }
   const roads = paintRoads(p, type, cityMask);
   for (const f of type.feats) {
     if (f.type !== 'sfera') continue;

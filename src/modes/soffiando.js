@@ -10,7 +10,7 @@
 // and you choose what side to play when you place them"): 72 tiles, 144
 // faces. A district backs onto a road of its shape, a tower half onto a
 // zephyr or a cannon, an Abbazia onto a windmill, a flying machine or a
-// windvane, and the sun's four quarters onto the black hole's. You turn the
+// windvane, and the sun's quarters onto the black hole's. You turn the
 // tile over as well as round (the host's `flipTile`, F); one whose front
 // fits nowhere is dealt back up. The deck holds them as "front|back"
 // (soffiando-deck.js), and so does every tile on the board (`cell.key`), so
@@ -61,13 +61,16 @@
 //   YELLOW the roads: a point a tile, plus 1 for each open city a road
 //          reaches and 2 for each closed one
 //
-// THE BIG TOWER is the sun or the black hole: four tiles with a sun quarter
-// on one face and a black hole quarter on the other, closing a 2x2. The first
-// quarter laid decides which, and where; the rest of its 2x2 is kept for the
-// other three, which must go into it, so once begun it always closes ("so
-// there completion is inevitable"; `judgeBig`). The sun fires every colour,
-// and the black hole swallows the twelve squares round it, shuffled back
-// into the deck.
+// THE BIG TOWERS are the sun and the black hole: eight tiles with a sun
+// quarter on one face and a black hole quarter on the other, walled on their
+// outer sides, four closing a 2x2. A game makes one of each. The first
+// quarter laid decides which comes first, and where; the rest of its 2x2 is
+// kept for the other three, which must go into it, so once begun it always
+// closes ("so there completion is inevitable"; `judgeBig`). Then the next
+// quarter begins the other ("if a sun is already made then you have to make
+// a black hole, and vice versa"). The sun fires every colour, and the black
+// hole swallows the twelve squares round it, shuffled back into the deck,
+// sparing the sun.
 //
 // A feature a tower pays is emptied: its followers come home, or one of the
 // current player's walks on down a road. Nothing pays for being finished,
@@ -408,38 +411,45 @@ export class Soffiando extends Mode {
     return { onto: this.reachable(), judge: (x, y, type, rot) => this.judgeBig(x, y, type, rot) };
   }
 
-  // --- the big tower ---------------------------------------------------------
+  // --- the big towers --------------------------------------------------------
   //
-  // The sun and the black hole are the same four tiles, a sun quarter on one
-  // face and a black hole quarter on the other. The first quarter laid
-  // decides which, and where: the rest of its 2x2 is KEPT for the other three
-  // (nothing else is laid there, and no push or move-on goes into it), and
-  // each of them may only go into it, touching a quarter already laid,
-  // wherever on the map that is. Their outer edges take anything, so they
-  // always fit: once the first is down the big tower is sure to close
-  // (Timothy, 2026-10-27: "make it so you must place a sun or black hole
-  // attached correctly to another, so there completion is inevitable").
+  // The sun and the black hole are the same eight tiles, a sun quarter on one
+  // face and a black hole quarter on the other, and a game makes one of each
+  // (Timothy, 2026-10-27: "there needs to be the choice of what to build and
+  // both need to be present by the end of the game ... if a sun is already
+  // made then you have to make a black hole, and vice versa"). The first
+  // quarter laid decides which comes first, and where: the rest of its 2x2
+  // is KEPT for the other three (nothing else is laid there, and no push or
+  // move-on goes into it), and each of them may only go into it, touching a
+  // quarter already laid, wherever on the map that is. Their outer edges are
+  // walled and take anything, so they always fit: once the first is down the
+  // big tower is sure to close ("so there completion is inevitable"). Then
+  // the next quarter begins the other one.
 
   /**
-   * The big tower's 2x2, read off the board: its colour and each of its four
-   * squares with the two sides that face into the 2x2 and what is on it.
-   * Null before the first quarter is laid.
+   * The big towers begun, read off the board: each one's colour, whether it
+   * is closed, and its four squares, each with the two sides that face into
+   * the 2x2 and what is on it.
    */
-  bigTower() {
+  bigTowers() {
     const board = this.game.board;
     // Asked for every square a tile might go, so kept until the board changes.
-    if (this.bigSeen?.version === board.version && this.bigSeen.board === board) return this.bigSeen.big;
-    const q = this.tiles().find(isQuarter);
-    let big = null;
-    if (q) {
+    if (this.bigSeen?.version === board.version && this.bigSeen.board === board) return this.bigSeen.towers;
+    const blocks = new Map();
+    for (const q of this.tiles().filter(isQuarter)) {
       const f = q.type.feats.find((x) => x.quarter);
       const [a, b] = f.sides.map((s) => (s + q.rot) % 4);
-      const slots = this.blockOf(q.x, q.y, a, b).map((sq) => ({ ...sq, cell: board.get(sq.x, sq.y) }));
-      big = { hue: f.hue, slots, done: slots.every((sq) => sq.cell && isQuarter(sq.cell)) };
+      const slots = this.blockOf(q.x, q.y, a, b);
+      const id = slots.map((sq) => `${sq.x},${sq.y}`).sort().join(' ');
+      if (!blocks.has(id)) blocks.set(id, { hue: f.hue, slots: slots.map((sq) => ({ ...sq, cell: board.get(sq.x, sq.y) })) });
     }
-    this.bigSeen = { board, version: board.version, big };
-    return big;
+    const towers = [...blocks.values()].map((t) => ({ ...t, done: t.slots.every((sq) => sq.cell && isQuarter(sq.cell)) }));
+    this.bigSeen = { board, version: board.version, towers };
+    return towers;
   }
+
+  /** The big tower begun and not yet closed, if there is one. */
+  openBig() { return this.bigTowers().find((t) => !t.done) || null; }
 
   /** The 2x2 a quarter at (x, y) facing into it on sides a and b makes, each square with its own two inward sides. */
   blockOf(x, y, a, b) {
@@ -457,32 +467,35 @@ export class Soffiando extends Mode {
     ];
   }
 
-  /** Is (x, y) a square of the big tower's 2x2 still kept for a quarter? */
+  /** Is (x, y) a square of a big tower's 2x2 still kept for a quarter? */
   keptFor(x, y) {
-    const big = this.bigTower();
-    if (!big || big.done) return false;
+    const big = this.openBig();
+    if (!big) return false;
     const sq = this.game.board.norm(x, y);
     return big.slots.some((s) => !s.cell && s.x === sq.x && s.y === sq.y);
   }
 
   /**
-   * The board's placement rules, for what the big tower changes: true or
-   * false settles it, undefined leaves it to the ordinary rules. A quarter
-   * goes only into the 2x2, turned to face into it, touching a quarter already
-   * there; the first goes anywhere the ordinary rules allow with the rest of
-   * its 2x2 open sky. Nothing else goes into a kept square.
+   * The board's placement rules, for what the big towers change: true or
+   * false settles it, undefined leaves it to the ordinary rules. While one is
+   * open a quarter goes only into its 2x2, turned to face into it, touching a
+   * quarter already there; otherwise a quarter begins the big tower not yet
+   * made, anywhere the ordinary rules allow with the rest of its 2x2 open
+   * sky. Nothing else goes into a kept square.
    */
   judgeBig(x, y, type, rot) {
     const board = this.game.board;
     const f = type.feats.find((t) => t.quarter);
-    const big = this.bigTower();
-    if (!f) return big && !big.done && big.slots.some((s) => !s.cell && s.x === x && s.y === y) ? false : undefined;
+    const towers = this.bigTowers();
+    const big = towers.find((t) => !t.done);
+    if (!f) return big && big.slots.some((s) => !s.cell && s.x === x && s.y === y) ? false : undefined;
     const sides = f.sides.map((s) => (s + rot) % 4);
     if (!big) {
+      if (towers.some((t) => t.hue === f.hue)) return false;       // made already: the other one now
       const rest = this.blockOf(x, y, sides[0], sides[1]).slice(1);
       return rest.every((sq) => !board.get(sq.x, sq.y)) ? undefined : false;
     }
-    if (big.done || f.hue !== big.hue) return false;
+    if (f.hue !== big.hue) return false;
     const slot = big.slots.find((s) => !s.cell && s.x === x && s.y === y);
     if (!slot || !sameSides(sides, slot.sides)) return false;
     return slot.sides.some((s) => {
@@ -719,7 +732,7 @@ export class Soffiando extends Mode {
         const k = board.key(c.x + dx, c.y + dy);
         if (inHole.has(k) || ring.has(k)) continue;
         const t = board.get(c.x + dx, c.y + dy);
-        if (t) ring.set(k, t);
+        if (t && !isQuarter(t)) ring.set(k, t);     // never the sun: no push or pull moves a quarter
       }
     }
     const fell = [];
@@ -2579,7 +2592,7 @@ Soffiando.spec = {
     + 'A moved tile that no longer meets all its neighbours MOVES ON: you pick a way, and it slides to the first empty square where it fits. Only one with every way blocked falls, and you lay one more tile. '
     + 'TOWERS are the scoring: a half meets only its own colour, and a closed tower, laid or pushed together, scores its colour over the whole board. '
     + 'Green the farms (1 per two tiles of field), blue the cities (1 a district, plus 1, 3 or 6 for two, three or four kinds, doubled once walled, plus 2 a garden), red the Abbazias (1 per tile round one, to whoever has most followers there), yellow the roads (1 a tile plus 1 or 2 for each city they reach). '
-    + 'The BIG TOWER is four tiles with the SUN on one face and the BLACK HOLE on the other: the first quarter laid decides which, and the rest of its 2x2 is kept for the other three, which must go into it. The sun fires every colour; the black hole swallows the ring round it back into the deck. '
+    + 'The BIG TOWERS are eight tiles with the SUN on one face and the BLACK HOLE on the other, walled outside, and a game makes one of each: the first quarter laid decides which comes first, and the rest of its 2x2 is kept for the other three, which must go into it; then the other is made. The sun fires every colour; the black hole swallows the ring round it (never the sun) back into the deck. '
     + 'A road or city closed with nobody in it pays whoever closed it, on the spot. '
     + 'Five followers each. You may join an open road or city however many are in it, never a closed one. A feature a tower pays hands its followers back, or one of yours walks on down a road. '
     + 'The biggest piece of country is the mainland; every other piece is an ISLAND, pays double, and is buildable only by somebody standing on it. At the end, 10 to whoever stands on most islands. '

@@ -28,12 +28,16 @@
 // end onto an end, a junction town onto a three-way district, the crossing
 // onto the one all-round district), a zephyr or cannon onto a tower half, a
 // windmill, flying machine or windvane onto an Abbazia, and the sun's
-// quarters onto the black hole's (the same four tiles). The four places the
-// quarters gave back are four more tower halves, five of each colour now.
-// Which back goes on which tower half, and the trade all-round district,
-// are Claude's call: each colour gets one road zephyr and one cannon or
-// double zephyr, the plainest weather on the plainest towers. The extras at
-// 0 stay one-faced.
+// quarters onto the black hole's. Which back goes on which tower half, and
+// the trade all-round district, are Claude's call: each colour gets one road
+// zephyr and one cannon or double zephyr, the plainest weather on the
+// plainest towers. The extras at 0 stay one-faced.
+//
+// Eight sun and black hole tiles, not four (Timothy, the same evening:
+// "there has to be eight tiles becuase there needs to be the choice of what
+// to build and both need to be present by the end of the game"): a game
+// makes one of each. The four places that took are four tower halves, four
+// of each colour again, as before the faces (one plain half a colour).
 // ---------------------------------------------------------------------------
 
 export const DECK_SIZE = 72;
@@ -51,15 +55,15 @@ export const DECK_GROUPS = [
       ...per(KINDS, (k) => [`DT${k}|Gw`, 1]),
       ['DXm|X', 1],
     ] },
-  { name: 'Towers and weather', note: 'A tower half on one face, a zephyr or a gust cannon on the other. Five halves of each colour: a half meets only its own colour, and a closed tower fires its colour. A zephyr tile pushes only when your blow pushes it, with its own push plus yours.',
+  { name: 'Towers and weather', note: 'A tower half on one face, a zephyr or a gust cannon on the other. Four halves of each colour: a half meets only its own colour, and a closed tower fires its colour. A zephyr tile pushes only when your blow pushes it, with its own push plus yours.',
     tiles: [
-      ['Kso|Kz', 2], ['Kso|Kzx', 1], ['Ksr|Kzr', 1], ['Ksx|Kg', 1],
-      ['Kbo|Kz', 2], ['Kbo|Kzy', 1], ['Kbr|Kzr', 1], ['Kbx|Kzz', 1],
-      ['Kro|Kz', 1], ['Kro|Kzb', 1], ['Kro|Kzw', 1], ['Krr|Kzr', 1], ['Krx|Kg', 1],
-      ['Kyo|Kzr', 1], ['Kyo|Kzb', 1], ['Kyo|Kzq', 1], ['Kyr|Kzzr', 1], ['Kyx|Kgr', 1],
+      ['Kso|Kz', 1], ['Kso|Kzx', 1], ['Ksr|Kzr', 1], ['Ksx|Kg', 1],
+      ['Kbo|Kz', 1], ['Kbo|Kzy', 1], ['Kbr|Kzr', 1], ['Kbx|Kzz', 1],
+      ['Kro|Kzb', 1], ['Kro|Kzw', 1], ['Krr|Kzr', 1], ['Krx|Kg', 1],
+      ['Kyo|Kzb', 1], ['Kyo|Kzq', 1], ['Kyr|Kzzr', 1], ['Kyx|Kgr', 1],
     ] },
-  { name: 'The big tower', note: 'Four tiles, a quarter of the sun on one face and a quarter of the black hole on the other. The first quarter laid decides which it will be; the rest must join its 2x2. The sun fires every colour; the black hole swallows the ring around it.',
-    tiles: [['Kqs|Kqh', 4]] },
+  { name: 'The big towers', note: 'Eight tiles, a quarter of the sun on one face and a quarter of the black hole on the other, walled on their outer sides. A game makes one of each: the first quarter laid decides which comes first, the rest must join its 2x2, and then the other is made. The sun fires every colour; the black hole swallows the ring around it.',
+    tiles: [['Kqs|Kqh', 8]] },
   { name: 'Abbazias', note: 'An Abbazia on one face (each one on the board adds 1 to everybody\'s push power), and on the other a windmill (pays its holder 2 for every push that reaches it), a flying machine or a windvane.',
     tiles: [['Kab|Ktc', 2], ['Kab|Ktr', 2], ['Kab|Ktw', 2], ['Kab|Kfl', 3], ['Kab|Kw', 2]] },
   { name: 'Extras', note: 'One-faced, and not dealt: the temple districts, the other all-round districts, the temples and two cannons.',

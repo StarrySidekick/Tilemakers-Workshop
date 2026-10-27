@@ -79,6 +79,8 @@ const GARDENS = 'every garden district you have scores the city an extra 2p, clo
 // …and later the same day.
 const HALVES = 'let a blow move tower halves.';
 const INEVITABLE = 'also make it so you must place a sun or black hole attached correctly to another, so there completion is inevitable.';
+const EIGHT = 'there has to be eight tiles becuase there needs to be the choice of what to build and both need to be present by the end of the game, so yea back to eight tiles with both on each side sorry. if a sun is already made then you have to make a black hole, and vice versa';
+const WALLED = 'the sun and black hole tiles should have castle walls on the field sides so they can be placed sort of no matter what';
 const DOUBLE = 'make tiles double sided, and you choose what side to play when you place them. the sun and void tiles are actually the same four tiles just with the sun quarter one side and the black hole on the other. this also basically means that there are 72 tiles in the game but 72x2 of tiles faces to play.';
 
 export const GROUPS = [
@@ -111,8 +113,8 @@ export const RULES = [
     changed: D27,
     was: 'The game starts with one tile on the board, the Palazzo, in the middle of the map. Players take turns in order.' },
   { n: 3, id: 'game-deck', group: 'game',
-    text: 'The deck is 72 tiles, shuffled, each with two faces (rule 80) and named in the deck list: 37 with a district on one face and a road of the same shape on the other, 20 with a tower half on one face (five of each colour) and a zephyr or a cannon on the other, 4 with a quarter of the sun on one face and a quarter of the black hole on the other, and 11 with an Abbazia on one face and a windmill, a flying machine or a windvane on the other. Every other tile is an extra, one-faced and not dealt: the temples and temple districts among them, and for now the lone city walls.',
-    from: T(D27, DOUBLE, 'He chose the backs: opposites, a road onto a district of its shape, a zephyr onto a tower half, a windmill or a flying machine onto an Abbazia. The four places the sun and the black hole gave back are four more tower halves, his choice too. Which back goes on which tower half, and which district is the all-round one, are Claude\'s call, named to Timothy when it shipped. Still 72 ("' + SEVENTY_TWO + '").'),
+    text: 'The deck is 72 tiles, shuffled, each with two faces (rule 80) and named in the deck list: 37 with a district on one face and a road of the same shape on the other, 16 with a tower half on one face (four of each colour) and a zephyr or a cannon on the other, 8 with a quarter of the sun on one face and a quarter of the black hole on the other, and 11 with an Abbazia on one face and a windmill, a flying machine or a windvane on the other. Every other tile is an extra, one-faced and not dealt: the temples and temple districts among them, and for now the lone city walls.',
+    from: T(D27, DOUBLE, 'He chose the backs: opposites, a road onto a district of its shape, a zephyr onto a tower half, a windmill or a flying machine onto an Abbazia. Eight sun and black hole tiles, not four ("' + EIGHT + '"); the four places that took are a plain tower half of each colour, Claude\'s call. Which back goes on which tower half, and which district is the all-round one, are Claude\'s call, named to Timothy when it shipped. Still 72 ("' + SEVENTY_TWO + '").'),
     settings: ['deck'], changed: D27,
     was: 'The deck is 72 tiles, shuffled, each one named in the deck list: 12 districts, 16 tower halves (four of each colour), the sun and the black hole (four quarters each), 12 zephyrs and cannons, 3 windmills, 11 Abbazias, 2 flying machines, a windvane and 7 plain roads. Every other tile is an extra, not dealt: the temples and temple districts among them, and for now the lone city walls.' },
   { n: 4, id: 'game-map', group: 'game',
@@ -313,22 +315,23 @@ export const RULES = [
     changed: D27,
     was: 'Two halves meeting close a tower, and it fires its colour once over the whole board, paying whoever holds each feature of that kind (rules 47 to 49, and 51). A tower closes once. No push moves a tower (rule 75), so only a tile laid can close one.' },
   { n: 76, id: 'tower-big', group: 'spheres',
-    text: 'The big tower is the sun or the black hole, made of four tiles that carry a quarter of the sun on one face and a quarter of the black hole on the other. Each quarter sits in one corner of its tile, and four of one come together as a 2x2. A quarter\'s edge meets only the edge of a quarter of the same big tower that carries its circle on; its other two edges take anything, like an Abbazia\'s, and cap what they meet.',
-    from: T(D27, DOUBLE, 'And "' + BIG + '". The outer edges taking anything is his choice, so a quarter always fits its 2x2.'),
+    text: 'The big towers are the sun and the black hole, made of eight tiles that carry a quarter of the sun on one face and a quarter of the black hole on the other. Each quarter sits in one corner of its tile, and four of one come together as a 2x2. A quarter\'s edge meets only the edge of a quarter of the same big tower that carries its circle on; its other two edges are walled, and like an Abbazia\'s take anything and cap what they meet.',
+    from: T(D27, EIGHT, 'And "' + WALLED + '", read as the Abbazia\'s walls, which take anything, an open city too: a plain wall would not. And "' + BIG + '".'),
     added: D27, changed: D27,
     was: 'The sun and the black hole are big towers: each of their quarters sits in one corner of its tile, and four come together as a 2x2. A quarter\'s edge meets only the edge of a quarter of the same big tower that carries its circle on.' },
   { n: 81, id: 'tower-kept', group: 'spheres',
-    text: 'There is one big tower a game, and the first quarter laid decides whether it is the sun or the black hole, and where. It goes anywhere a tile may go with the rest of its 2x2 open sky, and the rest is kept for the other three: nothing else may be laid there, and no push or move-on goes into it. Each of the other three must be laid into the 2x2, turned to face in and touching a quarter already there, wherever that is, off the mainland too. So once begun, the big tower always closes.',
-    from: T(D27, INEVITABLE, 'One big tower a game, the 2x2 kept from the wind, and the quarters ignoring rule 7 are Claude\'s reading of "inevitable", named to Timothy when it shipped.'),
+    text: 'A game makes both big towers, one at a time. The first quarter laid decides which comes first, and where: it goes anywhere a tile may go with the rest of its 2x2 open sky, and the rest is kept for the other three. Nothing else may be laid there, and no push or move-on goes into it. Each of the other three must be laid into the 2x2, turned to face in and touching a quarter already there, wherever that is, off the mainland too. So once begun, a big tower always closes. Then the next quarter begins the other one: once the sun is made it must be the black hole, and once the black hole is made the sun.',
+    from: T(D27, EIGHT, 'And "' + INEVITABLE + '" The 2x2 kept from the wind, and the quarters ignoring rule 7, are Claude\'s reading of "inevitable", named to Timothy when it shipped.'),
     added: D27 },
   { n: 77, id: 'tower-sun', group: 'spheres',
     text: 'When the sun closes, every colour fires at once.',
     from: T(D27, BIG, 'Asked what they do, he chose that the sun scores everything and the black hole swallows the ring round it.'),
     added: D27 },
   { n: 78, id: 'tower-hole', group: 'spheres',
-    text: 'When the black hole closes, every tile in the twelve squares round it is swallowed: shuffled back into the deck, and every follower on them home.',
-    from: T(D27, BIG, 'Asked what they do, he chose that the sun scores everything and the black hole swallows the ring round it.'),
-    added: D27 },
+    text: 'When the black hole closes, every tile in the twelve squares round it, except a quarter of the sun, is swallowed: shuffled back into the deck, and every follower on them home.',
+    from: T(D27, BIG, 'Asked what they do, he chose that the sun scores everything and the black hole swallows the ring round it. Sparing the sun is Claude\'s call, so both are on the board at the end ("' + EIGHT + '").'),
+    added: D27, changed: D27,
+    was: 'When the black hole closes, every tile in the twelve squares round it is swallowed: shuffled back into the deck, and every follower on them home.' },
   { n: 45, id: 'sphere-majority', group: 'spheres',
     text: 'A feature pays whoever has the most followers in it; tied, each of them is paid in full.',
     from: CARC() },

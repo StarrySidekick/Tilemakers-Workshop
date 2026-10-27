@@ -98,8 +98,12 @@ are 72 tiles in the game but 72x2 of tiles faces to play." Asked, he chose
 opposites for the backs (a road onto a district of its shape, a zephyr onto
 a tower half, a windmill or flying machine onto an Abbazia), the four places
 the big tower gave back as four more tower halves, and quarters whose outer
-edges take anything so one always fits its 2x2. That is the twenty-ninth
-pass, waiting for his word to merge.
+edges take anything so one always fits its 2x2. Then: "there has to be
+eight tiles becuase there needs to be the choice of what to build and both
+need to be present by the end of the game ... if a sun is already made then
+you have to make a black hole, and vice versa", and walls on the quarters'
+field sides "so they can be placed sort of no matter what". That is the
+twenty-ninth pass, waiting for his word to merge.
 
 **Fields: settled 2026-09-06, and Timothy was right.** They are fully built.
 `src/tiles.js` cuts the perimeter into eight half-edges with `halfPartner` as the

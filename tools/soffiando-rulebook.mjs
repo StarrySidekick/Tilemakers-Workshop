@@ -142,8 +142,8 @@ prove('game-deck', (ok) => {
   const road = (t) => has('road')(t) && !has('city')(t) && !has('sfera')(t) && !t.marks.some((m) => m.kind !== 'village');
   ok(count((a, b) => district(a) && road(b) && shape(a, 'c') === shape(b, 'r')) === 37, '37 districts, a road of the same shape on the back');
   const half = (hue) => (t) => t.feats.some((f) => f.type === 'sfera' && !f.quarter && f.hue === hue);
-  ok(['green', 'blue', 'red', 'yellow'].every((h) => count((a, b) => half(h)(a) && mark('zephyr')(b)) === 5), 'five tower halves of each colour, a zephyr or a cannon on the back');
-  ok(count((a, b) => a.id === 'Kqs' && b.id === 'Kqh') === 4, 'four tiles with the sun on one face and the black hole on the other');
+  ok(['green', 'blue', 'red', 'yellow'].every((h) => count((a, b) => half(h)(a) && mark('zephyr')(b)) === 4), 'four tower halves of each colour, a zephyr or a cannon on the back');
+  ok(count((a, b) => a.id === 'Kqs' && b.id === 'Kqh') === 8, 'eight tiles with the sun on one face and the black hole on the other');
   ok(count((a, b) => a.id === 'Kab' && (mark('turbine')(b) || mark('flier')(b) || b.id === 'Kw')) === 11, '11 Abbazias, a windmill, a flying machine or a windvane on the back');
   const lone = (t) => t.feats.some((f) => f.type === 'city' && !f.district);
   const temple = (t) => has('temple')(t) || t.feats.some((f) => f.district === 'temple');
@@ -1117,7 +1117,7 @@ prove('tower-big', (ok) => {
   const g = fresh(94);
   const b = g.board;
   const fits = (x, y, id, r) => b.canPlace(x, y, TILES[id], r, g.placeOpts());
-  ok(TILES.Kqs.feats[0].quarter && TILES.Kqh.feats[0].quarter && SPEC && Object.keys(DECK_COUNTS).includes('Kqs|Kqh'), 'the sun and the black hole are the two faces of the same four tiles');
+  ok(TILES.Kqs.feats[0].quarter && TILES.Kqh.feats[0].quarter && SPEC && DECK_COUNTS['Kqs|Kqh'] === 8, 'the sun and the black hole are the two faces of the same eight tiles');
   lay(g, 0, 0, 'Kqs', 0); lay(g, 1, 0, 'Kqs', 1); lay(g, 1, 1, 'Kqs', 2);
   ok(fits(0, 1, 'Kqs', 3), 'the fourth quarter completes the circle');
   ok(!fits(0, 1, 'Kqs', 0) && !fits(0, 1, 'Kqs', 1), 'a quarter turned wrong does not fit');
@@ -1167,7 +1167,20 @@ prove('tower-kept', (ok) => {
   ok(fits(2, 1, 'Kqh', 2), 'the last one touches two');
   layHand(g, 'Kqh', 2, 1, 2);
   ok(g.m.hues.hole === 1, 'so once begun, it always closes');
-  ok(!b.legalPlacements(TILES.Kqh, g.placeOpts()).length && !b.legalPlacements(TILES.Kqs, g.placeOpts()).length, 'and there is one big tower a game');
+  ok(!b.legalPlacements(TILES.Kqh, g.placeOpts()).length && b.legalPlacements(TILES.Kqs, g.placeOpts()).length > 0, 'then the other: the black hole made, the next quarter must be the sun');
+  g.deck = ['Kqh|Kqs'];                    // the same tile, dealt black hole up
+  g.tile = null;
+  g.drawTile();
+  ok(g.phase === 'place' && g.tile.id === 'Kqs', 'a tile dealt black hole up is turned over to the sun for you');
+  const sun = b.legalPlacements(TILES.Kqs, g.placeOpts())[0];
+  layHand(g, 'Kqs', sun.x, sun.y, sun.rot);
+  ok(!fits(sun.x, sun.y, 'Kqh', 0) && b.legalPlacements(TILES.Kqh, g.placeOpts()).length === 0 && b.legalPlacements(TILES.Kqs, g.placeOpts()).length > 0, 'and its quarters go only into its own 2x2');
+  for (let i = 0; i < 3; i++) {
+    const q = b.legalPlacements(TILES.Kqs, g.placeOpts())[0];
+    layHand(g, 'Kqs', q.x, q.y, q.rot);
+  }
+  ok(g.m.hues.sun === 1 && g.m.bigTowers().every((t) => t.done), 'both made');
+  ok(!b.legalPlacements(TILES.Kqh, g.placeOpts()).length && !b.legalPlacements(TILES.Kqs, g.placeOpts()).length, 'and a third begins nowhere');
 });
 prove('tower-sun', (ok) => {
   const g = fresh(95);
@@ -1196,6 +1209,16 @@ prove('tower-hole', (ok) => {
   ok(!at(g, -1, 0) && !at(g, 2, 1) && !at(g, 0, 2) && at(g, 5, 5) && at(g, 0, 0), 'the twelve squares round it are swallowed, and nothing else');
   ok(g.deck.length === deck + 3, 'back into the deck');
   ok(g.players[0].meeples === had + 1, 'every follower on them home');
+  // The sun made first, right beside it: the hole spares it.
+  const h = fresh(97);
+  lay(h, 2, 0, 'Kqs', 0); lay(h, 3, 0, 'Kqs', 1); lay(h, 3, 1, 'Kqs', 2); lay(h, 2, 1, 'Kqs', 3);
+  h.board.rebuild();
+  h.m.joinSferas();
+  lay(h, -1, 0, 'B');
+  lay(h, 0, 0, 'Kqh', 0); lay(h, 1, 0, 'Kqh', 1); lay(h, 1, 1, 'Kqh', 2); lay(h, 0, 1, 'Kqh', 3);
+  h.board.rebuild();
+  h.m.joinSferas();
+  ok(!at(h, -1, 0) && [[2, 0], [3, 0], [3, 1], [2, 1]].every(([x, y]) => at(h, x, y)?.type.id === 'Kqs') && h.m.hues.sun === 1 && h.m.hues.hole === 1, 'but never a quarter of the sun');
 });
 prove('close-unclaimed', (ok) => {
   const g = fresh(97);
