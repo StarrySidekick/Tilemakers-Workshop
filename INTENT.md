@@ -103,7 +103,7 @@ eight tiles becuase there needs to be the choice of what to build and both
 need to be present by the end of the game ... if a sun is already made then
 you have to make a black hole, and vice versa", and walls on the quarters'
 field sides "so they can be placed sort of no matter what". That is the
-twenty-ninth pass, waiting for his word to merge.
+twenty-ninth pass, merged on his word ("merge").
 
 **Fields: settled 2026-09-06, and Timothy was right.** They are fully built.
 `src/tiles.js` cuts the perimeter into eight half-edges with `halfPartner` as the
