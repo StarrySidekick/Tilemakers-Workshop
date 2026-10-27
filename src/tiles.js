@@ -127,18 +127,25 @@ const garden = () => ({ type: 'garden', sides: [] });
 const temple = (face = N) => ({ type: 'temple', sides: [], face });
 
 /**
- * Half of a sphere, on one edge — and a COLOUR, because a sphere is what tells
- * the harvest what to look for. A sfera edge meets nothing but another sfera
- * edge, so joining two is a deliberate act rather than an accident; but ANY
- * half fits any other half, whatever colour it is. Two greens make a whole
- * green ball, a green and a red make a ball that is half of each, and every
- * one of them closes.
- *
- * The colour is therefore a property of the HALF rather than of the sphere,
- * and both halves of a closed sphere fire their own effect on the harvest. A
- * matched pair doubles one thing; a mixed pair does two things once each.
+ * Half of a TOWER, on one edge, in a colour (they were sferas until
+ * 2026-10-27, and the feature keeps that name). A tower edge meets only a
+ * tower edge OF ITS OWN COLOUR (Timothy, 2026-10-27: "sfera can't be mixed
+ * and matched anymore, each color has to go to each color"): its edge letter
+ * carries the colour (`edgeLetter`), so two halves of one colour make a
+ * tower and nothing else fits against them.
  */
 const sfera = (side = N, hue = 'green') => ({ type: 'sfera', sides: [side], hue });
+
+/**
+ * A quarter of a BIG tower, the black hole's or the sun's: four of them make
+ * one 2x2 (Timothy, 2026-10-27: "they are four corners of blocks that come
+ * together into a 2x2 sphere"). The quarter sits in the tile's corner
+ * between side `c` and the side after it clockwise, so both those edges
+ * carry it, and each edge says which END the quarter is at (`edgeLetter`):
+ * an edge meets only its mirror, which is what makes four of them a circle
+ * rather than any four that happen to touch.
+ */
+const quarter = (c, hue) => ({ type: 'sfera', sides: [c, (c + 1) % 4], hue, quarter: true });
 
 /**
  * `dir` is a cardinal direction carried by a mark, rotated with its tile the
@@ -208,9 +215,30 @@ export const WALL = '#';
 const TO_WALL = new Set([WALL, 'f', 'r']);
 
 /** Do two edges meet? Same letter, one of them takes anything, or a wall and what stands against it. */
-export const edgesMeet = (a, b) => a === b || a === CAP || b === CAP
+export const edgesMeet = (a, b) => seamJoins(a, b) || a === CAP || b === CAP
   || a === DOCK || b === DOCK
   || (a === WALL && TO_WALL.has(b)) || (b === WALL && TO_WALL.has(a));
+
+/**
+ * Two edges JOIN across a seam: the same letter, or two quarters of a big
+ * tower that are each other's mirror (the same tower, the quarter at the
+ * near end of one and the far end of the other, clockwise).
+ */
+export const seamJoins = (a, b) => (a[0] === 'q' && b[0] === 'q'
+  ? a !== b && a.slice(0, -1) === b.slice(0, -1)
+  : a === b);
+
+/**
+ * The letter one side of a feature presents. A tower's carries its colour,
+ * so only the same colour fits against it; a quarter of a big tower's says
+ * too which end of the side the quarter is at, clockwise: the side before
+ * its corner has it at the end ('b'), the side after at the start ('a').
+ */
+function edgeLetter(f, s) {
+  if (f.type !== 'sfera') return EDGE_LETTER[f.type] || 'r';
+  if (f.quarter) return `q:${f.hue}:${s === f.sides[0] ? 'b' : 'a'}`;
+  return `o:${f.hue}`;
+}
 
 /** Edge letter per feature type. Two edges match only if their letters do. */
 export const EDGE_LETTER = {
@@ -411,13 +439,12 @@ export const TILE_TYPES = [
   { id: 'Kgc', n: 1, group: 'cloud', name: 'Cannon wall',        feats: [city([W])],        marks: [cannon([N])], fields: [[0, 1, 2, 3, 4, 5]] },
   { id: 'Kgg', n: 1, group: 'cloud', name: 'Double gust cannon', feats: [],                 marks: [cannon([N], 2)], fields: [[0, 1, 2, 3, 4, 5, 6, 7]] },
 
-  // The Palazzo: the founding stone of the kingdom, and the only tile on the
-  // board that was there before anybody played. Same connections as the base
-  // set's start tile — a city gate with the road running under it — and no more
-  // rooted than anything else, so the sky can and does shove the seat of
-  // government around. What it has instead is worth: the island it is sitting
-  // on counts double when a sphere closes.
-  { id: 'Kpz', n: 0, group: 'cloud', name: 'The Palazzo', feats: [city([N]), road([E, W])], marks: [mark('palazzo', 0)], fields: [[2, 7], [3, 4, 5, 6]] },
+  // The Plaza (the Palazzo until 2026-10-27; Timothy: "i don't want the
+  // pallazzo to really do anything anymore. also, let's call is the plaza and
+  // make it more like a plaza"): the tile the game starts on, a paved square
+  // with four roads leading out of it, each ending there. It is an ordinary
+  // tile in every other way.
+  { id: 'Kpz', n: 0, group: 'cloud', name: 'The Plaza', feats: [road([N]), road([E]), road([S]), road([W])], marks: [mark('plaza')], fields: [[1, 2], [3, 4], [5, 6], [0, 7]] },
 
   // The tower turbine: a windmill built into a city wall. Every gust that runs
   // through it pays a point to whoever holds the city it belongs to, which
@@ -431,38 +458,41 @@ export const TILE_TYPES = [
   { id: 'Ktr', n: 2, group: 'cloud', name: 'Turbine road',   feats: [road([N, S])], marks: [mark('turbine', 0)], fields: [[1, 2, 3, 4], [0, 5, 6, 7]] },
   { id: 'Ktw', n: 1, group: 'cloud', name: 'Turbine bend',   feats: [road([W, S])], marks: [mark('turbine', 0)], fields: [[5, 6], [0, 1, 2, 3, 4, 7]] },
 
-  // The sfera: one edge is half a sphere and meets nothing but another sfera's.
-  // ANY two halves close a sphere, whatever colours they are — and closing one
-  // is how the kingdom is scored at all. Each half fires a scoring pass over
-  // one kind of thing, everywhere on the board:
+  // TOWERS (sferas until 2026-10-27): one edge is half a tower, and meets only
+  // another half of its own colour. Two halves close a tower, and closing one
+  // is how the kingdom is scored at all: it fires its colour once, a scoring
+  // pass over one kind of thing, everywhere on the board:
   //
   //   GREEN  the farms — a point for every two tiles of field
-  //   BLUE   the cities — 1 a tile unfinished, 2 a tile finished
-  //   RED    the temples — 1 for every tile standing around one
+  //   BLUE   the cities — by their districts, double once walled all round
+  //   RED    the Abbazias — 1 for every tile around one, to whoever has most
+  //          followers there
   //   YELLOW the roads — 1 a tile, plus what each city it reaches is worth
-  //
-  // BOTH halves fire, so the pairing is the decision: two yellows score the
-  // roads twice, a yellow against a blue scores the roads and the cities once
-  // each. Five shapes in each colour, one of each.
-  { id: 'Kso', n: 1, group: 'cloud', name: 'Green sfera',       feats: [sfera(N, 'green')], fields: [[2, 3, 4, 5, 6, 7]] },
-  { id: 'Ksr', n: 1, group: 'cloud', name: 'Green sfera road',  feats: [sfera(N, 'green'), road([E, W])], fields: [[2, 7], [3, 4, 5, 6]] },
-  { id: 'Ksc', n: 1, group: 'cloud', name: 'Green sfera wall',  feats: [sfera(N, 'green'), city([S])], fields: [[2, 3], [6, 7]] },
-  { id: 'Ksx', n: 1, group: 'cloud', name: 'Green sfera garden district',  feats: [sfera(N, 'green'), district([E, W], 'garden')], fields: [[4, 5]] },
+  { id: 'Kso', n: 1, group: 'cloud', name: 'Green tower',       feats: [sfera(N, 'green')], fields: [[2, 3, 4, 5, 6, 7]] },
+  { id: 'Ksr', n: 1, group: 'cloud', name: 'Green tower road',  feats: [sfera(N, 'green'), road([E, W])], fields: [[2, 7], [3, 4, 5, 6]] },
+  { id: 'Ksc', n: 1, group: 'cloud', name: 'Green tower wall',  feats: [sfera(N, 'green'), city([S])], fields: [[2, 3], [6, 7]] },
+  { id: 'Ksx', n: 1, group: 'cloud', name: 'Green tower garden district',  feats: [sfera(N, 'green'), district([E, W], 'garden')], fields: [[4, 5]] },
 
-  { id: 'Kbo', n: 1, group: 'cloud', name: 'Blue sfera',        feats: [sfera(N, 'blue')], fields: [[2, 3, 4, 5, 6, 7]] },
-  { id: 'Kbr', n: 1, group: 'cloud', name: 'Blue sfera road',   feats: [sfera(N, 'blue'), road([E, W])], fields: [[2, 7], [3, 4, 5, 6]] },
-  { id: 'Kbc', n: 1, group: 'cloud', name: 'Blue sfera wall',   feats: [sfera(N, 'blue'), city([S])], fields: [[2, 3], [6, 7]] },
-  { id: 'Kbx', n: 1, group: 'cloud', name: 'Blue sfera residential district',   feats: [sfera(N, 'blue'), district([E, W], 'residential')], fields: [[4, 5]] },
+  { id: 'Kbo', n: 1, group: 'cloud', name: 'Blue tower',        feats: [sfera(N, 'blue')], fields: [[2, 3, 4, 5, 6, 7]] },
+  { id: 'Kbr', n: 1, group: 'cloud', name: 'Blue tower road',   feats: [sfera(N, 'blue'), road([E, W])], fields: [[2, 7], [3, 4, 5, 6]] },
+  { id: 'Kbc', n: 1, group: 'cloud', name: 'Blue tower wall',   feats: [sfera(N, 'blue'), city([S])], fields: [[2, 3], [6, 7]] },
+  { id: 'Kbx', n: 1, group: 'cloud', name: 'Blue tower residential district',   feats: [sfera(N, 'blue'), district([E, W], 'residential')], fields: [[4, 5]] },
 
-  { id: 'Kro', n: 1, group: 'cloud', name: 'Red sfera',         feats: [sfera(N, 'red')], fields: [[2, 3, 4, 5, 6, 7]] },
-  { id: 'Krr', n: 1, group: 'cloud', name: 'Red sfera road',    feats: [sfera(N, 'red'), road([E, W])], fields: [[2, 7], [3, 4, 5, 6]] },
-  { id: 'Krc', n: 1, group: 'cloud', name: 'Red sfera wall',    feats: [sfera(N, 'red'), city([S])], fields: [[2, 3], [6, 7]] },
-  { id: 'Krx', n: 1, group: 'cloud', name: 'Red sfera temple district',    feats: [sfera(N, 'red'), district([E, W], 'temple')], fields: [[4, 5]] },
+  { id: 'Kro', n: 1, group: 'cloud', name: 'Red tower',         feats: [sfera(N, 'red')], fields: [[2, 3, 4, 5, 6, 7]] },
+  { id: 'Krr', n: 1, group: 'cloud', name: 'Red tower road',    feats: [sfera(N, 'red'), road([E, W])], fields: [[2, 7], [3, 4, 5, 6]] },
+  { id: 'Krc', n: 1, group: 'cloud', name: 'Red tower wall',    feats: [sfera(N, 'red'), city([S])], fields: [[2, 3], [6, 7]] },
+  { id: 'Krx', n: 1, group: 'cloud', name: 'Red tower industrial district',    feats: [sfera(N, 'red'), district([E, W], 'industrial')], fields: [[4, 5]] },
 
-  { id: 'Kyo', n: 1, group: 'cloud', name: 'Yellow sfera',      feats: [sfera(N, 'yellow')], fields: [[2, 3, 4, 5, 6, 7]] },
-  { id: 'Kyr', n: 1, group: 'cloud', name: 'Yellow sfera road', feats: [sfera(N, 'yellow'), road([E, W])], fields: [[2, 7], [3, 4, 5, 6]] },
-  { id: 'Kyc', n: 1, group: 'cloud', name: 'Yellow sfera wall', feats: [sfera(N, 'yellow'), city([S])], fields: [[2, 3], [6, 7]] },
-  { id: 'Kyx', n: 1, group: 'cloud', name: 'Yellow sfera trade district', feats: [sfera(N, 'yellow'), district([E, W], 'trade')], fields: [[4, 5]] },
+  { id: 'Kyo', n: 1, group: 'cloud', name: 'Yellow tower',      feats: [sfera(N, 'yellow')], fields: [[2, 3, 4, 5, 6, 7]] },
+  { id: 'Kyr', n: 1, group: 'cloud', name: 'Yellow tower road', feats: [sfera(N, 'yellow'), road([E, W])], fields: [[2, 7], [3, 4, 5, 6]] },
+  { id: 'Kyc', n: 1, group: 'cloud', name: 'Yellow tower wall', feats: [sfera(N, 'yellow'), city([S])], fields: [[2, 3], [6, 7]] },
+  { id: 'Kyx', n: 1, group: 'cloud', name: 'Yellow tower trade district', feats: [sfera(N, 'yellow'), district([E, W], 'trade')], fields: [[4, 5]] },
+
+  // The two BIG towers, four quarters each (2026-10-27): the sun fires every
+  // colour at once, and the black hole swallows the ring of tiles around it.
+  // The quarter is in the south-east corner, so it shows east and south.
+  { id: 'Kqs', n: 0, group: 'cloud', name: 'Sun, a quarter',        feats: [quarter(E, 'sun')],  fields: [[0, 1, 6, 7]] },
+  { id: 'Kqh', n: 0, group: 'cloud', name: 'Black hole, a quarter', feats: [quarter(E, 'hole')], fields: [[0, 1, 6, 7]] },
 
   // End caps. A city has to be able to stop somewhere, and in a country that
   // keeps being rearranged it needs to be able to stop more often than the
@@ -863,7 +893,7 @@ export const MARKS = {
 
   // cloud
   turbine: { label: 'Windmill turbine', score: 0, note: 'Pays 1 to whoever holds its city for every gust through it, and 2 to whoever closes that city — kept even if the city blows open again.' },
-  palazzo: { label: 'The Palazzo', score: 0, note: 'The seat of the kingdom: whatever it stands on is the mainland, and everything else adrift is an island. Blown by a gust, it tows every island one square with it.' },
+  plaza: { label: 'The Plaza', score: 0, note: 'The paved square the game starts on, four roads leading out of it. It does nothing else.' },
   zephyr:  { label: 'Zephyr',  score: 0, note: 'Blows its lane when played — and does nothing to the country it passes through. It tears the LOOSE END off: the run downwind of it ends at a gap, and a gust arriving there at power N pops the last N tiles off and carries each of them N squares. It gains a power off every zephyr blowing its own way, and off every corner it turns. A gust that reaches a zephyr absorbs it if they agree and wakes it otherwise, and the storm turns down that zephyr’s own lane.' },
   // Keyed 'cannon' although the mark's own kind is 'zephyr' — a cannon IS a
   // zephyr to the wind engine, and only the art and this note tell them apart.
@@ -910,7 +940,7 @@ function prepare(list) {
     for (const f of t.feats) {
       if (f.shield) t.shields++;
       if (t.wild || t.dock) continue;          // an Abbazia or a ship takes anything
-      for (const s of f.sides) t.edges[s] = EDGE_LETTER[f.type] || 'r';
+      for (const s of f.sides) t.edges[s] = edgeLetter(f, s);
     }
     // A district's walls stand ON its edge, so there is no strip of country
     // between them and the next tile: those sides present the wall, and the

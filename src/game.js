@@ -779,7 +779,9 @@ export class Game {
         if (fig && !fig.allows(f)) return false;
         if (!this.m.claimAllowed({ x, y, i, f })) return false;
         const d = this.board.featureOf(x, y, i);
-        return d && d.meeples.length === 0;
+        // A mode may let a feature somebody holds be joined (Soffiando: an
+        // open road or city).
+        return d && (d.meeples.length === 0 || !!this.m.mayShare?.(d));
       })
       .map((o) => ({ ...o, x, y }));
 
@@ -1890,6 +1892,9 @@ export class Game {
   // --- ending a turn --------------------------------------------------------
 
   endTurn() {
+    // A mode may hold the turn open for a last step of its own (Soffiando's
+    // blow); it calls endTurn again once that step is done.
+    if (this.m.holdTurn?.()) return;
     if (this.lastPlaced) {
       const { x, y } = this.lastPlaced;
       for (const d of this.board.completedBy(x, y)) {

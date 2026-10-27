@@ -19,7 +19,7 @@
 // ---------------------------------------------------------------------------
 
 import {
-  SIDE_STEP, opposite, CENTRE_FEATURES, CAP, DOCK, WALL, edgesMeet,
+  SIDE_STEP, opposite, CENTRE_FEATURES, CAP, DOCK, WALL, edgesMeet, seamJoins,
   HALVES_OF_SIDE, halfPartner,
 } from './tiles.js';
 
@@ -373,7 +373,7 @@ export class Board {
       // shove a road up against a city wall. A mismatched seam joins nothing
       // and closes nothing — both features stay open, facing a wall they can
       // never finish against, until something moves again.
-      if (myEdge !== theirEdge) continue;
+      if (!seamJoins(myEdge, theirEdge)) continue;
       if (!wired) continue;
       const root = this.union(`${k}#${mine}`, id);
       this.data.get(root).open -= 2; // both halves of the seam are now closed

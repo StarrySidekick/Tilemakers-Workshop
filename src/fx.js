@@ -130,13 +130,19 @@ export class Effects {
    * Strata tile rises onto the stack it just covered instead of appearing on
    * top of it.
    */
-  flyTile({ from, to, type, rot, look = 0, lift = 0, from_lift = null, delay = 0, life = LIFE.tile, solid = false }) {
+  flyTile({ from, to, type, rot, look = 0, lift = 0, from_lift = null, delay = 0, life = LIFE.tile, solid = false, hold = 0 }) {
+    // `hold`: not drawn at all for this long, because another slide is still
+    // carrying the tile to where this one starts (a tile that moves on after
+    // the push that moved it); from then until `delay`, it waits there.
     const e = this.add({
       kind: 'tile', from: from || to, to, type, rot, look, solid,
       lift0: from_lift == null ? lift : from_lift, lift1: lift,
-      delay, life,
+      delay, life, show: hold ? performance.now() + hold : 0,
     });
-    if (e) this.veil(`tile:${to.x},${to.y}`, (e.delay || 0) + life);
+    // The square, not the point: a slide's `to` is the middle of its square
+    // (x + 0.5), and keyed by that the veil hid nothing, so every tile the
+    // wind moved stood at its new square while its slide was still playing.
+    if (e) this.veil(`tile:${Math.floor(to.x)},${Math.floor(to.y)}`, (e.delay || 0) + life);
     return e;
   }
 
@@ -309,7 +315,7 @@ export class Effects {
         // rather than a single instantaneous rearrangement.
         const at = data.delay || 0;
         for (const m of data.moves || []) {
-          const glide = { type: m.type, rot: m.rot, look: m.look, delay: at, life: DESIGN.storm.tileGlide, solid: true };
+          const glide = { type: m.type, rot: m.rot, look: m.look, delay: at, life: DESIGN.storm.tileGlide, solid: true, hold: data.hold || 0 };
           if (!m.via) { this.flyTile({ from: m.from, to: m.at, ...glide }); continue; }
           // Across the seam of a map that wraps: off the edge it leaves by,
           // and on at the one across from it, the same slide twice.

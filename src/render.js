@@ -245,12 +245,15 @@ export class Renderer {
       this.drawCellTargets(game.m.astrayAt.targets, THEME.teal, '95,191,174');
       this.drawCellTargets([game.m.astrayAt.cell], THEME.gold, '212,175,95');
     }
-    // The stick: every tile it could go against this way, and under the
-    // pointer the whole train that push would move.
-    if (game.phase === 'stick') {
-      this.drawCellTargets(game.m.stickTargets(), THEME.teal, '95,191,174');
+    // The blow: any tile will do, so none is marked. Under the pointer, the
+    // tiles it would push, in gold; or, too heavy to push, the tiles whose
+    // followers it would blow instead, in violet.
+    if (game.phase === 'blow') {
       const h = this.hover, train = h && game.m.trainAt(h.x, h.y);
-      if (train) this.drawCellTargets(train, THEME.gold, '212,175,95');
+      if (train) {
+        if (train.heavy) this.drawCellTargets(train.cells, THEME.violet, '107,90,140');
+        else this.drawCellTargets(train.cells, THEME.gold, '212,175,95');
+      }
     }
     if (game.phase === 'flight') this.drawCellTargets(game.m.flightLifts(), THEME.teal, '95,191,174');
     if (game.phase === 'flat') this.drawCellTargets(game.m.flatTargets(), THEME.gold, '212,175,95');
@@ -1756,6 +1759,7 @@ export class Renderer {
       // it has to be drawn sitting at its origin or it blinks out of the
       // world. t clamps to 0, which is exactly that.
       if (now < e.born && e.kind !== 'tile' && e.kind !== 'fall') continue;
+      if (e.show && now < e.show) continue;
       const t = Math.min(1, Math.max(0, (now - e.born) / e.life));
       switch (e.kind) {
         case 'float': {

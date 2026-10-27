@@ -156,14 +156,12 @@ function step(game, rng) {
       if (!game.cellClick(t.x, t.y)) game.m.cancelSwim();
       return;
     }
-    // …and the player's stick (2026-10-26): a push, turned at random,
-    // against any tile it can move that way.
-    case 'stick': {
+    // …and the blow every turn ends with (2026-10-27): turned at random,
+    // against any tile at all.
+    case 'blow': {
       for (let i = Math.floor(rng() * 4); i > 0; i--) game.rotate(1);
-      const spots = game.m.stickTargets();
-      if (!spots.length) return void game.m.cancelPush();
-      const t = pick(spots);
-      if (!game.cellClick(t.x, t.y)) game.m.cancelPush();
+      const t = pick(game.m.blowTargets());
+      game.cellClick(t.x, t.y);
       return;
     }
     // …and a tile that no longer fits, moving on to any square it can.
@@ -181,7 +179,6 @@ function step(game, rng) {
       if (game.m.canLieDown?.() && rng() < 0.3) return void game.m.beginFlat();
       if (game.m.canLift?.() && rng() < 0.25) return void game.m.beginLift();
       if (game.m.canSwim?.() && rng() < 0.15) return void game.m.beginSwim();
-      if (game.m.canPush?.() && rng() < 0.2) return void game.m.beginPush();
       if (game.canPlaceBuilding?.() && rng() < 0.5) game.placeBuilding();
       if (game.canBuildBridge?.() && rng() < 0.4) game.buildBridge();
       const opts = game.meepleOptions();
@@ -1027,14 +1024,18 @@ function checkSoffiando() {
     return h;
   };
   const lay = (b, x, y, id, rot = 0) => b.place(x, y, TILES[id], rot);
+  // A blow, as a player makes one: the zephyr turned to `dir`, against (x, y).
+  const blowAt = (h, x, y, dir) => { h.phase = 'blow'; h.m.blowDir = dir; return h.cellClick(x, y); };
+  const fieldOf = (id) => TILES[id].feats.findIndex((f) => f.type === 'field');
+  const roadOf = (id) => TILES[id].feats.findIndex((f) => f.type === 'road');
 
-  // The Palazzo is the mainland, and the mainland is the only thing you may
+  // The mainland is the only thing you may
   // build onto. Everything adrift is still on the board and still scoring; it
   // is simply out of reach of a tile in your hand.
   {
     const h = fresh(11);
     const b = h.board;
-    lay(b, 0, 0, 'Kpz');
+    lay(b, 0, 0, 'Kz');
     lay(b, 5, 5, 'Kz');
     lay(b, 5, 6, 'Kz');                       // two tiles adrift: an island
     b.rebuild();
@@ -1103,29 +1104,45 @@ function checkSoffiando() {
   }
 
   // VARIETY COMPOUNDS. A point a district, plus a bonus for the kinds a city
-  // has that grows by one more with each new kind: 0, 1, 3, 6, 10.
+  // has that grows by one more with each new kind: 0, 1, 3, 6; and 2 for
+  // every garden (2026-10-27), open or closed.
   {
     const h = fresh(48);
     const b = h.board;
     lay(b, 0, 0, 'DXg');                      // garden, open all round
-    lay(b, 1, 0, 'DXt');                      // temple
-    lay(b, 0, 1, 'DXr');                      // residential
+    lay(b, 1, 0, 'DXr');                      // residential
+    lay(b, 0, 1, 'DXi');                      // industrial
     b.addMeeple(0, 0, 0, 0);
     b.rebuild();
     h.m.fire('blue');
     h.m.sweep();
-    if (h.players[0].score !== 6) {
-      return fail('three districts of three kinds pay 3 and a bonus of 3', `paid ${h.players[0].score}`);
+    if (h.players[0].score !== 8) {
+      return fail('three districts of three kinds pay 3, a bonus of 3 and 2 for the garden', `paid ${h.players[0].score}`);
     }
     h.players[0].score = 0;
-    lay(b, 1, 1, 'DXi');
-    lay(b, 2, 0, 'DXm');
+    lay(b, 1, 1, 'DXm');
     b.addMeeple(0, 0, 0, 0);
     b.rebuild();
     h.m.fire('blue');
     h.m.sweep();
-    if (h.players[0].score !== 15) {
-      return fail('five districts of five kinds pay 5 and a bonus of 10', `paid ${h.players[0].score}`);
+    if (h.players[0].score !== 12) {
+      return fail('four districts of four kinds pay 4, a bonus of 6 and 2 for the garden', `paid ${h.players[0].score}`);
+    }
+  }
+
+  // A GARDEN PAYS 2, open or closed: the walled double is for districts and
+  // kinds, not for the gardens.
+  {
+    const h = fresh(51);
+    const b = h.board;
+    lay(b, 0, 0, 'DEg', 1);                   // a garden end, open east…
+    lay(b, 1, 0, 'DEr', 3);                   // …into a residential end: walled all round
+    b.addMeeple(0, 0, 0, 0);
+    b.rebuild();
+    h.m.fire('blue');
+    h.m.sweep();
+    if (h.players[0].score !== 8) {
+      return fail('a walled city of two kinds pays (2 + 1) x 2, and 2 for its garden', `paid ${h.players[0].score}`);
     }
   }
 
@@ -1140,25 +1157,51 @@ function checkSoffiando() {
     if (h.m.claimAllowed({ x: 0, y: -1, i: 0, f: TILES.Kce.feats[0] })) {
       return fail('a city wall cannot be claimed', 'it was allowed');
     }
+    if (h.m.claimAllowed({ x: 0, y: 0, i: 0, f: TILES.DEg.feats[0] })) {
+      return fail('a district of a closed city cannot be claimed', 'it was allowed');
+    }
+    b.remove(0, -1);
     if (!h.m.claimAllowed({ x: 0, y: 0, i: 0, f: TILES.DEg.feats[0] })) {
-      return fail('a district can be claimed', 'it was refused');
+      return fail('a district of an open city can be claimed', 'it was refused');
     }
   }
 
-  // WALLS STAND ACROSS THE WIND. A tile with a city wall is not moved by wind
-  // blowing straight at that wall or away from it, and is by wind running
-  // along it. A city walled all round cannot be moved at all.
+  // WALLS HOLD FOLLOWERS, NOT TILES (Timothy, 2026-10-27: "meeple can't be
+  // blow through walls but tiles with castle wall can still be moved by
+  // winds"). A walled tile moves like any other; a follower is never blown
+  // across a wall.
   {
     const h = fresh(50);
     const b = h.board;
-    lay(b, 0, 0, 'Kz');                       // blowing north
-    lay(b, 0, -1, 'Kce');                     // a wall on its north side: across the wind
-    h.m.weather([{ dir: 0, from: { x: 0, y: 0 } }], 0);
-    if (!b.get(0, -1) || b.get(0, -2)) return fail('a wall across the wind is not pushed', 'it moved');
-    lay(b, 3, -1, 'Kz', 3);                   // blowing west, along the wall
-    h.m.weather([{ dir: 3, from: { x: 3, y: -1 } }], 0);
-    if (b.get(0, -1)?.type.id === 'Kce' && !b.get(-1, -1)) {
-      return fail('a wall along the wind is pushed like anything else', 'it stayed');
+    lay(b, 0, 0, 'DEg');                      // a garden end, walled east, south and west
+    lay(b, 1, 0, 'U', 1);                     // a road against its east wall
+    lay(b, 5, 5, 'Kab');                      // one Abbazia: a push of 2
+    b.rebuild();
+    blowAt(h, 0, 0, 1);
+    if (b.get(0, 0) || b.get(1, 0)?.type.id !== 'DEg' || b.get(2, 0)?.type.id !== 'U') {
+      return fail('a tile with walls on it is pushed like any other', JSON.stringify([...b.cells.keys()]));
+    }
+    const w = fresh(52);
+    const wb = w.board;
+    lay(wb, 0, 0, 'U', 1);                    // a road, a follower on it…
+    lay(wb, 1, 0, 'DEg');                     // …against a district's west wall
+    lay(wb, 2, 0, 'B');                       // three tiles: too heavy for a push of 1
+    wb.addMeeple(0, 0, 0, 0);
+    wb.rebuild();
+    blowAt(w, 0, 0, 1);
+    if (!wb.get(0, 0)?.meeple || wb.get(1, 0)?.meeple) {
+      return fail('no follower is blown across a wall', 'it went through');
+    }
+    const o = fresh(53);
+    const ob = o.board;
+    lay(ob, 0, 0, 'U', 1);
+    lay(ob, 1, 0, 'U', 1);
+    lay(ob, 2, 0, 'U', 1);
+    ob.addMeeple(0, 0, 0, 0);
+    ob.rebuild();
+    blowAt(o, 0, 0, 1);
+    if (ob.get(0, 0)?.meeple || ob.get(1, 0)?.meeple?.player !== 0 || ob.get(0, 0)?.type.id !== 'U') {
+      return fail('a push too heavy to move blows the followers it reaches a square instead', 'it did not');
     }
   }
 
@@ -1205,35 +1248,34 @@ function checkSoffiando() {
     }
   }
 
-  // A temple pays NOTHING for a tile arriving beside it. It used to take an
-  // offering per arrival, which was the one income in the mode that came in
-  // without anything closing; red is now its only source.
+  // A ZEPHYR TILE DOES NOTHING WHEN IT IS LAID (2026-10-27): it pushes only
+  // when a blow has pushed it.
   {
     const h = fresh(30);
     const b = h.board;
-    lay(b, 0, 0, 'Kt');
-    b.addMeeple(0, 0, 0, 0);
-    b.rebuild();
-    h.m.afterPlace(lay(b, 1, 0, 'Kz'));       // a tile laid in the parish
-    h.m.weather([{ dir: 3, from: { x: 4, y: 0 } }], 1);   // …and one blown through it
-    if (h.players[0].score !== 0) {
-      return fail('a temple takes no offering for an arriving tile', `paid ${h.players[0].score}`);
-    }
+    lay(b, 0, -1, 'B');
+    h.m.afterPlace(lay(b, 0, 0, 'Kz'));       // pointing north, at it
+    if (!b.get(0, -1) || b.get(0, -2)) return fail('a zephyr tile does nothing when it is laid', 'it pushed');
   }
 
-  // RED — the temples, a point for every tile standing around one.
+  // RED — the Abbazias (2026-10-27): a point for every tile round one, to
+  // whoever has the most followers on it and round it; nobody comes home.
   {
     const h = fresh(31);
     const b = h.board;
-    lay(b, 0, 0, 'Kt');
-    for (const [x, y] of [[1, 0], [-1, 0], [0, 1], [1, 1]]) lay(b, x, y, 'Kz');
-    b.addMeeple(0, 0, 0, 0);
+    lay(b, 0, 0, 'Kab');
+    for (const [x, y] of [[1, 0], [-1, 0], [0, 1], [1, 1]]) lay(b, x, y, 'B');
+    b.addMeeple(1, 0, fieldOf('B'), 0);
+    b.addMeeple(-1, 0, fieldOf('B'), 0);
+    b.addMeeple(0, 1, fieldOf('B'), 1);
     b.rebuild();
     h.m.fire('red');
     h.m.sweep();
-    if (h.players[0].score !== 4) {
-      return fail('red pays a point per tile around a temple', `paid ${h.players[0].score} for four`);
+    if (h.players[0].score !== 4 || h.players[1].score !== 0) {
+      return fail('red pays an Abbazia\'s four tiles to whoever has most followers round it',
+        `paid ${h.players[0].score} and ${h.players[1].score}`);
     }
+    if (!b.get(1, 0).meeple) return fail('red sends nobody home', 'it did');
   }
 
   // YELLOW — the roads: a point a tile, plus what each city the road reaches
@@ -1276,70 +1318,79 @@ function checkSoffiando() {
     }
   }
 
-  // A sphere fires BOTH its halves, and any half fits any other. Two yellows
-  // score the roads twice over; a yellow against a red scores the roads and the
-  // temples once each. That is what makes the pairing a decision.
+  // A TOWER (2026-10-27) is two halves of ONE colour, and fires that colour
+  // once.
   {
-    const build = (b) => {
-      lay(b, 0, 0, 'Kt');                     // a temple, with a parish round it
-      for (const [x, y] of [[1, 0], [-1, 0], [0, 1], [1, 1]]) lay(b, x, y, 'Kz');
-      b.addMeeple(0, 0, 0, 0);                // a keeper for red to pay…
-      b.rebuild();
-      b.addMeeple(1, 0, 0, 0);                // …and a farmer for green
-      b.rebuild();
-    };
-    // A sphere hung north of the temple, so the two halves meet on the seam
-    // between them: north face against south face.
-    const sphere = (h, a, bb) => {
-      build(h.board);
-      lay(h.board, 0, -1, a, 0);              // sfera facing north…
-      lay(h.board, 0, -2, bb, 2);             // …meeting one facing south
-      h.board.rebuild();
-      h.m.joinSferas();
-    };
-    const twice = fresh(35);
-    sphere(twice, 'Kro', 'Kro');              // red twice over
-    const parish = twice.board.surroundCount(0, 0);
-    const mixed = fresh(36);
-    sphere(mixed, 'Kro', 'Kso');              // red once, green once
-    if (twice.players[0].score !== parish * 2) {
-      return fail('a matched sphere fires its colour twice',
-        `paid ${twice.players[0].score}, expected ${parish} around the temple, twice`);
+    const h = fresh(35);
+    const b = h.board;
+    for (const x of [0, 1, 2, 3]) lay(b, x, 0, 'B');
+    b.addMeeple(0, 0, fieldOf('B'), 0);       // a farmer for green
+    lay(b, 0, -1, 'Kso', 0);                  // a green half facing north…
+    lay(b, 0, -2, 'Kso', 2);                  // …meeting one facing south
+    b.rebuild();
+    const farm = b.featureOf(0, 0, fieldOf('B')).tiles.size;
+    h.m.joinSferas();
+    if (h.players[0].score !== Math.floor(farm / 2)) {
+      return fail('a tower fires its colour once', `paid ${h.players[0].score} for a farm of ${farm}`);
     }
-    if (mixed.players[0].score <= parish || mixed.players[0].score >= parish * 2) {
-      return fail('a mixed sphere fires one of each',
-        `paid ${mixed.players[0].score}, expected ${parish} of red plus some green`);
-    }
-    // …and it only ever fires once.
-    const was = twice.players[0].score;
-    twice.m.joinSferas();
-    if (twice.players[0].score !== was) {
-      return fail('a sphere fires once', `paid ${twice.players[0].score - was} again`);
-    }
+    const was = h.players[0].score;
+    h.m.joinSferas();
+    if (h.players[0].score !== was) return fail('a tower closes once', `paid ${h.players[0].score - was} again`);
+    const c = fresh(24);
+    lay(c.board, 0, 0, 'Kso', 2);             // green, facing south
+    if (c.board.canPlace(0, 1, TILES.Kyo, 0, {})) return fail('a green half meets only a green half', 'a yellow fitted');
+    if (!c.board.canPlace(0, 1, TILES.Kso, 0, {})) return fail('a green half meets a green half', 'it was refused');
   }
 
-  // Any half fits any other. Colour is what a half DOES, not what it will meet.
+  // THE BIG TOWERS: four quarters, each the mirror of the next, close a 2x2.
+  // The sun fires every colour; the black hole swallows the ring round it.
   {
-    const h = fresh(24);
+    const q = fresh(26);
+    const qb = q.board;
+    lay(qb, 0, 0, 'Kqs', 0); lay(qb, 1, 0, 'Kqs', 1); lay(qb, 1, 1, 'Kqs', 2);
+    if (!qb.canPlace(0, 1, TILES.Kqs, 3, {})) return fail('the fourth quarter of the sun fits', 'it was refused');
+    if (qb.canPlace(0, 1, TILES.Kqs, 0, {})) return fail('a quarter turned wrong does not fit', 'it did');
+    if (qb.canPlace(0, 1, TILES.Kqh, 3, {})) return fail('a black hole quarter does not fit the sun', 'it did');
+
+    const h = fresh(27);
     const b = h.board;
-    lay(b, 0, 0, 'Kso', 2);                   // green, facing south
-    if (!b.canPlace(0, 1, TILES.Kyo, 0, {})) {
-      return fail('a green sfera meets a yellow one', 'the seam was refused');
+    for (const x of [4, 5, 6, 7, 8]) lay(b, x, 0, 'B');
+    b.addMeeple(4, 0, fieldOf('B'), 0);
+    lay(b, 0, 5, 'U');
+    b.addMeeple(0, 5, roadOf('U'), 0);
+    b.rebuild();
+    for (const hue of ['green', 'blue', 'red', 'yellow']) h.m.fire(hue);
+    const all = h.players[0].score;
+    h.players[0].score = 0;
+    h.m.pending.length = 0;
+    lay(b, 0, 0, 'Kqs', 0); lay(b, 1, 0, 'Kqs', 1); lay(b, 1, 1, 'Kqs', 2); lay(b, 0, 1, 'Kqs', 3);
+    b.rebuild();
+    h.m.joinSferas();
+    if (!all || h.players[0].score !== all) return fail('the sun fires every colour', `paid ${h.players[0].score}, every colour pays ${all}`);
+
+    const k = fresh(28);
+    const kb = k.board;
+    lay(kb, -1, 0, 'B'); lay(kb, 2, 1, 'B'); lay(kb, 0, 2, 'B'); lay(kb, 5, 5, 'B');
+    kb.addMeeple(2, 1, fieldOf('B'), 0);
+    lay(kb, 0, 0, 'Kqh', 0); lay(kb, 1, 0, 'Kqh', 1); lay(kb, 1, 1, 'Kqh', 2); lay(kb, 0, 1, 'Kqh', 3);
+    kb.rebuild();
+    const deck = k.deck.length, had = k.players[0].meeples;
+    k.m.joinSferas();
+    if (kb.get(-1, 0) || kb.get(2, 1) || kb.get(0, 2) || !kb.get(5, 5) || !kb.get(0, 0)) {
+      return fail('the black hole swallows the ring round it and nothing else', JSON.stringify([...kb.cells.keys()]));
     }
-    if (!b.canPlace(0, 1, TILES.Kso, 0, {})) {
-      return fail('a green sfera meets a green one', 'the seam was refused');
-    }
+    if (k.deck.length !== deck + 3) return fail('what the black hole swallows goes back into the deck', `${deck} -> ${k.deck.length}`);
+    if (k.players[0].meeples !== had + 1) return fail('a follower the black hole swallows goes home', `${had} -> ${k.players[0].meeples}`);
   }
 
   // The end of the season fires every colour once, and nothing else. Unpaired
-  // halves used to fire again here, which made a sfera you could not place
-  // worth keeping — a consolation prize for a whole colour's worth of decision.
+  // halves used to fire again here, which made a half you could not place
+  // worth keeping.
   {
     const h = fresh(37);
     const b = h.board;
-    lay(b, 0, 0, 'Kt');                       // a temple, one tile beside it
-    lay(b, 1, 0, 'Kz');
-    b.addMeeple(0, 0, 0, 0);
+    for (const x of [0, 1, 2]) lay(b, x, 0, 'B');
+    b.addMeeple(0, 0, fieldOf('B'), 0);
     b.rebuild();
     h.m.lastRound();
     const once = h.players[0].score;
@@ -1347,13 +1398,13 @@ function checkSoffiando() {
 
     const spare = fresh(38);
     const sb = spare.board;
-    lay(sb, 0, 0, 'Kt');
-    lay(sb, 1, 0, 'Kro');                     // an unpaired RED half beside it
-    sb.addMeeple(0, 0, 0, 0);
+    for (const x of [0, 1, 2]) lay(sb, x, 0, 'B');
+    lay(sb, 0, 1, 'Kro', 2);                  // an unpaired RED half beside it, facing away
+    sb.addMeeple(0, 0, fieldOf('B'), 0);
     sb.rebuild();
     spare.m.lastRound();
-    if (spare.players[0].score !== once) {
-      return fail('an unpaired half buys nothing at the end',
+    if (spare.players[0].score < once) {
+      return fail('an unpaired half fires nothing at the end',
         `it paid ${spare.players[0].score} against ${once} without one`);
     }
   }
@@ -1426,24 +1477,72 @@ function checkSoffiando() {
     }
   }
 
-  // You may not double up on a feature you already hold, and a field with a
-  // rival's farmer on it is closed to you outright.
+  // A FIELD with anybody's farmer on it is closed to you, yours included. An
+  // OPEN ROAD OR CITY may be joined by anybody, however many are in it
+  // (2026-10-27), and a closed one by nobody.
   {
     const h = fresh(45);
     const b = h.board;
     lay(b, 0, 0, 'Kz');
     lay(b, 1, 0, 'Kz');
-    const field = TILES.Kz.feats.findIndex((f) => f.type === 'field');
+    const field = fieldOf('Kz');
     b.addMeeple(0, 0, field, 0);
     b.rebuild();
     h.current = 0;
     if (h.m.claimAllowed({ x: 1, y: 0, i: field, f: { type: 'field' } })) {
-      return fail('you may not put a second follower on your own feature', 'it was offered');
+      return fail('you may not put a second follower on your own field', 'it was offered');
     }
     h.current = 1;
     if (h.m.claimAllowed({ x: 1, y: 0, i: field, f: { type: 'field' } })) {
       return fail('a field with a rival farmer is closed to you', 'it was offered');
     }
+    const r = fresh(54);
+    const rb = r.board;
+    lay(rb, 0, 0, 'U');
+    lay(rb, 0, 1, 'U');
+    const road = roadOf('U');
+    rb.addMeeple(0, 0, road, 0);
+    rb.rebuild();
+    r.current = 1;
+    if (!r.m.claimAllowed({ x: 0, y: 1, i: road, f: { type: 'road' } })) return fail('a rival may join an open road', 'it was refused');
+    r.current = 0;
+    if (!r.m.claimAllowed({ x: 0, y: 1, i: road, f: { type: 'road' } })) return fail('you may join your own open road', 'it was refused');
+    r.phase = 'meeple';
+    r.lastPlaced = { x: 0, y: 1, type: TILES.U };
+    if (!r.meepleOptions().some((o) => o.i === road && o.y === 1)) return fail('the follower step offers a road somebody holds', 'it did not');
+    lay(rb, 0, -1, 'Kab');
+    lay(rb, 0, 2, 'Kab');
+    rb.rebuild();
+    if (r.m.claimAllowed({ x: 0, y: 1, i: road, f: { type: 'road' } })) return fail('a closed road is never claimed', 'it was allowed');
+  }
+
+  // A ROAD OR CITY CLOSED WITH NOBODY IN IT pays whoever closed it, on the
+  // spot, what its tower would (2026-10-27); one somebody holds pays the
+  // closer nothing.
+  {
+    const h = fresh(40);
+    const b = h.board;
+    lay(b, 0, 0, 'U');
+    lay(b, 0, -1, 'Kab');
+    b.rebuild();
+    h.current = 1;
+    h.m.afterPlace(lay(b, 0, 1, 'Kab'));
+    if (h.players[1].score !== 1) return fail('a road closed with nobody in it pays its closer', `paid ${h.players[1].score}`);
+    const k = fresh(41);
+    const kb = k.board;
+    lay(kb, 0, 0, 'U');
+    lay(kb, 0, -1, 'Kab');
+    kb.addMeeple(0, 0, roadOf('U'), 0);
+    kb.rebuild();
+    k.current = 1;
+    k.m.afterPlace(lay(kb, 0, 1, 'Kab'));
+    if (k.players[1].score !== 0) return fail('a road somebody holds pays its closer nothing', `paid ${k.players[1].score}`);
+  }
+
+  // FIVE FOLLOWERS each (2026-10-27).
+  {
+    const h = new Game({ mode: 'soffiando', players: 3, seed: 7 });
+    if (h.players.some((p) => p.meeples !== 5)) return fail('every player has five followers', h.players.map((p) => p.meeples).join(' '));
   }
 
   // An island you are already standing on is one you may build onto — being
@@ -1451,7 +1550,7 @@ function checkSoffiando() {
   {
     const h = fresh(46);
     const b = h.board;
-    lay(b, 0, 0, 'Kpz');
+    lay(b, 0, 0, 'Kz');
     lay(b, 0, 1, 'Kz'); lay(b, 0, 2, 'Kz');     // …so the kingdom outweighs the rock
     lay(b, 5, 5, 'Kz');
     lay(b, 5, 6, 'Kz');
@@ -1594,10 +1693,10 @@ function checkSoffiando() {
   {
     const h = fresh(14);
     const b = h.board;
-    lay(b, 0, 0, 'Kpz');                      // the mainland, far away…
+    lay(b, 0, 0, 'Kz');                      // the mainland, far away…
     lay(b, 0, 1, 'Kz'); lay(b, 0, 2, 'Kz');   // …and big enough to BE the mainland
     lay(b, 5, 5, 'DEg', 1);                   // a two-district city, adrift and walled
-    lay(b, 6, 5, 'DEt', 3);
+    lay(b, 6, 5, 'DEr', 3);
     b.addMeeple(5, 5, 0, 0);
     b.rebuild();
     h.m.settle(1);
@@ -1605,29 +1704,66 @@ function checkSoffiando() {
     h.players[1].score = 0;
     h.m.fire('blue');
     h.m.sweep();
-    // Two districts and a bonus of 1 for two kinds, walled (x2), on an island (x2).
-    if (h.players[0].score !== 12) {
+    // Two districts and a bonus of 1 for two kinds, walled (x2), and 2 for
+    // the garden; on an island (x2).
+    if (h.players[0].score !== 16) {
       return fail('a walled city on an island pays double', `paid ${h.players[0].score} for two districts`);
     }
   }
 
-  // EVERY PLAYER HAS A STICK (2026-10-26). Instead of a follower: the tile
-  // it goes against and every tile touching in front of it go a square, and
-  // everything behind stays.
+  // YOUR ZEPHYR (2026-10-27). Every turn ends with a blow: the tile it goes
+  // against and every tile touching in front of it go a square, if the push
+  // power (1, and 1 an Abbazia on the board) moves them; everything behind
+  // stays.
   {
     const h = fresh(61);
     const b = h.board;
-    for (const x of [0, 1, 2]) lay(b, x, 0, 'U');
+    for (const x of [0, 1, 2]) lay(b, x, 0, 'U', 1);
+    lay(b, 5, 5, 'Kab'); lay(b, 5, 6, 'Kab');
     b.rebuild();
-    if (h.m.clouds) return fail('the stick has taken the cloud\'s place', 'there are still clouds');
+    if (h.m.pushPower() !== 3) return fail('push power is 1, and 1 an Abbazia', `${h.m.pushPower()}`);
     h.phase = 'meeple';
-    if (!h.m.canPush() || !h.m.beginPush()) return fail('the stick can be taken up instead of a follower', 'it could not');
-    while (h.m.stickDir !== 1) h.rotate(1);           // R turns it
-    if (!h.cellClick(1, 0)) return fail('the stick goes against a tile', 'the click was refused');
+    h.current = 0;
+    h.skipMeeple();
+    if (h.phase !== 'blow' || h.current !== 0) return fail('the turn waits for its blow', `phase ${h.phase}, player ${h.current}`);
+    h.m.blowDir = 1;
+    if (!h.cellClick(1, 0)) return fail('a blow goes against a tile', 'the click was refused');
     if (!b.get(0, 0) || b.get(1, 0) || !b.get(2, 0) || !b.get(3, 0)) {
-      return fail('a push moves the train in front of the stick a square, and nothing behind it', JSON.stringify([...b.cells.keys()]));
+      return fail('a blow moves the tiles in front of it a square, and nothing behind it', JSON.stringify([...b.cells.keys()]));
     }
-    if (h.current !== 1) return fail('the push is the turn\'s follower step', `still player ${h.current}`);
+    if (h.current !== 1) return fail('the blow ends the turn', `still player ${h.current}`);
+  }
+
+  // …and a zephyr tile it pushes pushes in its turn, at its own push plus
+  // the blower's; a gust cannon fires instead; a tower holds the push still.
+  {
+    const h = fresh(63);
+    const b = h.board;
+    lay(b, 0, 0, 'B');
+    lay(b, 1, 0, 'Kz', 1);                    // a zephyr pointing east
+    lay(b, 3, 0, 'B');                        // across a gap
+    lay(b, 5, 5, 'Kab');                      // a push of 2
+    b.rebuild();
+    blowAt(h, 0, 0, 1);
+    if (b.get(1, 0)?.type.id !== 'B' || b.get(2, 0)?.type.id !== 'Kz' || b.get(3, 0) || b.get(4, 0)?.type.id !== 'B') {
+      return fail('a zephyr the blow pushes pushes in its turn', JSON.stringify([...b.cells.keys()]));
+    }
+    const c = fresh(64);
+    const cb = c.board;
+    lay(cb, 0, 0, 'B');
+    lay(cb, 1, 0, 'Kg', 1);                   // a gust cannon pointing east
+    lay(cb, 3, 0, 'B');
+    lay(cb, 5, 5, 'Kab');
+    cb.rebuild();
+    blowAt(c, 0, 0, 1);
+    if (cb.get(3, 0) || cb.get(4, 0)) return fail('a cannon fires what is in front of it further than a square', JSON.stringify([...cb.cells.keys()]));
+    const t = fresh(66);
+    const tb = t.board;
+    lay(tb, 0, 0, 'B');
+    lay(tb, 1, 0, 'Kso');
+    tb.rebuild();
+    blowAt(t, 0, 0, 1);
+    if (tb.get(0, 0)?.type.id !== 'B' || tb.get(1, 0)?.type.id !== 'Kso') return fail('a tower holds a push still', JSON.stringify([...tb.cells.keys()]));
   }
 
   // A TILE THAT NO LONGER FITS MOVES ON (2026-10-26), the way its player
@@ -1638,10 +1774,8 @@ function checkSoffiando() {
     lay(b, 0, 0, 'B'); lay(b, 1, 0, 'U');            // a road running north and south…
     lay(b, 2, 1, 'B');                               // …about to be pushed onto a field
     b.rebuild();
-    h.phase = 'meeple';
-    h.m.beginPush();
-    while (h.m.stickDir !== 1) h.rotate(1);
-    h.cellClick(1, 0);
+    h.current = 0;
+    blowAt(h, 1, 0, 1);
     if (h.phase !== 'astray' || !h.m.astrayAt || h.m.astrayAt.targets.length !== 3) {
       return fail('a pushed tile that no longer fits waits for its player to choose a way', `phase ${h.phase}, ${JSON.stringify(h.m.astrayAt?.targets)}`);
     }
@@ -1655,19 +1789,15 @@ function checkSoffiando() {
   {
     const h = fresh(65);
     const b = h.board;
-    lay(b, 4, 0, 'Kz', 1);
-    for (const y of [1, 2, 3]) lay(b, 4, y, 'B');
-    for (const x of [7, 8]) lay(b, x, 0, 'U', 1);    // an island, against the east edge
+    for (const x of [7, 8]) lay(b, x, 0, 'U', 1);    // a road against the east edge
+    lay(b, 0, 5, 'Kab');                             // a push of 2
     b.rebuild();
-    const deck = h.deck.length;
-    h.m.weather([{ dir: 1, from: { x: 4, y: 0 } }], 0);
+    blowAt(h, 7, 0, 1);
     if (b.get(8, 0)?.type.id !== 'U' || b.get(-8, 0)?.type.id !== 'U') {
       return fail('a tile blown off the east edge comes on at the west', JSON.stringify([...b.cells.keys()]));
     }
     if (b.featureOf(8, 0, 0) !== b.featureOf(-8, 0, 0)) return fail('…still joined', 'two roads');
-    if (h.deck.length !== deck || h.m.lost !== 0) {
-      return fail('…and nothing lost', `deck ${deck} -> ${h.deck.length}, lost ${h.m.lost}`);
-    }
+    if (h.m.fallen || h.m.lost) return fail('…and nothing lost', `fallen ${h.m.fallen}, lost ${h.m.lost}`);
   }
 
   // THE DECK IS A LIST of 72 (soffiando-deck.js), the lone walls among its
@@ -1675,7 +1805,7 @@ function checkSoffiando() {
   {
     const ids = (o) => { const g = new Game({ mode: 'soffiando', players: 2, seed: 5, options: o }); return [g.tile?.id, ...g.deck].filter(Boolean); };
     const lone = (id) => TILES[id].feats.some((f) => f.type === 'city' && !f.district);
-    const plain = ids({}), walled = ids({ deck: { Kce: 3, Kz: 1 } });
+    const plain = ids({}), walled = ids({ deck: { Kce: 3, Kab: 8 } });
     if (plain.length !== 72) return fail('the deck is 72 tiles', `${plain.length}`);
     if (plain.some(lone)) return fail('no lone wall is dealt by default', plain.filter(lone).join(' '));
     if (walled.filter(lone).length !== 3 || walled.length !== 72) return fail('options.deck deals what it names', `${walled.filter(lone).length} walls in ${walled.length}`);
@@ -1691,41 +1821,39 @@ function checkSoffiando() {
     }
   }
 
-  // The whale. Nothing under it moves, and nothing downwind of it moves either.
+  // The whale. No push moves its tile, so a push with it in front is too heavy.
   {
     const h = fresh(15);
     const b = h.board;
-    lay(b, 0, 0, 'Kz');                       // pointing north
     lay(b, 0, -1, 'U');
     lay(b, 0, -2, 'U');
-    b.get(0, -1).balena = true;
-    gust(b, { dir: 0, from: { x: 0, y: 0 } });
-    if (!b.get(0, -1)) return fail('the whale cannot be blown', 'its tile moved');
-    if (!b.get(0, -2)) return fail('the whale shelters its lee', 'the lee blew away');
-    // …and it swims three squares, onto tiles, and nowhere further.
+    lay(b, 5, 5, 'Kab'); lay(b, 5, 6, 'Kab');
+    b.rebuild();
+    h.m.balena = { x: 0, y: -1 };
+    h.m.settleBalena();
+    blowAt(h, 0, -1, 0);
+    if (b.get(0, -1)?.type.id !== 'U' || b.get(0, -2)?.type.id !== 'U' || b.get(0, -3)) {
+      return fail('no push moves the whale\'s tile', JSON.stringify([...b.cells.keys()]));
+    }
     h.m.balena = { x: 0, y: 0 };
     const reach = h.m.balenaTargets();
     if (!reach.some((t) => t.x === 0 && t.y === -2)) {
-      return fail('the whale swims three squares', 'it could not reach two away');
-    }
-    if (reach.some((t) => t.x === 0 && t.y === 0)) {
-      return fail('the whale has to actually move', 'it offered its own square');
+      return fail('the whale swims anywhere', 'it could not reach two away');
     }
   }
 
-  // The Palazzo goes with the wind, and the islands go with the Palazzo.
+  // THE PLAZA DOES NOTHING (2026-10-27). It was the Palazzo, and the islands
+  // went with it; a push that moves it moves nothing else.
   {
     const h = fresh(16);
     const b = h.board;
     lay(b, 0, 0, 'Kpz');
-    lay(b, 0, 1, 'Kz'); lay(b, 0, 2, 'Kz');   // …so the seat is on the mainland
     lay(b, 4, 0, 'Kz');
     lay(b, 4, 1, 'Kz');
     b.rebuild();
-    h.m.driftIslands(1);                      // east
-    if (b.get(4, 0) || b.get(4, 1)) return fail('a towed island leaves where it was', 'a tile stayed behind');
-    if (!b.get(5, 0) || !b.get(5, 1)) return fail('the whole island is towed at once', 'it came apart');
-    if (!b.get(0, 0)) return fail('the mainland is not towed with the islands', 'the seat moved too');
+    blowAt(h, 0, 0, 1);
+    if (!b.get(1, 0) || b.get(1, 0).type.id !== 'Kpz') return fail('a blow moves the Plaza like any tile', JSON.stringify([...b.cells.keys()]));
+    if (!b.get(4, 0) || !b.get(4, 1) || b.get(5, 0)) return fail('the Plaza tows nothing', JSON.stringify([...b.cells.keys()]));
   }
 
   // A flying machine crosses open sky. Reaching an island nobody has built a
@@ -1748,7 +1876,7 @@ function checkSoffiando() {
   {
     const h = fresh(17);
     const b = h.board;
-    lay(b, 0, 0, 'Kpz');
+    lay(b, 0, 0, 'Kz');
     for (const [x, y] of [[0, 1], [0, 2], [0, 3]]) lay(b, x, y, 'Kz');      // the mainland
     for (const [x, y] of [[5, 0], [5, 1], [9, 0], [9, 1]]) lay(b, x, y, 'Kz');
     b.rebuild();
@@ -1764,11 +1892,12 @@ function checkSoffiando() {
     }
   }
 
-  console.log('  ✓ mainland and islands, the four sfera passes, matched and mixed spheres,'
-    + ' district variety compounding, walls unclaimable, walls across the wind,'
-    + ' the players\' clouds, the wrapping map, the deck list,'
+  console.log('  ✓ mainland and islands, the four tower colours, towers of one colour firing once,'
+    + ' the sun and the black hole, district variety and gardens, walls unclaimable,'
+    + ' walls holding followers and not tiles, the blow, its chain, the cannon, towers holding,'
+    + ' what moves on, joining open roads, the closer paid, five followers, the wrapping map, the deck list,'
     + ' windmills, island rates, the last round, the flying machine\'s lift, the Balena (off by default),'
-    + ' towed islands, long flights, the archipelago');
+    + ' the Plaza towing nothing, long flights, the archipelago');
 }
 
 // --- runs -------------------------------------------------------------------
@@ -2593,9 +2722,9 @@ async function main() {
   for (const f of broken) fail('rulebook', f);
   if (!broken.length) console.log('  ✓ every rule in src/modes/soffiando-rulebook.js holds on the engine');
 
-  // Soffiando's stick and the tiles that move on (2026-10-26), played to
-  // the end of the season by bots, which push and choose where a tile goes.
-  console.log('\nsoffiando, the stick and what moves on');
+  // Soffiando's blow and the tiles that move on, played to the end of the
+  // season by bots, which blow every turn and choose where a tile goes.
+  console.log('\nsoffiando, the blow and what moves on');
   if (!only || only === 'soffiando') {
     runMode(MODE_OF('soffiando'), Math.max(2, games / 4), { bots: 'all' }, ' +bots');
   }

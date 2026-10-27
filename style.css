@@ -466,6 +466,29 @@ input[type="range"] { width: 110px; padding: 0; background: none; border: none; 
 /* --- log ----------------------------------------------------------------- */
 
 .log-wrap { flex: 1; min-height: 90px; display: flex; flex-direction: column; }
+.log-wrap:not([open]) { flex: none; min-height: 0; }
+
+/* --- folds: what is out of the way while you play ------------------------ */
+
+details.fold > summary {
+  cursor: pointer; list-style: none;
+  font-size: 10.5px; letter-spacing: 0.14em; text-transform: uppercase;
+  color: var(--accent); padding: 6px 0; border-top: 1px solid var(--line);
+  display: flex; gap: 6px; align-items: baseline; overflow: hidden;
+}
+details.fold > summary::-webkit-details-marker { display: none; }
+details.fold > summary::before { content: '▸'; color: var(--accent-dim); }
+details.fold[open] > summary::before { content: '▾'; }
+details.fold > summary .dim {
+  text-transform: none; letter-spacing: 0; font-size: 11px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0;
+}
+details#settings[open] { display: flex; flex-direction: column; gap: 14px; }
+.tileGrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(52px, 1fr)); gap: 6px; padding: 4px 0; }
+.tileGrid .t { display: flex; flex-direction: column; align-items: center; gap: 2px; font-size: 10.5px; color: var(--dim); }
+.tileGrid .t canvas { width: 40px; height: 40px; image-rendering: pixelated; border-radius: 3px; }
+.tileGrid .t.gone { opacity: 0.35; }
+.tileGrid .t b { color: var(--text); font-weight: 600; }
 #log { flex: 1; overflow-y: auto; font-size: 11.5px; color: var(--dim); }
 .entry { padding: 3px 0; border-bottom: 1px solid rgba(232, 222, 208, 0.045); }
 .entry:first-child { color: var(--text); }

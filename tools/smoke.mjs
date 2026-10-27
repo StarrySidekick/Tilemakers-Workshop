@@ -59,6 +59,17 @@ await page.waitForFunction(() => window.LAB && window.LAB.game);
 const modes = await page.evaluate(() => window.LAB.MODES.map((m) => ({ id: m.id, name: m.name })));
 let failures = 0;
 
+// The settings and the rules are folded away while you play (2026-10-27), so
+// the first thing is to open them, as a player would, by their summary.
+{
+  const folded = await page.evaluate(() => ['settings', 'logFold', 'tileList'].every((id) => !document.getElementById(id).open)
+    && !!document.getElementById('newGame').offsetParent);
+  await page.click('#settings > summary');
+  const open = await page.evaluate(() => document.getElementById('settings').open && !!document.getElementById('mode').offsetParent);
+  if (!folded || !open) { failures++; console.log(`  ✗ the folds: ${!folded ? 'not folded away at first, or no New game outside them' : 'the summary did not open the settings'}`); }
+  else console.log('  ✓ settings and rules folded away, New game outside, one click opens them');
+}
+
 // Everything below drives the game by hand, so the computer players have to be
 // off or they'd be taking turns underneath the script.
 await page.selectOption('#botCount', '0');
@@ -447,7 +458,7 @@ for (const [what, mode, mech, kind] of [
 }
 
 // Soffiando's wind, which is the one effect driven by the rules rather than by
-// a score: a zephyr has to actually shove the board, and the tiles it shoved
+// a score: a blow has to actually shove the board, and the tiles it shoved
 // have to be drawn sliding rather than teleporting.
 {
   errors.length = 0;
@@ -492,6 +503,19 @@ for (const [what, mode, mech, kind] of [
         if (o.length) g.placeMeeple(o[0].i, o[0]); else g.skipMeeple();
       } else if (g.phase === 'lift') {
         g.m.cancelLift();
+      } else if (g.phase === 'blow') {
+        // Every turn ends with a blow: against a tile it can move, if any.
+        let at = null;
+        for (const t of g.m.blowTargets()) {
+          for (let d = 0; d < 4 && !at; d++) if (!g.m.trainAt(t.x, t.y, d).heavy) at = { ...t, d };
+          if (at) break;
+        }
+        at = at || { ...g.m.blowTargets()[0], d: 1 };
+        g.m.blowDir = at.d;
+        g.cellClick(at.x, at.y);
+      } else if (g.phase === 'astray') {
+        const t = g.m.astrayAt.targets[0];
+        g.cellClick(t.x, t.y);
       } else if (g.phase === 'stroll') {
         // A sphere paid one of our followers and offered it a walk; decline.
         // Walks only became reachable once the host stopped overwriting them.
@@ -514,9 +538,9 @@ for (const [what, mode, mech, kind] of [
   else console.log(`  ✓ soffiando wind      ${wind.gusts} gust(s), ${wind.moved} tiles moved or lost`);
 }
 
-// Soffiando's player cloud, by hand: the button in the claim panel takes it
-// up, R turns it, and a click on a highlighted square of sky sets it down,
-// blows it, and passes the turn.
+// Soffiando's blow, by hand (2026-10-27): every turn ends with it. Skip the
+// claim, and the turn waits for the blow; R turns the zephyr; a click on a
+// tile blows, what moves on is settled, and the turn passes.
 {
   errors.length = 0;
   await page.selectOption('#mode', 'soffiando');
@@ -528,28 +552,28 @@ for (const [what, mode, mech, kind] of [
     }
   });
   const problems = [];
-  const button = page.locator('#claimActions').getByRole('button', { name: 'Push with your stick' });
-  // The panel redraws a frame after the click, so wait for the button.
-  await button.waitFor({ timeout: 3000 }).catch(() => {});
-  if (!(await button.count())) {
-    const phase = await page.evaluate(() => window.LAB.game.phase);
-    problems.push(`no stick button at the follower step (phase "${phase}")`);
-  }
+  await page.waitForTimeout(200);
+  if (await page.evaluate(() => window.LAB.game.phase === 'meeple')) await page.keyboard.press('Space');
+  const was = await page.evaluate(() => ({ phase: window.LAB.game.phase, dir: window.LAB.game.m.blowDir, current: window.LAB.game.current }));
+  if (was.phase !== 'blow') problems.push(`after the claim, the phase was "${was.phase}", not the blow`);
   else {
-    await button.click();
-    const was = await page.evaluate(() => ({ phase: window.LAB.game.phase, dir: window.LAB.game.m.stickDir }));
     await page.keyboard.press('r');
-    // Whichever way it now faces, a tile it can push, clicked on the canvas.
+    const turned = await page.evaluate(() => window.LAB.game.m.blowDir);
+    if (turned === was.dir) problems.push('R did not turn the zephyr');
+    // A tile it can move this way, clicked on the canvas.
     const t = await page.evaluate(() => {
       const g = window.LAB.game, r = window.LAB.renderer;
-      while (!g.m.stickTargets().length) g.rotate(1);
-      const q = g.m.stickTargets()[0];
+      let q = null;
+      for (let i = 0; i < 4 && !q; i++) {
+        q = g.m.blowTargets().find((t) => !g.m.trainAt(t.x, t.y).heavy) || null;
+        if (!q) g.rotate(1);
+      }
+      q = q || g.m.blowTargets()[0];
       const [sx, sy] = r.toScreen(q.x + 0.5, q.y + 0.5);
       const rect = r.canvas.getBoundingClientRect();
-      return { q, x: rect.left + sx, y: rect.top + sy, dir: g.m.stickDir, pushes: g.m.pushes };
+      return { q, x: rect.left + sx, y: rect.top + sy, blows: g.m.blows };
     });
     await page.mouse.click(t.x, t.y);
-    // A tile that no longer fits moves on: pick its first square.
     for (let i = 0; i < 6; i++) {
       const loose = await page.evaluate(() => {
         const g = window.LAB.game, r = window.LAB.renderer;
@@ -562,14 +586,24 @@ for (const [what, mode, mech, kind] of [
       if (!loose) break;
       await page.mouse.click(loose.x, loose.y);
     }
-    const after = await page.evaluate(() => ({ pushes: window.LAB.game.m.pushes, current: window.LAB.game.current, phase: window.LAB.game.phase }));
-    if (was.phase !== 'stick') problems.push(`the button led to "${was.phase}"`);
-    if (after.pushes !== t.pushes + 1) problems.push('the click did not push');
-    if (after.current !== 1) problems.push(`the turn did not pass (phase "${after.phase}")`);
+    const after = await page.evaluate(() => ({ blows: window.LAB.game.m.blows, current: window.LAB.game.current, phase: window.LAB.game.phase }));
+    if (after.blows !== t.blows + 1) problems.push('the click did not blow');
+    if (after.current === was.current) problems.push(`the turn did not pass (phase "${after.phase}")`);
+    // The tile list counts what is still to come.
+    await page.click('#tileList > summary');
+    await page.waitForTimeout(150);
+    const list = await page.evaluate(() => {
+      const g = window.LAB.game;
+      const cells = [...document.querySelectorAll('#tileGrid .t')];
+      const shown = cells.reduce((n, c) => n + Number(c.querySelector('b').textContent), 0);
+      return { cells: cells.length, shown, deck: g.deck.length };
+    });
+    if (!list.cells || list.shown !== list.deck) problems.push(`the tile list shows ${list.shown} to come, the deck has ${list.deck}`);
+    await page.click('#tileList > summary');
   }
   if (errors.length) problems.push(errors[0].split('\n')[0]);
-  if (problems.length) { failures++; console.log(`  ✗ soffiando stick: ${problems.join(' · ')}`); }
-  else console.log('  ✓ soffiando stick     taken up, turned, pushed, what moved on settled');
+  if (problems.length) { failures++; console.log(`  ✗ soffiando blow: ${problems.join(' · ')}`); }
+  else console.log('  ✓ soffiando blow      held for, turned, blown, what moved on settled, the tile list counting');
 }
 
 // The endgame tally: many features settle in one frame, and they have to be
