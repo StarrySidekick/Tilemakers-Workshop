@@ -606,6 +606,47 @@ for (const [what, mode, mech, kind] of [
   else console.log('  ✓ soffiando blow      held for, turned, blown, what moved on settled, the tile list counting');
 }
 
+// Soffiando's two faces (2026-10-27): every tile has a back, shown small
+// under the hand; a tap on it, or F, turns the tile over, and the tile list
+// draws both faces of each.
+{
+  errors.length = 0;
+  await page.selectOption('#mode', 'soffiando');
+  await page.click('#newGame');
+  await page.waitForTimeout(150);
+  const problems = [];
+  const hand = () => page.evaluate(() => ({ id: window.LAB.game.tile?.id, key: window.LAB.game.tileKey, back: !document.getElementById('previewBack').hidden, name: document.getElementById('tileName').textContent }));
+  const before = await hand();
+  if (!before.key?.includes('|')) problems.push(`the tile in hand is not two-faced (${before.key})`);
+  if (!before.back) problems.push('the back face is not shown');
+  if (!/on the back/.test(before.name)) problems.push(`the hand does not name its back (${before.name})`);
+  if (before.back) {
+    await page.click('#previewBack');
+    const flipped = await hand();
+    if (flipped.id === before.id || flipped.key !== before.key) problems.push(`a tap on the back did not turn it over (${before.id} -> ${flipped.id})`);
+    await page.keyboard.press('f');
+    const again = await hand();
+    if (again.id !== before.id) problems.push(`F did not turn it back (${again.id})`);
+  }
+  const laid = await page.evaluate(() => {
+    const g = window.LAB.game;
+    const key = g.tileKey;
+    for (const { x, y } of g.board.candidates(g.placeOpts())) {
+      for (let r = 0; r < 4; r++) { g.rot = r; if (g.canPlaceAt(x, y)) { g.cellClick(x, y); return { key, cell: g.board.get(x, y)?.key }; } }
+    }
+    return { key, cell: null };
+  });
+  if (laid.cell !== laid.key) problems.push(`the tile laid does not keep its two faces (${laid.cell} for ${laid.key})`);
+  await page.click('#tileList > summary');
+  await page.waitForTimeout(150);
+  const pairs = await page.evaluate(() => [...document.querySelectorAll('#tileGrid .t')].map((c) => c.querySelectorAll('canvas').length));
+  if (!pairs.length || pairs.some((n) => n !== 2)) problems.push(`the tile list does not draw both faces (${pairs.join(',')})`);
+  await page.click('#tileList > summary');
+  if (errors.length) problems.push(errors[0].split('\n')[0]);
+  if (problems.length) { failures++; console.log(`  ✗ soffiando faces: ${problems.join(' · ')}`); }
+  else console.log('  ✓ soffiando faces     the back shown, turned over by a tap and by F, laid two-faced, listed both ways');
+}
+
 // The endgame tally: many features settle in one frame, and they have to be
 // shown one at a time or the result is a number changing.
 {

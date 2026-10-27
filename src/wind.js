@@ -458,7 +458,7 @@ export function gust(board, {
       report.homed.push({ ...cell.meeple, x: cell.x, y: cell.y, why: 'fell' });
       cell.meeple = null;
     }
-    report.fell.push({ id: cell.type.id, x: cell.x, y: cell.y, type: cell.type, rot: cell.rot, cell, why });
+    report.fell.push({ id: cell.key || cell.type.id, x: cell.x, y: cell.y, type: cell.type, rot: cell.rot, cell, why });
     board.remove(cell.x, cell.y, { quiet: true });   // one rebuild at the end
   };
 
@@ -811,7 +811,7 @@ export function shove(board, { at, dir, most = Infinity, pinned = null }) {
         report.homed.push({ ...cell.meeple, x: cell.x, y: cell.y, why: 'fell' });
         cell.meeple = null;
       }
-      report.fell.push({ id: cell.type.id, x: cell.x, y: cell.y, type: cell.type, rot: cell.rot, cell, why: 'mismatch' });
+      report.fell.push({ id: cell.key || cell.type.id, x: cell.x, y: cell.y, type: cell.type, rot: cell.rot, cell, why: 'mismatch' });
       board.remove(cell.x, cell.y, { quiet: true });
     }
   }
@@ -868,15 +868,16 @@ export function runFrom(board, at, dir) {
  * `power`, from the tile in front of it (its own tile never moves with its
  * own push), once a way per blow; a gust cannon FIRES what is in front of it
  * instead, each tile flying until the square in front of it is taken.
- * `holds(cell)` is a tile no push can move.
+ * `holds(cell)` is a tile no push can move, and `keepOut(x, y)` a square no
+ * tile may be pushed or fired into (Soffiando keeps the big tower's 2x2).
  */
-export function blow(board, { at, dir, power = 1, holds = null, cap = 64 }) {
+export function blow(board, { at, dir, power = 1, holds = null, keepOut = null, cap = 64 }) {
   const out = [];
   const fired = new Map();                         // zephyr cell -> ways it has pushed
   const queue = [{ at, dir, power, blast: false, by: null }];
   while (queue.length && out.length < cap) {
     const job = queue.shift();
-    const r = pushOnce(board, job, holds);
+    const r = pushOnce(board, job, holds, keepOut);
     out.push(r);
     for (const m of r.moved) {
       const z = m.cell;
@@ -897,7 +898,7 @@ export function blow(board, { at, dir, power = 1, holds = null, cap = 64 }) {
   return out;
 }
 
-function pushOnce(board, job, holds) {
+function pushOnce(board, job, holds, keepOut) {
   const { dir, power, blast, by } = job;
   const [dx, dy] = SIDE_STEP[dir];
   if (by) job.at = board.get(by.x, by.y) === by ? board.norm(by.x + dx, by.y + dy) : { x: NaN, y: NaN };
@@ -909,7 +910,10 @@ function pushOnce(board, job, holds) {
   };
   const { cells: run, ring } = runFrom(board, job.at, dir);
   if (!run.length) return report;
-  const heavy = ring || run.length > power || run.some((c) => immovable(c) || (!!holds && holds(c)));
+  const last = run[run.length - 1];
+  const gap = board.norm(last.x + dx, last.y + dy);
+  const heavy = ring || run.length > power || run.some((c) => immovable(c) || (!!holds && holds(c)))
+    || (!!keepOut && keepOut(gap.x, gap.y));
   report.heavy = heavy;
   report.reached = heavy ? run.slice(0, power) : run.slice();
   for (const c of report.reached) if (turbineOn(c)) report.turbines.push(c);
@@ -927,6 +931,7 @@ function pushOnce(board, job, holds) {
         while (steps < lap) {
           const n = board.norm(was.x + dx * (steps + 1), was.y + dy * (steps + 1));
           if (board.get(n.x, n.y) || (board.bounds && !board.wraps && !board.inBounds(n.x, n.y))) break;
+          if (keepOut && keepOut(n.x, n.y)) break;
           steps++;
         }
       }

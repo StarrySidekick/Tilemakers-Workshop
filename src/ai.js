@@ -34,7 +34,7 @@
 // the depth.
 // ---------------------------------------------------------------------------
 
-import { TILES, BACKS, NO_MEEPLE, SIDE_STEP } from './tiles.js';
+import { NO_MEEPLE, SIDE_STEP, faceOf } from './tiles.js';
 import { keyOf } from './board.js';
 import { rotatePiece } from './pieces.js';
 import { liftableCells, citiesTouching } from './mechanics.js';
@@ -171,7 +171,7 @@ export class Bot {
     const discards = g.spec.marketDiscards !== false;
     let best = null;
     g.market.forEach((id, i) => {
-      const spot = this.survey(TILES[id]);
+      const spot = this.survey(faceOf(id));
       if (!spot) return;
       const value = spot.value - (discards ? i * 1.2 : 0);
       if (!best || value > best.value) best = { i, value };
@@ -192,11 +192,19 @@ export class Bot {
     let best = this.survey(g.tile);
 
     // Two-faced tiles: a road on one side is a city on the other, so the
-    // question is only ever "is the other face worth more here".
-    if (this.level.verbs && g.canFlip()) {
-      const back = BACKS[g.tile.id] ? TILES[BACKS[g.tile.id]] : null;
+    // question is only ever "is the other face worth more here". A deck that
+    // is two-faced through and through (Soffiando's) is a choice every turn,
+    // at every level, and the better face wins by any margin.
+    const own = String(g.tileKey || '').includes('|');
+    if ((this.level.verbs || own) && g.canFlip()) {
+      const back = g.backFace();
       const other = back ? this.survey(back) : null;
-      if (other && (!best || other.value > best.value + 1.5) && g.flipTile()) return;
+      if (other && (!best || other.value > best.value + (own ? 0 : 1.5)) && g.flipTile()) {
+        // Laid at once, face chosen: surveying again next step only costs
+        // time, and with a jittered survey could turn it back.
+        if (!own) return;
+        best = other;
+      }
     }
 
     if (!best) {

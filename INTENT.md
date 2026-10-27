@@ -88,6 +88,23 @@ on scoring after all this": towers hardly close under these rules, so
 followers rarely come home and half the points are for closing what nobody
 holds (MODES.md, twenty-eighth pass). Merged on his word ("merge").
 
+Later the same day: "let a blow move tower halves. also make it so you must
+place a sun or black hole attached correctly to another, so there
+completion is inevitable. - also, much larger change make tiles double
+sided, and you choose what side to play when you place them. the sun and
+void tiles are actually the same four tiles just with the sun quarter one
+side and the black hole on the other. this also basically means that there
+are 72 tiles in the game but 72x2 of tiles faces to play." Asked, he chose
+opposites for the backs (a road onto a district of its shape, a zephyr onto
+a tower half, a windmill or flying machine onto an Abbazia), the four places
+the big tower gave back as four more tower halves, and quarters whose outer
+edges take anything so one always fits its 2x2. Then: "there has to be
+eight tiles becuase there needs to be the choice of what to build and both
+need to be present by the end of the game ... if a sun is already made then
+you have to make a black hole, and vice versa", and walls on the quarters'
+field sides "so they can be placed sort of no matter what". That is the
+twenty-ninth pass, merged on his word ("merge").
+
 **Fields: settled 2026-09-06, and Timothy was right.** They are fully built.
 `src/tiles.js` cuts the perimeter into eight half-edges with `halfPartner` as the
 joining rule; fields are ordinary components; `allFields`, `citiesFed` and

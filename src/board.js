@@ -181,10 +181,15 @@ export class Board {
    *          adrift is still on the board, still blowable, still scoring — it
    *          just can't be reached with a tile in your hand.
    */
-  canPlace(x, y, type, rot, { free = false, cover = false, onto = null } = {}) {
+  canPlace(x, y, type, rot, { free = false, cover = false, onto = null, judge = null } = {}) {
     ({ x, y } = this.norm(x, y));
     if (!this.inBounds(x, y)) return false;
     if (this.cells.has(keyOf(x, y)) && !cover) return false;
+    // A mode's own say for a tile it has rules of its own about (Soffiando's
+    // big tower quarters): true or false settles it, anything else leaves it
+    // to the rules below.
+    const said = judge?.(x, y, type, rot);
+    if (said === true || said === false) return said;
     if (onto && this.size > 0) {
       let reaches = false;
       for (let s = 0; s < 4 && !reaches; s++) {
@@ -541,13 +546,14 @@ export class Board {
    * Place a tile. Assumes canPlace() already said yes.
    *   over   stack on top of whatever is here (Strata), keeping it underneath
    */
-  place(x, y, type, rot, { over = false, owner = null } = {}) {
+  place(x, y, type, rot, { over = false, owner = null, key = null } = {}) {
     this.version++;
     ({ x, y } = this.norm(x, y));
     const k = keyOf(x, y);
     const under = over ? this.cells.get(k) || null : null;
     const cell = {
       x, y, type, rot,
+      key: key || type.id,   // its deck entry: a two-faced tile is "front|back"
       meeple: null,
       seq: this.seq++,
       owner,                 // who laid it — banners, foundations, drift

@@ -344,6 +344,23 @@ a { color: var(--accent-dim); }
   background: #0d0b11;
 }
 
+/* The face on the back of a two-faced tile, tucked under the hand's corner. */
+.preview-wrap { position: relative; flex: none; }
+#previewBack {
+  position: absolute;
+  right: -10px;
+  bottom: -10px;
+  width: 40px;
+  height: 40px;
+  border-radius: 4px;
+  border: 1px solid var(--line);
+  background: #0d0b11;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.6);
+  image-rendering: pixelated;
+  cursor: pointer;
+}
+#previewBack[hidden] { display: none; }
+
 .hand-meta { flex: 1; min-width: 0; }
 .hand-meta > div:first-child { font-weight: 600; font-size: 13px; }
 
@@ -484,9 +501,10 @@ details.fold > summary .dim {
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0;
 }
 details#settings[open] { display: flex; flex-direction: column; gap: 14px; }
-.tileGrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(52px, 1fr)); gap: 6px; padding: 4px 0; }
+.tileGrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(76px, 1fr)); gap: 6px; padding: 4px 0; }
 .tileGrid .t { display: flex; flex-direction: column; align-items: center; gap: 2px; font-size: 10.5px; color: var(--dim); }
-.tileGrid .t canvas { width: 40px; height: 40px; image-rendering: pixelated; border-radius: 3px; }
+.tileGrid .t .faces { display: flex; gap: 2px; }
+.tileGrid .t canvas { width: 36px; height: 36px; image-rendering: pixelated; border-radius: 3px; }
 .tileGrid .t.gone { opacity: 0.35; }
 .tileGrid .t b { color: var(--text); font-weight: 600; }
 #log { flex: 1; overflow-y: auto; font-size: 11.5px; color: var(--dim); }

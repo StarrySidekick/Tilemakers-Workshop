@@ -25,7 +25,7 @@ import { Designer } from './designer.js';
 import { THEME, usePalette } from './theme.js';
 import { clearSprites, setSpriteCap } from './sprites.js';
 import { pixelTile } from './pixel.js';
-import { TILE_TYPES, TILES, GROUPS, rotPoint } from './tiles.js';
+import { TILE_TYPES, TILES, GROUPS, rotPoint, faceOf, otherFace } from './tiles.js';
 import { Sfx, SOUND_NAMES } from './audio.js';
 import { Effects } from './fx.js';
 import { VERSION } from './version.js';
@@ -364,6 +364,21 @@ function turnPending(dir = 1) {
   return true;
 }
 
+/**
+ * Turn the tile in hand over. A staged tile is staged again on the same
+ * square with the other face, turned to a way it fits there, or let go if it
+ * fits there no way at all.
+ */
+function flipInHand() {
+  if (botTurn() || !game.flipTile()) return false;
+  if (pending) {
+    const { x, y } = pending;
+    clearPending();
+    stagePending(x, y);
+  }
+  return true;
+}
+
 /** Lock it in. This is the one place a staged tile reaches the engine. */
 function commitPending() {
   if (!pending) return false;
@@ -593,7 +608,7 @@ window.addEventListener('keydown', (e) => {
     if (pending) turnPending(e.shiftKey ? -1 : 1);
     else game.rotate(e.shiftKey ? -1 : 1);
   }
-  if (e.key === 'f' || e.key === 'F') game.flipTile();
+  if (e.key === 'f' || e.key === 'F') flipInHand();
   if (e.key === ' ') {
     e.preventDefault();
     if (game.phase === 'meeple') game.skipMeeple();
@@ -640,7 +655,7 @@ $('debug').onchange = (e) => { renderer.showDebug = e.target.checked; };
 $('forceTile').onchange = (e) => {
   game.forcedNext = e.target.value || null;
   if (game.forcedNext && game.phase === 'place' && game.tile) {
-    game.deck.push(game.tile.id);
+    game.deck.push(game.tileKey || game.tile.id);
     game.drawTile();
   }
 };
@@ -969,6 +984,8 @@ for (const id of ['preview', 'hudTile']) {
   el.addEventListener('pointerup', dropTile);
   el.addEventListener('pointercancel', () => { dragging = null; renderer.hover = null; });
 }
+// The face on the back: a tap turns the tile over (Soffiando's tiles all have two).
+$('previewBack').addEventListener('click', flipInHand);
 // The pointer leaves the little canvas almost immediately, so the move and up
 // that matter arrive on the window.
 window.addEventListener('pointermove', dragTo);
@@ -1236,7 +1253,7 @@ function countIds(ids) {
 }
 
 function startTileList() {
-  tileTotals = countIds([game.tile?.id, ...game.deck]);
+  tileTotals = countIds([game.tile ? game.tileKey || game.tile.id : null, ...game.deck]);
   tileGridFor = null;
 }
 
@@ -1249,20 +1266,27 @@ function renderTileList() {
   if (tileGridFor !== game) {
     tileGridFor = game;
     grid.innerHTML = '';
+    // A two-faced tile ("front|back") is one entry, both its faces drawn.
     const order = new Map(TILE_TYPES.map((t, i) => [t.id, i]));
-    for (const id of [...tileTotals.keys()].sort((a, b) => (order.get(a) ?? 1e9) - (order.get(b) ?? 1e9))) {
-      const type = TILES[id];
-      if (!type) continue;
+    const rank = (k) => order.get(faceOf(k)?.id) ?? 1e9;
+    for (const id of [...tileTotals.keys()].sort((a, b) => rank(a) - rank(b))) {
+      const faces = [faceOf(id), otherFace(id)].filter(Boolean);
+      if (!faces.length) continue;
       const cell = document.createElement('div');
-      cell.className = 't';
+      cell.className = faces.length > 1 ? 't two' : 't';
       cell.dataset.id = id;
-      cell.title = type.name;
-      const c = document.createElement('canvas');
-      c.width = c.height = 51;
-      const x = c.getContext('2d');
-      x.save(); x.scale(51, 51); drawTileInked(x, type, { rot: 0, look: 0 }); x.restore();
+      cell.title = faces.map((t) => t.name).join(' / ');
+      const pics = document.createElement('div');
+      pics.className = 'faces';
+      for (const type of faces) {
+        const c = document.createElement('canvas');
+        c.width = c.height = 51;
+        const x = c.getContext('2d');
+        x.save(); x.scale(51, 51); drawTileInked(x, type, { rot: 0, look: 0 }); x.restore();
+        pics.append(c);
+      }
       const n = document.createElement('span');
-      cell.append(c, n);
+      cell.append(pics, n);
       grid.append(cell);
     }
   }
@@ -1325,6 +1349,25 @@ function drawPreview() {
   c.scale(size, size);
   drawTileInked(c, cur.type, { terrain: cur.terrain, rot: cur.rot });
   c.restore();
+  drawBack(cur);
+}
+
+/** The face on the back of the tile in hand, small, turned as the front is. */
+function drawBack(cur) {
+  const el = $('previewBack');
+  const back = cur && !cur.laid && !cur.piece && game.canFlip() ? game.backFace() : null;
+  el.hidden = !back;
+  if (!back) return;
+  const b = el.getContext('2d');
+  const size = el.width;
+  b.clearRect(0, 0, size, size);
+  b.save();
+  b.translate(size / 2, size / 2);
+  b.rotate(cur.rot * Math.PI / 2);
+  b.translate(-size / 2, -size / 2);
+  b.scale(size, size);
+  drawTileInked(b, back, { terrain: cur.terrain, rot: cur.rot });
+  b.restore();
 }
 
 /**
@@ -1451,7 +1494,7 @@ function renderActions() {
   }
 
   if (game.phase === 'place' || game.phase === 'interior-place') add('Rotate', 'R', () => game.rotate(1));
-  if (game.canFlip()) add('Flip it over', 'F', () => game.flipTile());
+  if (game.canFlip()) add('Turn it over', 'F', flipInHand);
   if (game.canPlayAbbey()) add(`Play your abbey (${game.player.abbeys})`, '', () => game.playAbbey());
   if (game.canLiftNow()) add('Lift a placed tile', 'L', () => game.beginLift());
   if (game.phase === 'lift') add('Cancel lift', '', () => game.cancelLift());
@@ -1594,7 +1637,7 @@ function syncPanel() {
   const cur = currentTile();
   $('tileName').textContent = cur
     ? (cur.piece ? `${cur.piece.name} · ${cur.piece.cells.length} cells`
-      : cur.type ? `${cur.type.id} · ${cur.type.name}` : '—')
+      : cur.type ? `${cur.type.id} · ${cur.type.name}${!cur.laid && game.canFlip() ? ` (on the back: ${game.backFace().name})` : ''}` : '—')
     : '—';
   const status = game.m.status();
   const doing = botTurn() ? `${game.player.name} is playing` : (PHASE_TEXT[game.phase] || '—');
