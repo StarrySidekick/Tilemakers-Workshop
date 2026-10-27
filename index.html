@@ -78,6 +78,19 @@
 
       <section id="scores"></section>
 
+      <!-- Every tile in the game and how many are still to come. -->
+      <details id="tileList" class="fold">
+        <summary>Tiles <span id="tileListLeft" class="dim"></span></summary>
+        <div id="tileGrid" class="tileGrid"></div>
+      </details>
+
+      <button id="newGame" class="primary">New game</button>
+
+      <!-- Everything you set before a game, and the rules in words: out of the
+           way while you play, one click to open (kept open or shut per browser). -->
+      <details id="settings" class="fold">
+        <summary>Settings &amp; rules</summary>
+
       <section class="tools">
         <h2>Game</h2>
         <label class="row">Mode
@@ -109,7 +122,6 @@
           </select>
         </label>
         <div id="modeSwitches" class="switches"></div>
-        <button id="newGame" class="primary">New game</button>
         <button id="export">Export the chronicle</button>
         <button id="relief" title="The board you have built, standing up: every town, wall and cloister in 3D. Opens in a new tab.">View the board in relief</button>
         <p class="hint" id="modeHint"></p>
@@ -167,10 +179,12 @@
         </label>
       </section>
 
-      <section class="log-wrap">
-        <h2>Log</h2>
+      </details>
+
+      <details id="logFold" class="fold log-wrap">
+        <summary>Log <span id="logLast" class="dim"></span></summary>
         <div id="log"></div>
-      </section>
+      </details>
 
       <footer class="dim">
         drag to pan · scroll to zoom · <kbd>R</kbd> rotate · <kbd>F</kbd> flip · <kbd>1</kbd>–<kbd>4</kbd> pick

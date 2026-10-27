@@ -157,6 +157,7 @@ const FOLLOWERS = 5;         // each (Timothy, 2026-10-27: "you only have 5 meep
 const SUPPLY = FOLLOWERS;    // …which is what the panel draws
 const BASE_PUSH = 1;         // everybody's push power with no Abbazia on the board
 const GARDEN = 2;            // blue, per garden district in a city, open or closed
+const MOVE_ON_PAUSE = 260;   // ms between the ring on a tile that no longer fits and its slide
 
 /**
  * What everything pays, on the mainland and out on an island — and everything
@@ -1251,10 +1252,12 @@ export class Soffiando extends Mode {
     this.blowing = true;
     this.stormAt = 0;
     this.stormN = 0;
+    this.slidesEnd = 0;
     this.blame = g.current;
     try {
       const reports = blow(g.board, { at: { x, y }, dir, power, holds: (c) => this.holds(c) });
       for (const r of reports) this.applyGust(r);
+      this.windUntil(this.slidesEnd);
       this.settleBalena();
       this.reopen();
       this.settle(g.current);
@@ -1378,12 +1381,28 @@ export class Soffiando extends Mode {
     g.board.rebuild();
     this.movedOn++;
     g.say(`The tile at (${from.x}, ${from.y}) no longer fits, and moves on ${t.n} square${t.n > 1 ? 's' : ''} ${DIR_NAMES[t.dir]}.`);
-    g.emit('gust', { dir: t.dir, delay: 120, moves: [this.slide(cell, from, t.dir, t.n)], fell: [] });
+    // On screen, after the push that moved it has landed: a ring on it, then
+    // the slide. They used to start together, and the tile seemed to jump.
+    const wait = this.afterWind();
+    g.emit('wake', { at: { x: from.x + 0.5, y: from.y + 0.5 }, delay: wait });
+    g.emit('gust', { dir: t.dir, delay: wait + MOVE_ON_PAUSE, hold: wait, moves: [this.slide(cell, from, t.dir, t.n)], fell: [] });
+    this.windUntil(wait + MOVE_ON_PAUSE + DESIGN.storm.tileGlide);
     this.settleBalena();
     this.reopen();
     this.settle(g.current);
     this.joinSferas();
   }
+
+  /**
+   * How long, from now, until the wind on screen has finished: what moves on
+   * waits for it, so each step can be watched. `windUntil` sets it.
+   */
+  afterWind() {
+    const c = this.stormClock;
+    return c ? Math.max(0, c.until - (Date.now() - c.at)) : 0;
+  }
+
+  windUntil(ms) { this.stormClock = { at: Date.now(), until: ms }; }
 
   /** A loose tile with every way blocked falls, back on top of the deck. */
   fallLoose(cell) {
@@ -1399,7 +1418,7 @@ export class Soffiando extends Mode {
     g.deck.push(cell.type.id);
     this.fallen++;
     g.say(`The tile at (${fell.x}, ${fell.y}) no longer fits and has nowhere to go: it falls, back to the top of the deck.`);
-    g.emit('gust', { dir: 0, delay: 120, moves: [], fell: [fell] });
+    g.emit('gust', { dir: 0, delay: this.afterWind() + 120, moves: [], fell: [fell] });
     // Out of the sky by your own hand: one more tile this turn (rule 9).
     if (!this.caught) {
       this.caught = true;
@@ -1608,6 +1627,8 @@ export class Soffiando extends Mode {
       moves: r.moved.map((m) => this.slide(m.cell, m.from, r.dir, m.steps)),
       fell: r.fell.map((f) => ({ x: f.x, y: f.y, type: f.type, rot: f.rot, look: f.cell?.seq })),
     });
+    // When the last slide of this blow lands: what moves on starts then.
+    this.slidesEnd = Math.max(this.slidesEnd || 0, at + 140 + DESIGN.storm.tileGlide);
     if (r.moved.length) {
       g.say(`${who} ${r.blast ? 'fires' : 'pushes'} ${r.moved.length} tile${r.moved.length > 1 ? 's' : ''} ${DIR_NAMES[r.dir]}`
         + `${r.blast ? '' : ' a square'}.`);

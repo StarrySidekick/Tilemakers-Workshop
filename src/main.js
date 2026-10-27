@@ -270,6 +270,7 @@ function newGame() {
   // map like Soffiando's 16 x 16 starts at the usual size on the middle.
   const b = spec(mode)?.bounds;
   renderer.cam.zoom = b && b.maxX - b.minX < 12 ? 78 : 96;
+  startTileList();
   syncPanel();
 }
 
@@ -1203,6 +1204,76 @@ $('claimTile').addEventListener('pointerdown', (e) => {
 
 // --- side panel -------------------------------------------------------------
 
+// What is folded away while you play: the settings and rules, the log, the
+// tile list. Each remembers whether you left it open, in this browser.
+const FOLDS_KEY = 'tilemakers-workshop/folds';
+for (const id of ['settings', 'logFold', 'tileList']) {
+  let kept = {};
+  try { kept = JSON.parse(localStorage.getItem(FOLDS_KEY) || '{}'); } catch { /* none kept */ }
+  if (kept[id] != null) $(id).open = kept[id];
+  $(id).addEventListener('toggle', () => {
+    try {
+      const now = JSON.parse(localStorage.getItem(FOLDS_KEY) || '{}');
+      now[id] = $(id).open;
+      localStorage.setItem(FOLDS_KEY, JSON.stringify(now));
+    } catch { /* storage is a convenience */ }
+    if (game) syncPanel();
+  });
+}
+
+// THE TILE LIST: every kind of tile the game started with, how many there
+// were and how many are still to come (Timothy, 2026-10-27: "we need a tile
+// list and remain tile list element to it for the game"). Counted off the
+// deck, so a tile that falls back onto it, or that the black hole swallows,
+// is to come again.
+let tileTotals = new Map();
+let tileGridFor = null;
+
+function countIds(ids) {
+  const out = new Map();
+  for (const id of ids) if (id) out.set(id, (out.get(id) || 0) + 1);
+  return out;
+}
+
+function startTileList() {
+  tileTotals = countIds([game.tile?.id, ...game.deck]);
+  tileGridFor = null;
+}
+
+function renderTileList() {
+  if (!game || game.interior) return;
+  const left = countIds(game.deck);
+  $('tileListLeft').textContent = `${game.deck.length} to come of ${[...tileTotals.values()].reduce((a, b) => a + b, 0)}`;
+  if (!$('tileList').open) return;
+  const grid = $('tileGrid');
+  if (tileGridFor !== game) {
+    tileGridFor = game;
+    grid.innerHTML = '';
+    const order = new Map(TILE_TYPES.map((t, i) => [t.id, i]));
+    for (const id of [...tileTotals.keys()].sort((a, b) => (order.get(a) ?? 1e9) - (order.get(b) ?? 1e9))) {
+      const type = TILES[id];
+      if (!type) continue;
+      const cell = document.createElement('div');
+      cell.className = 't';
+      cell.dataset.id = id;
+      cell.title = type.name;
+      const c = document.createElement('canvas');
+      c.width = c.height = 51;
+      const x = c.getContext('2d');
+      x.save(); x.scale(51, 51); drawTileInked(x, type, { rot: 0, look: 0 }); x.restore();
+      const n = document.createElement('span');
+      cell.append(c, n);
+      grid.append(cell);
+    }
+  }
+  for (const cell of grid.children) {
+    const id = cell.dataset.id;
+    const n = left.get(id) || 0;
+    cell.classList.toggle('gone', n === 0);
+    cell.lastChild.innerHTML = `<b>${n}</b>/${tileTotals.get(id)}`;
+  }
+}
+
 const previewCtx = $('preview').getContext('2d');
 
 function currentTile() {
@@ -1529,6 +1600,8 @@ function syncPanel() {
   const doing = botTurn() ? `${game.player.name} is playing` : (PHASE_TEXT[game.phase] || '—');
   $('phase').textContent = doing + (status ? ` · ${status}` : '');
   $('log').innerHTML = game.log.map((l) => `<div class="entry">${l}</div>`).join('');
+  $('logLast').textContent = $('logFold').open ? '' : (game.log[0] || '').replace(/<[^>]*>/g, '');
+  renderTileList();
   $('export').style.display = game.m.toMarkdown ? '' : 'none';
   renderMarket();
   renderActions();
@@ -1743,6 +1816,7 @@ game = bind(new Game({
 }));
 game.free = $('freePlace').checked;
 buildBots();
+startTileList();
 syncPanel();
 paintCss();
 frame();

@@ -1759,6 +1759,7 @@ export class Renderer {
       // it has to be drawn sitting at its origin or it blinks out of the
       // world. t clamps to 0, which is exactly that.
       if (now < e.born && e.kind !== 'tile' && e.kind !== 'fall') continue;
+      if (e.show && now < e.show) continue;
       const t = Math.min(1, Math.max(0, (now - e.born) / e.life));
       switch (e.kind) {
         case 'float': {

@@ -53,12 +53,14 @@ export const INK = {
   aether: '#2b2752', aetherDot: '#6f68b0', aetherSwirl: '#3d3770',
 };
 
-/** Each sfera colour as [body, rim and ring, highlight]. */
+/** Each tower colour as [body, rim and ring, highlight]: the round interior. */
 const HUE = {
   green: ['#66c46b', '#2f7f48', '#bdeeb4'],
   blue: ['#5d98ea', '#2d58a8', '#c3dcfb'],
   red: ['#e8626c', '#9e2f47', '#f9c3c6'],
   yellow: ['#f4cf4f', '#a87b14', '#fff0b8'],
+  sun: ['#f9b83a', '#d0661f', '#fff2ae'],
+  hole: ['#231a3f', '#8a6fe0', '#c9b8ff'],
 };
 
 // --- seeded randomness: the same tile is the same drawing, forever ----------
@@ -908,15 +910,96 @@ function furnishDistrict(p, kind) {
 }
 
 /** Half of a sphere on side `side`. Its rings close into full rings across the seam. */
+/**
+ * Half a TOWER (2026-10-27; a sfera until then, "and look different but they
+ * still have the colors and the round interior"): a round stone tower seen
+ * from above, cut in half by the tile's edge, battlements on its rim and its
+ * colour inside. Two halves meeting draw one whole tower.
+ */
 function paintSfera(p, side, hue) {
   const [body, rim, light] = HUE[hue] || HUE.green;
   const [cx, cy] = SIDE_MID[side];
-  p.layer(INK.ink, (pen) => pen.disc(cx, cy, 13.5), { cut: 128 });
-  p.layer(body, (pen) => pen.disc(cx, cy, 11.5), { cut: 128 });
-  p.layer(rim, (pen) => pen.arc(cx, cy, 7, 0, Math.PI * 2, { width: 2, wobble: 0 }), { cut: 120 });
+  p.layer(INK.ink, (pen) => pen.disc(cx, cy, 15.5), { cut: 128 });
+  p.layer(INK.stone, (pen) => pen.disc(cx, cy, 13.5), { cut: 128 });
+  // Battlements: notches cut into the rim, every eighth of a turn.
+  p.layer(INK.ink, (pen) => {
+    for (let i = 0; i < 16; i += 2) {
+      const a = (i + 0.5) * Math.PI / 8;
+      pen.rect(Math.round(cx + Math.cos(a) * 12.5 - 1), Math.round(cy + Math.sin(a) * 12.5 - 1), 2, 2);
+    }
+  }, { cut: 128 });
+  p.layer(INK.ink, (pen) => pen.disc(cx, cy, 9.5), { cut: 128 });
+  p.layer(body, (pen) => pen.disc(cx, cy, 8), { cut: 128 });
+  p.layer(rim, (pen) => pen.arc(cx, cy, 5, 0, Math.PI * 2, { width: 2, wobble: 0 }), { cut: 120 });
   // A lit crescent, turned with the side so every half catches the same light.
   const a = SIDE_ANGLE[side] + Math.PI;
-  p.layer(light, (pen) => pen.arc(cx, cy, 9.5, a - 0.9, a - 0.25, { width: 2, wobble: 0 }), { cut: 120 });
+  p.layer(light, (pen) => pen.arc(cx, cy, 6.5, a - 0.9, a - 0.25, { width: 2, wobble: 0 }), { cut: 120 });
+}
+
+/**
+ * A quarter of a BIG tower, the sun's or the black hole's: the same round
+ * stone tower at four times the size, its centre on the tile's corner between
+ * side `c` and the side after it, so four tiles make one 2x2 tower.
+ */
+function paintQuarter(p, c, hue) {
+  const [body, rim, light] = HUE[hue] || HUE.sun;
+  const corner = [[PX, 0], [PX, PX], [0, PX], [0, 0]][c];
+  const [cx, cy] = corner;
+  p.layer(INK.ink, (pen) => pen.disc(cx, cy, 44.5), { cut: 128 });
+  p.layer(INK.stone, (pen) => pen.disc(cx, cy, 42.5), { cut: 128 });
+  p.layer(INK.ink, (pen) => {
+    for (let i = 0; i < 48; i += 2) {
+      const a = (i + 0.5) * Math.PI / 24;
+      pen.rect(Math.round(cx + Math.cos(a) * 41.5 - 1), Math.round(cy + Math.sin(a) * 41.5 - 1), 2, 2);
+    }
+  }, { cut: 128 });
+  p.layer(INK.ink, (pen) => pen.disc(cx, cy, 36.5), { cut: 128 });
+  p.layer(body, (pen) => pen.disc(cx, cy, 35), { cut: 128 });
+  if (hue === 'hole') {
+    // The black hole: a dark heart, a bright ring of what it is pulling in,
+    // and stars caught in its swirl.
+    p.layer(rim, (pen) => pen.arc(cx, cy, 24, 0, Math.PI * 2, { width: 3, wobble: 0 }), { cut: 120 });
+    p.layer(light, (pen) => pen.arc(cx, cy, 30, 0, Math.PI * 2, { width: 1, wobble: 0 }), { cut: 120 });
+    p.layer('#0f0a20', (pen) => pen.disc(cx, cy, 15), { cut: 128 });
+    p.layer(light, (pen) => {
+      for (const [r, a] of [[19, 0.3], [28, 1.0], [33, 0.6], [21, 1.3], [31, 0.15]]) {
+        for (let q = 0; q < 4; q++) pen.rect(Math.round(cx + Math.cos(a + q * Math.PI / 2) * r), Math.round(cy + Math.sin(a + q * Math.PI / 2) * r), 1, 1);
+      }
+    }, { cut: 100 });
+  } else {
+    // The sun: rays out of a bright face.
+    p.layer(rim, (pen) => {
+      for (let i = 0; i < 24; i++) {
+        const a = i * Math.PI / 12;
+        pen.line(cx + Math.cos(a) * 18, cy + Math.sin(a) * 18, cx + Math.cos(a) * 31, cy + Math.sin(a) * 31, { width: 2, wobble: 0 });
+      }
+    }, { cut: 120 });
+    p.layer(light, (pen) => pen.disc(cx, cy, 16), { cut: 128 });
+    p.layer(body, (pen) => pen.arc(cx, cy, 12, 0, Math.PI * 2, { width: 2, wobble: 0 }), { cut: 120 });
+  }
+}
+
+/**
+ * THE PLAZA (2026-10-27; the Palazzo until then): the tile the game starts
+ * on, a broad paved square where the four roads end, a fountain in the middle
+ * and a lamp on each corner of it. No houses: it is the open space a town
+ * gathers round.
+ */
+function paintPlaza(p) {
+  p.layer(INK.kerb, (pen) => pen.rect(MID - 16.5, MID - 16.5, 33, 33), { cut: 128 });
+  p.layer(INK.road, (pen) => pen.rect(MID - 14.5, MID - 14.5, 29, 29), { cut: 128 });
+  // Flagstones: a ring of lighter stones round the fountain, and the grid.
+  p.layer('#f3dfae', (pen) => {
+    for (let x = -12; x <= 12; x += 4) for (let y = -12; y <= 12; y += 4) {
+      if (Math.abs(x) < 9 && Math.abs(y) < 9) continue;
+      pen.rect(MID - 0.5 + x, MID - 0.5 + y, 1, 1);
+    }
+  }, { cut: 128 });
+  p.layer(INK.kerb, (pen) => pen.arc(MID, MID, 10, 0, Math.PI * 2, { width: 1, wobble: 0 }), { cut: 120 });
+  paintFountain(p);
+  for (const [dx, dy] of [[-12, -12], [12, -12], [-12, 12], [12, 12]]) {
+    p.stand([MID + dx, MID + dy], 3, (q, x, y) => T.lamp.draw(q, x, y));
+  }
 }
 
 /** A temple: steps, a colonnade, a gold pediment with a pennant on it. */
@@ -1025,44 +1108,6 @@ function paintCannon(p, mark) {
       });
     }
   }, { cut: 128 });
-}
-
-/**
- * The Palazzo: a gold dome between two towers, sitting in its city. The one
- * tile that is allowed to be grand, with a pair of scrolls at its feet like
- * every crafted thing in Composer's Key.
- */
-function paintPalazzo(p, cx, base) {
-  cx = Math.round(cx - 0.5) + 0.5; base = Math.round(base - 0.5) + 0.5;
-  p.layer(INK.ink, (pen) => {
-    pen.rect(cx - 9.5, base - 9, 19, 10);
-    pen.disc(cx, base - 9, 7.5);
-    pen.rect(cx - 15.5, base - 13, 7, 14);
-    pen.rect(cx + 8.5, base - 13, 7, 14);
-    pen.fill([[cx - 16.5, base - 12], [cx - 12, base - 19], [cx - 7.5, base - 12]]);
-    pen.fill([[cx + 7.5, base - 12], [cx + 12, base - 19], [cx + 16.5, base - 12]]);
-    pen.line(cx, base - 16, cx, base - 20, { width: 1, wobble: 0 });
-  }, { cut: 128 });
-  p.layer(INK.marble, (pen) => {
-    pen.rect(cx - 8.5, base - 8, 17, 8);
-    pen.rect(cx - 14.5, base - 11, 5, 11);
-    pen.rect(cx + 9.5, base - 11, 5, 11);
-  }, { cut: 128 });
-  p.layer(INK.gold, (pen) => pen.disc(cx, base - 9.5, 5.6), { cut: 128 });
-  p.layer(INK.marble, (pen) => pen.rect(cx - 8.5, base - 8.5, 17, 1), { cut: 128 });
-  p.layer(INK.roof, (pen) => {
-    pen.fill([[cx - 15, base - 12], [cx - 12, base - 17], [cx - 9, base - 12]]);
-    pen.fill([[cx + 9, base - 12], [cx + 12, base - 17], [cx + 15, base - 12]]);
-  }, { cut: 110 });
-  p.layer(INK.ink, (pen) => {
-    pen.arc(cx, base - 0.5, 2.5, Math.PI, 2 * Math.PI, { width: 1.5, wobble: 0 });
-    pen.rect(cx - 2.5, base - 1, 1, 1.5); pen.rect(cx + 1.5, base - 1, 1, 1.5);
-  }, { cut: 110 });
-  p.layer(INK.goldDeep, (pen) => {
-    pen.curlAt(cx - 16, base + 0.5, Math.PI, 3.6, { dir: -1 });
-    pen.curlAt(cx + 16, base + 0.5, 0, 3.6, { dir: 1 });
-  }, { cut: 110 });
-  p.layer(INK.gold, (pen) => pen.fill([[cx + 0.5, base - 20.5], [cx + 5.5, base - 18.5], [cx + 0.5, base - 16.5]]), { cut: 100 });
 }
 
 /**
@@ -1277,27 +1322,25 @@ function paintCanonical(type, look = 0) {
   else p.layer(INK.meadow, (pen) => pen.rect(0, 0, PX, PX), { cut: 128, busy: false });
   const cityMask = paintWalls(p, type);
   const roads = paintRoads(p, type, cityMask);
-  for (const f of type.feats) if (f.type === 'sfera') paintSfera(p, f.sides[0], f.hue);
+  for (const f of type.feats) {
+    if (f.type !== 'sfera') continue;
+    if (f.quarter) paintQuarter(p, f.sides[0], f.hue); else paintSfera(p, f.sides[0], f.hue);
+  }
   // Room for the tile's landmark, kept clear of houses and trees.
   if ((centred(type) && !isTown(type)) || type.feats.some((f) => f.type === 'temple')) p.reserve(MID, MID, 14);
   marks.forEach((m, i) => {
     const [x, y] = type.markSpots[i];
     if (m.kind === 'turbine') p.reserve(x * PX, y * PX - 4, 10);
-    if (m.kind === 'palazzo') p.reserve(MID, Math.min(20, Math.round(y * PX) + 3) - 8, 16);
   });
   if (type.feats.some((f) => f.type === 'temple')) p.stand([MID, MID], 14, paintTemple);
   if (type.swing) paintVane(p);
   if (kind) furnishDistrict(p, kind);
-  if (isTown(type)) paintTown(p, type, look);
+  if (has(type, 'plaza')) paintPlaza(p);
+  else if (isTown(type)) paintTown(p, type, look);
   const mill = marks.findIndex((m) => m.kind === 'turbine');
   if (mill >= 0) {
     const [x, y] = type.markSpots[mill];
     p.stand([x * PX, y * PX], 9, paintTurbine);
-  }
-  const pal = marks.findIndex((m) => m.kind === 'palazzo');
-  if (pal >= 0) {
-    const base = Math.min(20, Math.round(type.markSpots[pal][1] * PX) + 3);
-    p.stand([MID, base - 8], 13, (q, x, y) => paintPalazzo(q, x, y + 8));
   }
   for (const m of marks) {
     if (m.kind === 'flier') paintFlier(p, m);
