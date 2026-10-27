@@ -20,7 +20,7 @@ import { Board } from './board.js';
 import {
   TILES, GROUPS, BACKS, ABBEY_TILE, NO_MEEPLE, MARKS, bridgedType,
   buildDeck, buildRiverDeck, opposite, SIDE_STEP,
-  RIVER_MOUTH, RIVER_SPRING,
+  RIVER_MOUTH, RIVER_SPRING, faceOf, otherFace,
 } from './tiles.js';
 import { PLAYER_NAMES } from './theme.js';
 import { MODES, MODE_BY_ID } from './modes/index.js';
@@ -195,7 +195,7 @@ export class Game {
    */
   cull(deck) {
     if (!this.offFeatures.size) return deck;
-    const kept = deck.filter((id) => TILES[id] && tileAllowed(TILES[id], this.offFeatures));
+    const kept = deck.filter((id) => faceOf(id) && tileAllowed(faceOf(id), this.offFeatures));
     // Emptying the pool entirely would be a game with nothing to play, so the
     // cull gives way rather than deals you nothing.
     return kept.length ? kept : deck;
@@ -209,7 +209,7 @@ export class Game {
   legalSeed(id) {
     const type = TILES[id];
     if (!type || tileAllowed(type, this.offFeatures)) return id;
-    const swap = this.deck.find((d) => tileAllowed(TILES[d], this.offFeatures));
+    const swap = this.deck.find((d) => tileAllowed(faceOf(d), this.offFeatures));
     if (!swap) return id;
     this.deck.splice(this.deck.indexOf(swap), 1);
     return swap;
@@ -350,8 +350,9 @@ export class Game {
       if (this.forcedNext) {
         id = this.forcedNext;
         this.forcedNext = null;
-        const idx = this.deck.indexOf(id);
-        if (idx >= 0) this.deck.splice(idx, 1); else this.deck.pop();
+        // A forced face comes with whatever two-faced tile carries it.
+        const idx = this.deck.findIndex((k) => k === id || String(k).split('|').includes(id));
+        if (idx >= 0) id = this.deck.splice(idx, 1)[0]; else this.deck.pop();
       } else {
         id = this.deck.pop();
       }
@@ -390,11 +391,22 @@ export class Game {
     return out;
   }
 
-  /** Make a drawn tile the current one, if it can actually be played. */
+  /**
+   * Make a drawn tile the current one, if it can actually be played. A
+   * two-faced tile ("front|back") is dealt front up, and turned over for you
+   * when only its back fits: it has nowhere to go only if neither face does.
+   */
   offer(id) {
-    const type = TILES[id];
-    if (!this.placeableNow(type)) return false;
+    const front = faceOf(id);
+    const back = otherFace(id, front?.id);
+    let type = front;
+    if (!type || !this.placeableNow(type)) {
+      if (!back || !this.placeableNow(back)) return false;
+      type = back;
+    }
     this.tile = type;
+    this.tileKey = id;
+    this.flipped = type !== front;
     this.rot = 0;
     this.phase = 'place';
     return true;
@@ -416,11 +428,11 @@ export class Game {
     const market = row || this.market || [];
     this.market = market;
     for (let i = market.length - 1; i >= 0; i--) {
-      if (!this.placeableNow(TILES[market[i]])) market.splice(i, 1);
+      if (!this.placeableNow(faceOf(market[i]))) market.splice(i, 1);
     }
     while (market.length < size && this.deck.length) {
       const id = this.deck.pop();
-      if (this.placeableNow(TILES[id])) market.push(id);
+      if (this.placeableNow(faceOf(id))) market.push(id);
     }
     if (!market.length) return this.finish();
     this.phase = 'market';
@@ -457,15 +469,23 @@ export class Game {
     this.emit('rotate');
   }
 
+  /** The face on the back of the tile in hand: its own, or the base set's. */
+  backFace() {
+    if (!this.tile) return null;
+    const own = this.tileKey ? otherFace(this.tileKey, this.tile.id) : null;
+    if (own) return own;
+    return this.has('twoFaced') && BACKS[this.tile.id] ? TILES[BACKS[this.tile.id]] : null;
+  }
+
   canFlip() {
-    if (!this.has('twoFaced') || this.phase !== 'place') return false;
+    if (this.phase !== 'place') return false;
     if (this.m.piece || this.usingAbbey || this.riverActive) return false;
-    return !!this.tile && !!BACKS[this.tile.id];
+    return !!this.backFace();
   }
 
   flipTile() {
     if (!this.canFlip()) return false;
-    const back = TILES[BACKS[this.tile.id]];
+    const back = this.backFace();
     if (!this.board.hasAnyPlacement(back, this.placeOpts())) {
       this.say(`The reverse of ${this.tile.id} has nowhere to go.`);
       return false;
@@ -533,8 +553,9 @@ export class Game {
   liftAt(x, y) {
     if (this.phase !== 'lift' || !canLift(this.board, x, y)) return false;
     const cell = this.board.remove(x, y);
-    if (this.tile) this.deck.push(this.tile.id);   // the drawn tile goes back
+    if (this.tile) this.deck.push(this.tileKey || this.tile.id);   // the drawn tile goes back
     this.tile = cell.type;
+    this.tileKey = cell.key || cell.type.id;
     this.rot = cell.rot;
     this.market = null;
     this.phase = 'place';
@@ -571,6 +592,7 @@ export class Game {
     const cell = this.board.place(x, y, this.tile, this.rot, {
       owner: this.current, over: covering,
       ...(this.m.placeOpts?.() || {}),
+      key: this.usingAbbey ? null : this.tileKey,
     });
     this.lastPlaced = cell;
     if (this.usingAbbey) {
@@ -581,6 +603,7 @@ export class Game {
       this.say(`${this.player.name} closes the gap at (${x}, ${y}) with their abbey.`);
     } else {
       this.tile = null;
+      this.tileKey = null;
       this.say(`${this.player.name} played ${cell.type.id} at (${x}, ${y})${covering ? ` — level ${cell.h + 1}` : ''}.`);
     }
     this.emit('place', { cells: [cell] });

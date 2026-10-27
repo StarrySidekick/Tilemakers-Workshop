@@ -6,6 +6,16 @@
 // the short version of all of this, every rule tested on this engine;
 // MODES.md has the history and the measurements.
 //
+// EVERY TILE HAS TWO FACES (Timothy, 2026-10-27: "make tiles double sided,
+// and you choose what side to play when you place them"): 72 tiles, 144
+// faces. A district backs onto a road of its shape, a tower half onto a
+// zephyr or a cannon, an Abbazia onto a windmill, a flying machine or a
+// windvane, and the sun's four quarters onto the black hole's. You turn the
+// tile over as well as round (the host's `flipTile`, F); one whose front
+// fits nowhere is dealt back up. The deck holds them as "front|back"
+// (soffiando-deck.js), and so does every tile on the board (`cell.key`), so
+// one that falls or is swallowed goes back two-faced.
+//
 // A TURN is three steps (Timothy, 2026-10-27: "you have to use your zephyr
 // every turn in addition to placing a tile and placing a meeple"): lay a
 // tile, claim on it or not, and then BLOW. Every player has a zephyr of their
@@ -21,13 +31,14 @@
 // flying until the square ahead of it is taken. A zephyr tile does nothing
 // when it is laid: the blow is the only wind there is (wind.js `blow`).
 //
-// A push too heavy to move, or with a tower in it, moves no tile, but blows
-// the followers on the tiles it reaches a square downwind ("you can blow on
-// an area even if you can't move any tiles, and it will still move meeple").
-// TOWERS HOLD TILES AND WALLS HOLD FOLLOWERS ("castle walls protect meeple,
-// towers/sfera protect tiles"): a tile with a tower on it never moves, and a
-// follower is never blown across a city wall, but a tile with a wall on it
-// moves like any other.
+// A push too heavy to move, or with a quarter of the big tower in it, moves
+// no tile, but blows the followers on the tiles it reaches a square downwind
+// ("you can blow on an area even if you can't move any tiles, and it will
+// still move meeple"). WALLS HOLD FOLLOWERS ("castle walls protect meeple"):
+// a follower is never blown across a city wall, but a tile with a wall on it
+// moves like any other. Towers held tiles too ("towers/sfera protect tiles")
+// until later the same day ("let a blow move tower halves"): now only the big
+// tower's quarters hold, and a push can close a tower.
 //
 // A TILE THAT NO LONGER FITS MOVES ON. One a blow moved that comes to rest
 // with any edge against country it cannot meet slides on, the way the player
@@ -38,8 +49,9 @@
 //
 // TOWERS ARE THE SCORING (sferas until 2026-10-27). A tower half meets only a
 // half of its own colour ("each color has to go to each color"), and the two
-// close a tower, which fires its colour once: a scoring pass over the whole
-// board, paying whoever holds the most of each feature of that kind.
+// close a tower, laid or pushed together, which fires its colour once: a
+// scoring pass over the whole board, paying whoever holds the most of each
+// feature of that kind.
 //
 //   GREEN  the farms: a point for every two tiles of field
 //   BLUE   the cities: a point a district, plus 1, 3 or 6 for two, three or
@@ -49,9 +61,13 @@
 //   YELLOW the roads: a point a tile, plus 1 for each open city a road
 //          reaches and 2 for each closed one
 //
-// THE SUN AND THE BLACK HOLE are the big towers, four quarters each closing a
-// 2x2: the sun fires every colour, and the black hole swallows the twelve
-// squares round it, shuffled back into the deck.
+// THE BIG TOWER is the sun or the black hole: four tiles with a sun quarter
+// on one face and a black hole quarter on the other, closing a 2x2. The first
+// quarter laid decides which, and where; the rest of its 2x2 is kept for the
+// other three, which must go into it, so once begun it always closes ("so
+// there completion is inevitable"; `judgeBig`). The sun fires every colour,
+// and the black hole swallows the twelve squares round it, shuffled back
+// into the deck.
 //
 // A feature a tower pays is emptied: its followers come home, or one of the
 // current player's walks on down a road. Nothing pays for being finished,
@@ -234,8 +250,15 @@ const DIR_NAMES = ['north', 'east', 'south', 'west'];
 /** The eight squares around a tile: an Abbazia's neighbourhood, and what red counts. */
 const RING = [[-1, -1], [0, -1], [1, -1], [-1, 0], [1, 0], [-1, 1], [0, 1], [1, 1]];
 
-/** A tile with a tower on it, a half or a quarter of a big one: no push moves it. */
-const isTower = (cell) => cell.type.feats.some((f) => f.type === 'sfera');
+/**
+ * A quarter of the sun or the black hole: no push moves it. A tower half
+ * blows like any other tile since 2026-10-27 (Timothy: "let a blow move tower
+ * halves"), so a push can close a tower.
+ */
+const isQuarter = (cell) => cell.type.feats.some((f) => f.quarter);
+
+/** Is world side set `a` the same two sides as `b`? */
+const sameSides = (a, b) => a.length === b.length && a.every((s) => b.includes(s));
 const key = (c) => `${c.x},${c.y}`;
 
 /** What may be joined while it is open, however many are in it already. */
@@ -382,7 +405,91 @@ export class Soffiando extends Mode {
    * knowing what an island is.
    */
   placeOpts() {
-    return { onto: this.reachable() };
+    return { onto: this.reachable(), judge: (x, y, type, rot) => this.judgeBig(x, y, type, rot) };
+  }
+
+  // --- the big tower ---------------------------------------------------------
+  //
+  // The sun and the black hole are the same four tiles, a sun quarter on one
+  // face and a black hole quarter on the other. The first quarter laid
+  // decides which, and where: the rest of its 2x2 is KEPT for the other three
+  // (nothing else is laid there, and no push or move-on goes into it), and
+  // each of them may only go into it, touching a quarter already laid,
+  // wherever on the map that is. Their outer edges take anything, so they
+  // always fit: once the first is down the big tower is sure to close
+  // (Timothy, 2026-10-27: "make it so you must place a sun or black hole
+  // attached correctly to another, so there completion is inevitable").
+
+  /**
+   * The big tower's 2x2, read off the board: its colour and each of its four
+   * squares with the two sides that face into the 2x2 and what is on it.
+   * Null before the first quarter is laid.
+   */
+  bigTower() {
+    const board = this.game.board;
+    // Asked for every square a tile might go, so kept until the board changes.
+    if (this.bigSeen?.version === board.version && this.bigSeen.board === board) return this.bigSeen.big;
+    const q = this.tiles().find(isQuarter);
+    let big = null;
+    if (q) {
+      const f = q.type.feats.find((x) => x.quarter);
+      const [a, b] = f.sides.map((s) => (s + q.rot) % 4);
+      const slots = this.blockOf(q.x, q.y, a, b).map((sq) => ({ ...sq, cell: board.get(sq.x, sq.y) }));
+      big = { hue: f.hue, slots, done: slots.every((sq) => sq.cell && isQuarter(sq.cell)) };
+    }
+    this.bigSeen = { board, version: board.version, big };
+    return big;
+  }
+
+  /** The 2x2 a quarter at (x, y) facing into it on sides a and b makes, each square with its own two inward sides. */
+  blockOf(x, y, a, b) {
+    const board = this.game.board;
+    const step = (sides) => {
+      let nx = x, ny = y;
+      for (const s of sides) { nx += SIDE_STEP[s][0]; ny += SIDE_STEP[s][1]; }
+      return board.norm(nx, ny);
+    };
+    return [
+      { ...step([]), sides: [a, b] },
+      { ...step([a]), sides: [opposite(a), b] },
+      { ...step([b]), sides: [a, opposite(b)] },
+      { ...step([a, b]), sides: [opposite(a), opposite(b)] },
+    ];
+  }
+
+  /** Is (x, y) a square of the big tower's 2x2 still kept for a quarter? */
+  keptFor(x, y) {
+    const big = this.bigTower();
+    if (!big || big.done) return false;
+    const sq = this.game.board.norm(x, y);
+    return big.slots.some((s) => !s.cell && s.x === sq.x && s.y === sq.y);
+  }
+
+  /**
+   * The board's placement rules, for what the big tower changes: true or
+   * false settles it, undefined leaves it to the ordinary rules. A quarter
+   * goes only into the 2x2, turned to face into it, touching a quarter already
+   * there; the first goes anywhere the ordinary rules allow with the rest of
+   * its 2x2 open sky. Nothing else goes into a kept square.
+   */
+  judgeBig(x, y, type, rot) {
+    const board = this.game.board;
+    const f = type.feats.find((t) => t.quarter);
+    const big = this.bigTower();
+    if (!f) return big && !big.done && big.slots.some((s) => !s.cell && s.x === x && s.y === y) ? false : undefined;
+    const sides = f.sides.map((s) => (s + rot) % 4);
+    if (!big) {
+      const rest = this.blockOf(x, y, sides[0], sides[1]).slice(1);
+      return rest.every((sq) => !board.get(sq.x, sq.y)) ? undefined : false;
+    }
+    if (big.done || f.hue !== big.hue) return false;
+    const slot = big.slots.find((s) => !s.cell && s.x === x && s.y === y);
+    if (!slot || !sameSides(sides, slot.sides)) return false;
+    return slot.sides.some((s) => {
+      const n = board.norm(x + SIDE_STEP[s][0], y + SIDE_STEP[s][1]);
+      const c = board.get(n.x, n.y);
+      return !!c && isQuarter(c);
+    });
   }
 
   /**
@@ -622,7 +729,7 @@ export class Soffiando extends Mode {
         g.sendHome(t);
       }
       fell.push({ x: t.x, y: t.y, type: t.type, rot: t.rot, look: t.seq });
-      g.deck.splice(Math.floor(g.rng() * (g.deck.length + 1)), 0, t.type.id);
+      g.deck.splice(Math.floor(g.rng() * (g.deck.length + 1)), 0, t.key || t.type.id);
       board.remove(t.x, t.y, { quiet: true });
     }
     this.swallowed += fell.length;
@@ -743,7 +850,7 @@ export class Soffiando extends Mode {
   scoreAbbazias() {
     const g = this.game;
     const board = g.board;
-    for (const cell of board.cells.values()) {
+    for (const cell of this.tiles()) {
       if (!hasMark(cell, 'abbazia')) continue;
       const around = board.surroundCount(cell.x, cell.y);
       if (!around) continue;
@@ -1065,7 +1172,8 @@ export class Soffiando extends Mode {
     // phase changed, so nothing could ever be picked.
     if (g.phase !== 'meeple' && g.phase !== 'flat') return [];
     const out = [];
-    for (const cell of g.board.cells.values()) {
+    // Tiles in sight: under the tide a sunken one is still in `cells`.
+    for (const cell of this.tiles()) {
       const m = cell.meeple;
       if (!m || m.flat || m.player !== g.current || m.feat == null) continue;
       if (cell.type.feats[m.feat]?.type !== 'city') continue;
@@ -1140,7 +1248,7 @@ export class Soffiando extends Mode {
   balenaTargets() {
     if (!this.balena) return [];
     const out = [];
-    for (const cell of this.game.board.cells.values()) {
+    for (const cell of this.tiles()) {
       if (cell.x === this.balena.x && cell.y === this.balena.y) continue;
       out.push({ x: cell.x, y: cell.y });
     }
@@ -1217,7 +1325,7 @@ export class Soffiando extends Mode {
   }
 
   /** A tile no push moves: a tower, or the whale's. */
-  holds(cell) { return isTower(cell) || immovable(cell); }
+  holds(cell) { return isQuarter(cell) || immovable(cell); }
 
   /**
    * What a blow against (x, y) the current way would do first: the run of
@@ -1229,8 +1337,19 @@ export class Soffiando extends Mode {
     if (!board.get(x, y)) return null;
     const power = this.pushPower();
     const { cells, ring } = runFrom(board, { x, y }, dir);
-    const heavy = ring || cells.length > power || cells.some((c) => this.holds(c));
+    const heavy = this.heavyRun(cells, ring, power, dir);
     return { cells: heavy ? cells.slice(0, power) : cells, heavy };
+  }
+
+  /**
+   * Is a push on this run too heavy to move a tile: longer than its power, a
+   * quarter of the big tower in it, or the big tower's kept 2x2 where its
+   * front tile would go. The same test the wind makes (wind.js, pushOnce).
+   */
+  heavyRun(cells, ring, power, dir) {
+    if (ring || cells.length > power || cells.some((c) => this.holds(c))) return true;
+    const last = cells[cells.length - 1];
+    return !!last && this.keptFor(last.x + SIDE_STEP[dir][0], last.y + SIDE_STEP[dir][1]);
   }
 
   /** Every tile on the board: a blow may go against any of them. */
@@ -1255,7 +1374,7 @@ export class Soffiando extends Mode {
     this.slidesEnd = 0;
     this.blame = g.current;
     try {
-      const reports = blow(g.board, { at: { x, y }, dir, power, holds: (c) => this.holds(c) });
+      const reports = blow(g.board, { at: { x, y }, dir, power, holds: (c) => this.holds(c), keepOut: (kx, ky) => this.keptFor(kx, ky) });
       for (const r of reports) this.applyGust(r);
       this.windUntil(this.slidesEnd);
       this.settleBalena();
@@ -1328,7 +1447,7 @@ export class Soffiando extends Mode {
       for (let n = 1; n < lap; n++) {
         const sq = board.norm(cell.x + dx * n, cell.y + dy * n);
         if (board.bounds && !board.wraps && !board.inBounds(sq.x, sq.y)) break;
-        if (board.get(sq.x, sq.y)) break;                // a tile in the way
+        if (board.get(sq.x, sq.y) || this.keptFor(sq.x, sq.y)) break;   // a tile in the way, or the big tower's
         if (this.fitsAt(cell, sq)) { out.push({ x: sq.x, y: sq.y, dir, n }); break; }
       }
     }
@@ -1415,7 +1534,7 @@ export class Soffiando extends Mode {
       cell.meeple = null;
     }
     g.board.remove(cell.x, cell.y);
-    g.deck.push(cell.type.id);
+    g.deck.push(cell.key || cell.type.id);
     this.fallen++;
     g.say(`The tile at (${fell.x}, ${fell.y}) no longer fits and has nowhere to go: it falls, back to the top of the deck.`);
     g.emit('gust', { dir: 0, delay: this.afterWind() + 120, moves: [], fell: [fell] });
@@ -2161,7 +2280,7 @@ export class Soffiando extends Mode {
     for (const c of this.tiles()) {
       for (let dir = 0; dir < 4; dir++) {
         const { cells, ring } = runFrom(board, c, dir);
-        const heavy = ring || cells.length > power || cells.some((t) => this.holds(t));
+        const heavy = this.heavyRun(cells, ring, power, dir);
         const reached = heavy ? cells.slice(0, power) : cells;
         const touches = reached.some((t) => (heavy ? t.meeple && !t.meeple.flat : true) || turbineOn(t) || isCannon(t) || zephyrDirs(t).length);
         if (!touches) {
@@ -2188,6 +2307,7 @@ export class Soffiando extends Mode {
     for (const t of reached) {
       if (t.meeple) value += t.meeple.player === seat ? -1 : 1;
       if (!heavy && zephyrDirs(t).length) value += 1;
+      if (!heavy && sferaHue(t)) value += 1;     // a tower half on the move might meet its other half
     }
     return value + (heavy ? 0 : 0.2 * reached.length) + this.game.rng() * 0.5;
   }
@@ -2204,7 +2324,7 @@ export class Soffiando extends Mode {
     const scored = [...board.scoredParts];
     const supply = g.players.map((p) => p.meeples);
     try {
-      const reports = blow(board, { at, dir, power: this.pushPower(), holds: (c) => this.holds(c) });
+      const reports = blow(board, { at, dir, power: this.pushPower(), holds: (c) => this.holds(c), keepOut: (kx, ky) => this.keptFor(kx, ky) });
       let paid = 0;
       for (const r of reports) {
         for (const t of r.turbines) {
@@ -2225,8 +2345,16 @@ export class Soffiando extends Mode {
         }
       }
       board.rebuild();
-      // A road or city the blow closed with nobody in it pays us.
+      // A road or city the blow closed with nobody in it pays us, and a
+      // tower it closed fires (tower halves blow, since 2026-10-27).
+      const w = weightsFor(this, seat);
       for (const d of board.allComponents()) {
+        if (d.type === 'sfera' && d.tiles.size >= 2 && d.open === 0) {
+          const cells = board.cellsOf(d);
+          if (cells.every((c) => c.sphered)) continue;
+          paid += this.towerValue(sferaHue(cells[0]), cells[0], seat) * w.sphere + w.closeTower;
+          continue;
+        }
         if (!SHARED.has(d.type) || d.scored || d.open !== 0 || d.meeples.length) continue;
         paid += (d.type === 'road' ? this.roadPoints(d) : this.cityPoints(d)).pts;
       }
@@ -2260,7 +2388,7 @@ export class Soffiando extends Mode {
     isles.forEach((grp, i) => { for (const c of grp) isleOf.set(c, i); });
     const mine = new Set();
     let value = 0;
-    for (const c of board.cells.values()) {
+    for (const c of this.tiles()) {
       if (hasMark(c, 'abbazia')) {
         const holders = this.abbaziaHolders(c);
         if (holders.length) {
@@ -2444,13 +2572,14 @@ Soffiando.spec = {
   tideStart: 5,
   opening: 'A first stone hangs in the cloud. Everything else is weather.',
   hint: 'A turn is three steps: lay a tile, claim on it or not, and BLOW. '
+    + 'Every tile has TWO FACES: F (or the little tile under your hand) turns it over, R turns it round. A district has a road of its shape on the back, a tower half a zephyr or a cannon, an Abbazia a windmill, a flying machine or a windvane. '
     + 'Your zephyr goes against any tile on any side (R turns it): that tile and every tile touching in front of it, up to the first gap, go one square, if there are no more of them than your PUSH POWER, which is 1 plus every Abbazia on the board. '
     + 'A zephyr tile your blow pushes then pushes the way it points, at its own push plus yours, and that chains on; a gust cannon fires what is in front of it until each tile hits something. Zephyr tiles do nothing when laid. '
-    + 'Too heavy to move, or with a TOWER in it (towers never move), a blow moves no tile but blows the followers it reaches a square downwind, never across a city wall. '
+    + 'Too heavy to move, or with a quarter of the big tower in it (they never move), a blow moves no tile but blows the followers it reaches a square downwind, never across a city wall. '
     + 'A moved tile that no longer meets all its neighbours MOVES ON: you pick a way, and it slides to the first empty square where it fits. Only one with every way blocked falls, and you lay one more tile. '
-    + 'TOWERS are the scoring: a half meets only its own colour, and a closed tower scores its colour over the whole board. '
+    + 'TOWERS are the scoring: a half meets only its own colour, and a closed tower, laid or pushed together, scores its colour over the whole board. '
     + 'Green the farms (1 per two tiles of field), blue the cities (1 a district, plus 1, 3 or 6 for two, three or four kinds, doubled once walled, plus 2 a garden), red the Abbazias (1 per tile round one, to whoever has most followers there), yellow the roads (1 a tile plus 1 or 2 for each city they reach). '
-    + 'The SUN, four quarters in a 2x2, fires every colour; the BLACK HOLE swallows the ring round it back into the deck. '
+    + 'The BIG TOWER is four tiles with the SUN on one face and the BLACK HOLE on the other: the first quarter laid decides which, and the rest of its 2x2 is kept for the other three, which must go into it. The sun fires every colour; the black hole swallows the ring round it back into the deck. '
     + 'A road or city closed with nobody in it pays whoever closed it, on the spot. '
     + 'Five followers each. You may join an open road or city however many are in it, never a closed one. A feature a tower pays hands its followers back, or one of yours walks on down a road. '
     + 'The biggest piece of country is the mainland; every other piece is an ISLAND, pays double, and is buildable only by somebody standing on it. At the end, 10 to whoever stands on most islands. '

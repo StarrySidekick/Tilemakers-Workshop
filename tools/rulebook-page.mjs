@@ -65,7 +65,9 @@ async function pictures(ids) {
   }
 }
 
-const ids = DECK_GROUPS.flatMap((g) => g.tiles.map(([id]) => id));
+// A deck entry is a tile id, or a two-faced tile "front|back": both faces drawn.
+const facesOf = (key) => key.split('|');
+const ids = [...new Set(DECK_GROUPS.flatMap((g) => g.tiles.flatMap(([key]) => facesOf(key))))];
 const pics = await pictures(ids);
 const DATA = {
   today: new Date().toISOString().slice(0, 10),
@@ -73,11 +75,16 @@ const DATA = {
   book: { groups: book.groups, rules: book.rules, retired: book.retired },
   deck: DECK_GROUPS.map((g) => ({
     name: g.name, note: g.note,
-    tiles: g.tiles.map(([id, n]) => ({ id, n, name: TILES[id].name, pic: pics[id] })),
+    tiles: g.tiles.map(([id, n]) => ({
+      id, n,
+      name: facesOf(id).map((f) => TILES[f].name).join(' / '),
+      pics: facesOf(id).map((f) => pics[f]),
+    })),
   })),
 };
 const template = await readFile(join(ROOT, 'tools/rulebook-template.html'), 'utf8');
 const html = template.replace('/*DATA*/', () => JSON.stringify(DATA).replace(/</g, '\\u003c'));
 await mkdir(dirname(out), { recursive: true });
 await writeFile(out, html);
-console.log(`wrote ${out}: ${book.rules.length} rules, ${ids.length} kinds of tile, ${(html.length / 1024).toFixed(0)} KB`);
+const kinds = DECK_GROUPS.reduce((a, g) => a + g.tiles.length, 0);
+console.log(`wrote ${out}: ${book.rules.length} rules, ${kinds} kinds of tile (${ids.length} faces), ${(html.length / 1024).toFixed(0)} KB`);

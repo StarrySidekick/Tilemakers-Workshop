@@ -491,8 +491,12 @@ export const TILE_TYPES = [
   // The two BIG towers, four quarters each (2026-10-27): the sun fires every
   // colour at once, and the black hole swallows the ring of tiles around it.
   // The quarter is in the south-east corner, so it shows east and south.
-  { id: 'Kqs', n: 0, group: 'cloud', name: 'Sun, a quarter',        feats: [quarter(E, 'sun')],  fields: [[0, 1, 6, 7]] },
-  { id: 'Kqh', n: 0, group: 'cloud', name: 'Black hole, a quarter', feats: [quarter(E, 'hole')], fields: [[0, 1, 6, 7]] },
+  // Its other two edges take anything and cap it, like an Abbazia's, so a
+  // quarter can always be laid into its 2x2 whatever is round it (Timothy,
+  // 2026-10-27: "make it so you must place a sun or black hole attached
+  // correctly to another, so there completion is inevitable").
+  { id: 'Kqs', n: 0, group: 'cloud', name: 'Sun, a quarter',        capOut: true, feats: [quarter(E, 'sun')],  fields: [] },
+  { id: 'Kqh', n: 0, group: 'cloud', name: 'Black hole, a quarter', capOut: true, feats: [quarter(E, 'hole')], fields: [] },
 
   // End caps. A city has to be able to stop somewhere, and in a country that
   // keeps being rearranged it needs to be able to stop more often than the
@@ -539,6 +543,10 @@ export const TILE_TYPES = [
   // carry the village that grew up at the junction. Soffiando tried the opposite
   // for two passes — junctions that carried a road straight through, to stop
   // things closing — and the mode did not need the help.
+  // Soffiando's dead end, on the back of a district's end: one field all
+  // round it. The 'roads' group's Rb has no field at all, which Adventure
+  // deals as it is.
+  { id: 'Kde', n: 0, group: 'cloud', name: 'Road dead end', feats: [road([N])], fields: [[0, 1, 2, 3, 4, 5, 6, 7]] },
   { id: 'Gw', n: 0, group: 'cloud', name: 'Road 3-way + village',    feats: [road([E]), road([S]), road([W])],            marks: [mark('village')], fields: [[3, 4], [5, 6], [7, 0, 1, 2]] },
   { id: 'Gl', n: 0, group: 'cloud', name: 'City + 3-way + village',  feats: [city([N]), road([E]), road([S]), road([W])], marks: [mark('village')], fields: [[3, 4], [5, 6], [2, 7]] },
 
@@ -921,6 +929,20 @@ const BACK_PAIRS = [
   ['P', 'Oc'],   // city corner+road  <-> watchtower
 ];
 
+/**
+ * A deck entry is a tile id, or a TWO-FACED tile written "front|back"
+ * (Soffiando, 2026-10-27: "make tiles double sided, and you choose what side
+ * to play"). `faceOf` is the face it is dealt showing, `otherFace` the one
+ * on its back, if it has one.
+ */
+export const faceOf = (key) => TILES[key] || TILES[String(key).split('|')[0]];
+export const otherFace = (key, showing = null) => {
+  const [a, b] = String(key).split('|');
+  if (b == null) return null;
+  if (showing == null) return TILES[b];
+  return showing === a ? TILES[b] : showing === b ? TILES[a] : null;
+};
+
 export const BACKS = Object.fromEntries(
   BACK_PAIRS.flatMap(([a, b]) => [[a, b], [b, a]]));
 
@@ -942,6 +964,7 @@ function prepare(list) {
       if (t.wild || t.dock) continue;          // an Abbazia or a ship takes anything
       for (const s of f.sides) t.edges[s] = edgeLetter(f, s);
     }
+    if (t.capOut) t.edges = t.edges.map((e) => (e === 'f' ? CAP : e));
     // A district's walls stand ON its edge, so there is no strip of country
     // between them and the next tile: those sides present the wall, and the
     // tile has no fields at all. Until 2026-10-25 they presented farmland and

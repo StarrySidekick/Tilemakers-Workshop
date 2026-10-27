@@ -1202,6 +1202,69 @@ kingmakes badly, and you'd blame the mechanic instead of the count.
 > Rules 1 to 4, 6, 8 to 10, 13, 14, 17, 20, 22 to 24, 27 to 31, 35, 38,
 > 43, 44, 46, 48, 50 to 52, 66, 67 and 70 changed; 72 to 79 are new; 18,
 > 19, 21, 25, 26, 36, 42 and 71 retired.
+>
+> **Twenty-ninth pass: two faces, halves that blow, a big tower that always
+> closes.**
+>
+> Timothy, later on 2026-10-27: "let a blow move tower halves. also make it
+> so you must place a sun or black hole attached correctly to another, so
+> there completion is inevitable. - also, much larger change make tiles
+> double sided, and you choose what side to play when you place them."
+> Asked, he chose opposites for the backs, four more tower halves for the
+> four places the sun and black hole gave back, and quarters that always
+> fit.
+>
+> - **Two faces** (rules 3, 5, 80): 72 tiles, every one `front|back` in the
+>   deck list. 37 districts back onto a road of their shape (a dead end,
+>   `Kde`, is new: the `roads` group's `Rb` has no field and Adventure deals
+>   it), 20 tower halves onto a zephyr or a cannon, 11 Abbazias onto a
+>   windmill, a flying machine or a windvane, and four tiles carry the sun
+>   on one face and the black hole on the other. The host keeps the key of
+>   the tile in hand (`tileKey`) and of every tile laid (`cell.key`), so one
+>   that falls or is swallowed goes back two-faced; a tile whose front fits
+>   nowhere is dealt back up (`offer`), and only one that fits nowhere
+>   either way is set aside. The page shows the back small under the hand
+>   (a tap turns it over, as F does), names it, and lists both faces.
+> - **Tower halves blow** (rules 44, 75): only a quarter of the big tower
+>   holds a push still, so a push can close a tower; the bot prices a blow's
+>   closings (`tryBlow`).
+> - **The big tower always closes** (rules 6, 7, 74, 76, 81, and 31): a
+>   quarter's outer edges take anything (`capOut`). The first quarter
+>   decides sun or black hole and where; the rest of its 2x2 is kept
+>   (`keptFor`): nothing else laid there (`judgeBig`, the board's new
+>   `judge` hook in `canPlace`), nothing pushed, fired (`keepOut` in
+>   `blow`) or moved on into it. The other three go only into it, turned to
+>   face in, touching a quarter, wherever it is. One a game.
+> - A sunken tile under the tide option could be offered to lie flat in,
+>   pay red or take the whale (the tide's earlier bug, found again by the
+>   harness once its driver turned tiles over at random); fixed the same way.
+>
+> What it plays like, bots, two players, 24 games:
+>
+> | | last pass | this pass |
+> |---|---|---|
+> | score a player | 96 | 91 |
+> | towers closed | 1.6 | 1.9 |
+> | of them the big tower | 0.04 | 1.0 (sun 10, black hole 14) |
+> | claims | 14.3 | 18.4 |
+> | tiles that moved on | 22.1 | 36.7 |
+> | tiles fallen | 6.4 | 13.8 |
+> | islands at the end | 11.0 | 18.5 |
+>
+> **The big tower closed in every game.** **No tower was closed by a push**
+> in 24 games: halves pushed out of line mostly move on, and two halves of
+> one colour facing each other across one gap almost never happen.
+> Ordinary towers closed 0.9 a game, fewer than before, because the bots
+> lay a tower half only 7.3 times a game out of 20 and the zephyr on its
+> back 16.7: **80% of the tiles laid go back face up**, and the face they
+> want is the road. Only 4.5 districts are laid a game, of 37 tiles that
+> carry one, so blue pays almost nothing (1.7 a game). A road is easy to
+> lay and easy to close, and closing one nobody holds pays on the spot.
+> Where the points come from: closing what nobody holds 54%; red 13%,
+> green 16%, the archipelago 7%, yellow 7%, blue 1%. Three players (12
+> games): 46% to closers, 72 a player, the big tower closed every game.
+>
+> Rules 3, 5, 6, 7, 31, 44, 74, 75 and 76 changed; 80 and 81 are new.
 
 
 **Question it answers:** is a small board you keep *editing* better than a big

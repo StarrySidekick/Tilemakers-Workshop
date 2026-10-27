@@ -109,6 +109,9 @@ function step(game, rng) {
       return;
     }
     case 'place': {
+      // A two-faced tile is played either face up, so the driver turns it
+      // over at random first.
+      if (game.canFlip() && rng() < 0.5) game.flipTile();
       const spots = legalSpots(game);
       if (!spots.length) { game.holdPosition?.(); game.finish(); return; }
       // The abbey is a genuinely different placement, so try it sometimes.
@@ -1348,9 +1351,12 @@ function checkSoffiando() {
     const q = fresh(26);
     const qb = q.board;
     lay(qb, 0, 0, 'Kqs', 0); lay(qb, 1, 0, 'Kqs', 1); lay(qb, 1, 1, 'Kqs', 2);
-    if (!qb.canPlace(0, 1, TILES.Kqs, 3, {})) return fail('the fourth quarter of the sun fits', 'it was refused');
-    if (qb.canPlace(0, 1, TILES.Kqs, 0, {})) return fail('a quarter turned wrong does not fit', 'it did');
-    if (qb.canPlace(0, 1, TILES.Kqh, 3, {})) return fail('a black hole quarter does not fit the sun', 'it did');
+    const opts = q.placeOpts();
+    if (!qb.canPlace(0, 1, TILES.Kqs, 3, opts)) return fail('the fourth quarter of the sun fits', 'it was refused');
+    if (qb.canPlace(0, 1, TILES.Kqs, 0, opts) || qb.canPlace(0, 1, TILES.Kqs, 1, opts)) return fail('a quarter turned wrong does not fit', 'it did');
+    if (qb.canPlace(0, 1, TILES.Kqh, 3, opts)) return fail('a black hole quarter does not fit the sun', 'it did');
+    if (qb.canPlace(3, 3, TILES.Kqs, 0, { free: true, judge: opts.judge })) return fail('a quarter goes only into the big tower\'s 2x2', 'one fitted elsewhere');
+    if (qb.canPlace(0, 1, TILES.B, 0, opts)) return fail('the rest of the 2x2 is kept for the quarters', 'a field fitted');
 
     const h = fresh(27);
     const b = h.board;
@@ -1760,10 +1766,18 @@ function checkSoffiando() {
     const t = fresh(66);
     const tb = t.board;
     lay(tb, 0, 0, 'B');
-    lay(tb, 1, 0, 'Kso');
+    lay(tb, 1, 0, 'Kso', 1);
+    lay(tb, 5, 5, 'Kab');
     tb.rebuild();
     blowAt(t, 0, 0, 1);
-    if (tb.get(0, 0)?.type.id !== 'B' || tb.get(1, 0)?.type.id !== 'Kso') return fail('a tower holds a push still', JSON.stringify([...tb.cells.keys()]));
+    if (tb.get(1, 0)?.type.id !== 'B' || tb.get(2, 0)?.type.id !== 'Kso') return fail('a tower half is pushed like any tile (2026-10-27)', JSON.stringify([...tb.cells.keys()]));
+    const u = fresh(67);
+    const ub = u.board;
+    lay(ub, 0, 0, 'B');
+    lay(ub, 1, 0, 'Kqs');
+    ub.rebuild();
+    blowAt(u, 0, 0, 1);
+    if (ub.get(0, 0)?.type.id !== 'B' || ub.get(1, 0)?.type.id !== 'Kqs') return fail('a quarter of the big tower holds a push still', JSON.stringify([...ub.cells.keys()]));
   }
 
   // A TILE THAT NO LONGER FITS MOVES ON (2026-10-26), the way its player
@@ -1800,12 +1814,14 @@ function checkSoffiando() {
     if (h.m.fallen || h.m.lost) return fail('…and nothing lost', `fallen ${h.m.fallen}, lost ${h.m.lost}`);
   }
 
-  // THE DECK IS A LIST of 72 (soffiando-deck.js), the lone walls among its
+  // THE DECK IS A LIST of 72 (soffiando-deck.js), every tile two-faced
+  // ("front|back") since 2026-10-27, the lone walls among its one-faced
   // extras, and `options.deck` changes counts by tile.
   {
-    const ids = (o) => { const g = new Game({ mode: 'soffiando', players: 2, seed: 5, options: o }); return [g.tile?.id, ...g.deck].filter(Boolean); };
-    const lone = (id) => TILES[id].feats.some((f) => f.type === 'city' && !f.district);
-    const plain = ids({}), walled = ids({ deck: { Kce: 3, Kab: 8 } });
+    const ids = (o) => new Game({ mode: 'soffiando', players: 2, seed: 5, options: o }).m.deck();
+    const lone = (k) => k.split('|').some((id) => TILES[id].feats.some((f) => f.type === 'city' && !f.district));
+    const plain = ids({}), walled = ids({ deck: { Kce: 3, 'Kab|Kfl': 0 } });
+    if (!plain.every((k) => k.split('|').length === 2 && k.split('|').every((id) => TILES[id]))) return fail('every tile dealt has two faces', plain.filter((k) => !k.includes('|')).join(' '));
     if (plain.length !== 72) return fail('the deck is 72 tiles', `${plain.length}`);
     if (plain.some(lone)) return fail('no lone wall is dealt by default', plain.filter(lone).join(' '));
     if (walled.filter(lone).length !== 3 || walled.length !== 72) return fail('options.deck deals what it names', `${walled.filter(lone).length} walls in ${walled.length}`);

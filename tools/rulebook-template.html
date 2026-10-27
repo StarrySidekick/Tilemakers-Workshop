@@ -98,6 +98,8 @@
   .tile.off img { opacity: 0.45; }
   .tile.mine { border-color: var(--gold); border-style: solid; }
   .tile img { width: 102px; height: 102px; image-rendering: pixelated; image-rendering: crisp-edges; max-width: 100%; }
+  .tile .faces { display: flex; gap: 4px; }
+  .tile .faces.two img { width: 72px; height: 72px; max-width: calc(50% - 2px); }
   .tile .name { font-weight: 700; line-height: 1.25; }
   .tile code { font-size: 0.8rem; color: var(--muted); }
   .tile .was { font-size: 0.8rem; }
@@ -364,7 +366,8 @@ function tileCard(t) {
   const n = countOf(t.id), ro = !canWrite;
   const mine = t.id in C.tiles;
   return el('div', { class: `tile${n ? '' : ' off'}${mine ? ' mine' : ''}`, 'data-tile': t.id },
-    el('img', { src: t.pic, alt: '', width: 102, height: 102 }),
+    el('div', { class: `faces${t.pics.length > 1 ? ' two' : ''}` },
+      ...t.pics.map((src) => el('img', { src, alt: '', width: 102, height: 102 }))),
     el('span', { class: 'name' }, t.name), el('code', {}, t.id),
     el('label', { class: 'switch', for: `on-${t.id}` },
       el('input', { type: 'checkbox', id: `on-${t.id}`, disabled: ro, checked: n > 0,
