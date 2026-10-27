@@ -118,8 +118,8 @@ const TURBINE = 2;           // to the feature's holder, per push that reaches i
  * strategies in the same game and find out which one is right.
  *
  * `ahead` is the one with a real-world meaning: roughly how many more times a
- * given sfera colour will fire from the middle of a game — eight spheres, two
- * halves each, four colours. Everything a claim is worth is multiplied by it,
+ * given tower colour will fire from the middle of a game, the last round
+ * included. Everything a claim is worth is multiplied by it,
  * so it is also, in effect, how eagerly the bot spends followers.
  *
  * THESE NUMBERS WERE MEASURED, not guessed. A sensitivity sweep and a
@@ -161,8 +161,9 @@ const MOVE_ON_PAUSE = 260;   // ms between the ring on a tile that no longer fit
 
 /**
  * What everything pays, on the mainland and out on an island — and everything
- * out on an island pays exactly DOUBLE. Nothing here is paid for finishing;
- * it is all paid by a sphere closing, over the whole board at once.
+ * out on an island pays exactly DOUBLE. Nothing here is paid for finishing
+ * (but a road or city nobody holds, which pays its closer); it is all paid
+ * by a tower closing, over the whole board at once.
  */
 /**
  * A CITY pays a point a district, plus a VARIETY bonus for how many kinds of
@@ -195,10 +196,10 @@ const RATE = {
 };
 
 /**
- * What each sfera colour counts when its half of a sphere fires. Each is a
- * scoring pass over one kind of thing, EVERYWHERE ON THE BOARD, paying whoever
- * holds each one — which is why closing a sphere is the event the whole mode
- * turns on rather than a bonus on top of it.
+ * What each tower colour counts when its tower closes. Each is a scoring pass
+ * over one kind of thing, EVERYWHERE ON THE BOARD, paying whoever holds each
+ * one, which is why closing a tower is the event the whole mode turns on
+ * rather than a bonus on top of it.
  */
 const COLOURS = {
   green: 'the farms',
@@ -207,7 +208,7 @@ const COLOURS = {
   yellow: 'the roads',
 };
 
-/** The colour of the half-sphere on a tile, if there is one. */
+/** The colour of the tower on a tile (a half, or a quarter of a big one), if there is one. */
 const sferaHue = (cell) =>
   cell?.type.feats.find((f) => f.type === 'sfera')?.hue || null;
 
@@ -252,7 +253,7 @@ export class Soffiando extends Mode {
    */
   backdrop = 'sky';
 
-  /** The farms are counted when a sphere closes, and never again at the end. */
+  /** The farms are counted when a tower closes, and never again at the end. */
   finalFarms = false;
 
   /**
@@ -343,7 +344,7 @@ export class Soffiando extends Mode {
 
     const groups = board.groups();                    // biggest first
     // THE MAINLAND IS WHATEVER IS BIGGEST. It used to be whichever piece the
-    // Palazzo happened to be standing on, which meant a gust that blew the seat
+    // Palazzo (the Plaza now) stood on, which meant a gust that blew the seat
     // onto a two-tile rock demoted the entire kingdom to an island and doubled
     // every rate on the board in one move. Size is the reading a player makes
     // anyway: the big one is the mainland.
@@ -837,7 +838,7 @@ export class Soffiando extends Mode {
    * SCORING A FEATURE EMPTIES IT. Farms, cities, roads, temples — finished or
    * not, a colour firing over a thing you are standing in pays you and then
    * hands the figure back. That is the brake on the whole economy: without it
-   * a figure put down early collects from every sphere for the rest of the
+   * a figure put down early collects from every tower for the rest of the
    * game and there is no reason ever to move it, which is a game of who
    * claimed fastest in the first ten turns. It used to be only FINISHED things
    * that emptied, which left the farmer — the single biggest income in the
@@ -862,14 +863,13 @@ export class Soffiando extends Mode {
   }
 
   /**
-   * Take everybody the sphere just paid off the board — AFTER every half of it
-   * has fired, which is the whole reason this is a queue rather than something
-   * `payHolders` does on the spot. Both halves of a sphere fire, and two reds
-   * pay the same temple twice; emptying it the moment the first half landed
-   * meant the second half found an empty board and a matched pair paid once.
+   * Take everybody the tower just paid off the board, AFTER every colour it
+   * fires has fired, which is the whole reason this is a queue rather than
+   * something `payHolders` does on the spot: the sun fires all four, and
+   * emptying a feature after the first left nothing for the rest.
    *
    * It is also what keeps the computer player honest. `sphereValue` fires a
-   * sphere for real against a scratch tally to find out what it would pay, and
+   * tower for real against a scratch tally to find out what it would pay, and
    * with the reclaim inline that made merely THINKING about a placement strip
    * the followers off the board. The bot throws the queue away; the game sweeps
    * it.
@@ -1283,7 +1283,7 @@ export class Soffiando extends Mode {
   // move when it can, and that one with room but no square that fits beside
   // it "keeps going".
   //
-  // So a tile the wind, the Palazzo or a stick moved that comes to rest
+  // So a tile a push moved (the stick's then, the blow's now) that comes to rest
   // against an edge it does not meet moves on, before anything else happens:
   // the player whose turn it is picks a way, and it slides that way square by
   // square to the first empty square where every edge meets what is beside it
@@ -1433,8 +1433,8 @@ export class Soffiando extends Mode {
 
   /**
    * Every loose tile has moved on or fallen: carry on with the turn. A walk a
-   * sphere opened meanwhile comes first; then the follower step after a
-   * placement, or the end of the turn after a push.
+   * tower opened meanwhile comes first; then the follower step after a
+   * placement, or the end of the turn after the blow.
    */
   afterAstray() {
     const g = this.game;
@@ -1774,7 +1774,7 @@ export class Soffiando extends Mode {
    * wind took the Abbazia away, and the road is open country again. Nothing is
    * taken back — nothing was paid for finishing in the first place — but it
    * has to stop counting as scored, or its windmills can never pay again and a
-   * blue sphere would keep paying it at the finished rate for a city that is
+   * blue tower would keep paying it at the finished rate for a city that is
    * standing open.
    */
   reopen() {
@@ -1849,9 +1849,9 @@ export class Soffiando extends Mode {
   }
 
   /**
-   * Finishing anything pays nothing by itself. What it does is put a city on
-   * the higher rate for the next blue sphere, and let a road be walked away
-   * from — and that is all.
+   * Finishing something somebody holds pays nothing by itself. What it does
+   * is put a city on the higher rate for the next blue tower, and let a road
+   * be walked away from.
    *
    * The WINDMILL is the one exception left in the mode: every turbine standing
    * in a feature that finishes pays 2, and it pays WHOEVER HOLDS THE FEATURE
@@ -1901,14 +1901,13 @@ export class Soffiando extends Mode {
   }
 
   /**
-   * The end of the season, and it is a sphere going off in every colour at
-   * once: the farms, the cities, the temples and the roads are all scored one
-   * final time. Everything you are still standing in pays, which is the whole
-   * point of a mode where nothing is ever finished for good.
+   * The end of the season, and it is every colour going off at once: the
+   * farms, the cities, the Abbazias and the roads are all scored one final
+   * time. Everything you are still standing in pays, which is the whole point
+   * of a mode where nothing is ever finished for good.
    *
    * Four passes, one each, and no more. Unpaired halves used to fire again
-   * here, which made a sfera you could not place worth keeping — a consolation
-   * prize for a thing that was already a whole colour's worth of decision.
+   * here, which made a half you could not place worth keeping.
    */
   lastRound() {
     this.game.say('The season turns, and the sky scores everything one last time.');

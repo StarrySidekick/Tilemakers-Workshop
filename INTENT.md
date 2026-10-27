@@ -73,8 +73,20 @@ lane where it goes in, and cracks instead of falls ("yea i like one and
 two"), then "weave these rules into the actual game, not as toggles", and
 that a tile which no longer fits moves on, the way its player picks, to
 where it fits, falling only when "completely surrounded". The stick has
-taken the cloud's place. That is the twenty-seventh pass. Not merged until
-he says.
+taken the cloud's place. That is the twenty-seventh pass, merged on his
+word.
+
+On 2026-10-27, "crazy changes, but i want to try them": every turn ends with
+a blow of your own zephyr, its push power 1 and 1 an Abbazia on the board,
+zephyr tiles chaining from it; sferas become towers that meet only their own
+colour and are never pushed; walls hold followers, not tiles; a sun and a
+black hole as 2x2 towers; a road or city nobody holds pays whoever closes
+it; five followers, open roads and cities shared; the Palazzo a Plaza that
+does nothing; temples and temple districts Abbazias, which red now pays;
+gardens 2 more; the panel folded away with a tile list. And "gather insights
+on scoring after all this": towers hardly close under these rules, so
+followers rarely come home and half the points are for closing what nobody
+holds (MODES.md, twenty-eighth pass). Not merged until he says.
 
 **Fields: settled 2026-09-06, and Timothy was right.** They are fully built.
 `src/tiles.js` cuts the perimeter into eight half-edges with `halfPartner` as the

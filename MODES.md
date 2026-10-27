@@ -1135,6 +1135,73 @@ kingmakes badly, and you'd blame the mechanic instead of the count.
 > Rules 8, 9, 31 and 42 changed; 69 (a loose seam joins nothing), 70 (the
 > stick) and 71 (a push is not wind) are new; 55 to 58 (the cloud) are
 > retired.
+>
+> **Twenty-eighth pass: towers, the blow every turn, the sun and the black
+> hole.**
+>
+> Timothy, 2026-10-27, a list he called "crazy changes, but i want to try
+> them". Asked four things, he chose: a zephyr tile pushes only in your
+> chain; a road or city nobody holds pays its closer on the spot; red pays
+> the Abbazias' neighbourhoods; the sun fires every colour and the black
+> hole swallows the ring round it.
+>
+> - **The blow** (rules 70, 72 to 75): every turn ends with one, after the
+>   follower step (`holdTurn`, the `blow` phase, `blowAt`). Against any
+>   tile, any side; the run in front to the first gap goes a square if it is
+>   no longer than the PUSH POWER, 1 and 1 an Abbazia on the board. A zephyr
+>   tile it pushes pushes in its turn at its own push plus yours, and chains
+>   (`blow` in `src/wind.js`); a cannon fires. Too heavy, or a tower in it:
+>   no tile moves, the followers it reaches go a square. The old storm (loose
+>   ends, absorbing, waking, whole islands) is retired from the mode; the
+>   engine still has it for other modes.
+> - **Towers hold tiles, walls hold followers** (rules 22, 75): a tower is
+>   never pushed; a walled tile is, but no follower crosses a wall.
+> - **Towers** (sferas until now; rules 43, 44): a half meets only its own
+>   colour (`edgeLetter`, `seamJoins` in tiles.js), and a tower fires its
+>   colour once. **The sun and the black hole** (rules 76 to 78): four
+>   quarters each, a 2x2 whose edges meet only their mirror.
+> - **Closing what nobody holds pays the closer** (rule 79, `payCloser`).
+> - **Followers**: five each; an open road or city may be joined, by
+>   anybody, yourself too (`mayShare`, a host hook), a closed one never.
+> - **Red** pays each Abbazia a point a tile round it to whoever has most
+>   followers there; temples and temple districts are Abbazias (eleven).
+>   **Blue** adds 2 a garden. **The Plaza** replaces the Palazzo and tows
+>   nothing; islands no longer move whole.
+> - **The page**: tower, sun, black hole and Plaza art; the move-on slides
+>   after the push it follows, with a ring first, and the slides' veil was
+>   keyed by a square's middle and hid nothing (every wind-moved tile stood
+>   at its new square while it slid); settings, rules and log folded away;
+>   a tile list with what is still to come.
+>
+> What it plays like, bots, two players, 24 games:
+>
+> | | last pass | this pass |
+> |---|---|---|
+> | score a player | 79 | 96 |
+> | towers (spheres) closed | 3.1 | 1.6 |
+> | claims | 23.6 | 14.3 |
+> | tiles that moved on | 18.8 | 22.1 |
+> | tiles fallen | 5.2 | 6.4 |
+> | islands at the end | 8.6 | 11.0 |
+>
+> Where the points come from: closing roads and cities nobody holds 48%;
+> red at the end of the game 23%, and during it 5%; the archipelago 7%;
+> blue at the end 7%, green at the end 5%; everything else 1 or 2% each.
+> Three players: 42%, red 35% all told.
+>
+> Why: **the towers hardly close.** A half meets only its own colour and no
+> push moves it, so its partner has to be drawn and laid exactly against
+> it: about 4.8 draws a game could close one, and the bots take 1.4 (the
+> others would pay a rival more). 13 of the 16 halves are still unpaired at
+> the end; the sun never formed in 24 games, the black hole once. With so
+> few towers, followers rarely come home: in hand, 2.8 of 5 early, 0.8 by
+> the middle, 0.3 late. So most of what closes from the middle on has
+> nobody in it, and pays whoever closes it. Push power climbs 2.4 early,
+> 6.1 mid, 10.1 late; a blow is too heavy 16% of the time.
+>
+> Rules 1 to 4, 6, 8 to 10, 13, 14, 17, 20, 22 to 24, 27 to 31, 35, 38,
+> 43, 44, 46, 48, 50 to 52, 66, 67 and 70 changed; 72 to 79 are new; 18,
+> 19, 21, 25, 26, 36, 42 and 71 retired.
 
 
 **Question it answers:** is a small board you keep *editing* better than a big
