@@ -86,7 +86,7 @@ does nothing; temples and temple districts Abbazias, which red now pays;
 gardens 2 more; the panel folded away with a tile list. And "gather insights
 on scoring after all this": towers hardly close under these rules, so
 followers rarely come home and half the points are for closing what nobody
-holds (MODES.md, twenty-eighth pass). Not merged until he says.
+holds (MODES.md, twenty-eighth pass). Merged on his word ("merge").
 
 **Fields: settled 2026-09-06, and Timothy was right.** They are fully built.
 `src/tiles.js` cuts the perimeter into eight half-edges with `halfPartner` as the
