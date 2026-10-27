@@ -95,7 +95,7 @@
 //     along behind its own leading edge instead of piling up.
 // ---------------------------------------------------------------------------
 
-import { SIDE_STEP, NO_MEEPLE, opposite, edgesMeet } from './tiles.js';
+import { SIDE_STEP, NO_MEEPLE, opposite, edgesMeet, WALL } from './tiles.js';
 
 /**
  * A backstop, not the rule. What ends a cascade is that no zephyr blows twice
@@ -817,4 +817,164 @@ export function shove(board, { at, dir, most = Infinity, pinned = null }) {
   }
   board.rebuild();
   return report;
+}
+
+// ---------------------------------------------------------------------------
+// YOUR ZEPHYR (2026-10-27). Every turn a player blows once with their own
+// zephyr (Timothy: "you have to use your zephyr every turn in addition to
+// placing a tile and placing a meeple"), and in Soffiando that blow is the
+// only wind there is: a zephyr TILE pushes only when the blow has pushed it
+// (Timothy: "your zephyrs blows, pushing what it pushes. if any of the pushed
+// tiles had a zephyr, they then push tiles as well, based on their push power
+// plus yours ... and it chains as it goes").
+//
+// One push is the stick's: the tile the zephyr is against and every tile
+// touching in front of it, up to the first gap, go one square, if there are
+// no more of them than the push's power and nothing among them `holds`.
+// Otherwise no tile moves, and the followers on the tiles the push reaches
+// (as many as its power) are blown a square downwind instead (Timothy: "you
+// can blow on an area even if you can't move any tiles, and it will still
+// move meeple"), never across a city wall ("castle walls protect meeple").
+// ---------------------------------------------------------------------------
+
+/**
+ * The run of tiles in front of a push: the tile at `at` and every one touching
+ * in front of it, up to the first gap. `ring` when the run goes all the way
+ * round a wrapping map and meets itself, which no push can move.
+ */
+export function runFrom(board, at, dir) {
+  const first = board.get(at.x, at.y);
+  if (!first) return { cells: [], ring: false };
+  const [dx, dy] = SIDE_STEP[dir];
+  const cells = [first];
+  let cur = first;
+  for (let n = 0; n < MAX_RUN; n++) {
+    const next = board.norm(cur.x + dx, cur.y + dy);
+    if (board.bounds && !board.wraps && !board.inBounds(next.x, next.y)) break;
+    const there = board.get(next.x, next.y);
+    if (!there) break;
+    if (there === first) return { cells, ring: true };
+    cells.push(there);
+    cur = there;
+  }
+  return { cells, ring: false };
+}
+
+/**
+ * A blow, and every push it sets off, in the order they happen. Each is
+ * reported as a gust is (`stick` marks it), so a mode pays for it and draws
+ * it the same way. `power` is the blower's push power; a zephyr pushed by the
+ * blow pushes in its turn, down each way it points, at its own push plus
+ * `power`, from the tile in front of it (its own tile never moves with its
+ * own push), once a way per blow; a gust cannon FIRES what is in front of it
+ * instead, each tile flying until the square in front of it is taken.
+ * `holds(cell)` is a tile no push can move.
+ */
+export function blow(board, { at, dir, power = 1, holds = null, cap = 64 }) {
+  const out = [];
+  const fired = new Map();                         // zephyr cell -> ways it has pushed
+  const queue = [{ at, dir, power, blast: false, by: null }];
+  while (queue.length && out.length < cap) {
+    const job = queue.shift();
+    const r = pushOnce(board, job, holds);
+    out.push(r);
+    for (const m of r.moved) {
+      const z = m.cell;
+      const ways = zephyrDirs(z);
+      if (!ways.length) continue;
+      const done = fired.get(z) || new Set();
+      fired.set(z, done);
+      for (const d of ways) {
+        if (done.has(d)) continue;
+        done.add(d);
+        r.zephyrs.push({ cell: z, dir: d, blast: isCannon(z) });
+        // From wherever the zephyr is when its turn comes: a push queued
+        // before it may move it again.
+        queue.push({ dir: d, power: zephyrPush(z) + power, blast: isCannon(z), by: z });
+      }
+    }
+  }
+  return out;
+}
+
+function pushOnce(board, job, holds) {
+  const { dir, power, blast, by } = job;
+  const [dx, dy] = SIDE_STEP[dir];
+  if (by) job.at = board.get(by.x, by.y) === by ? board.norm(by.x + dx, by.y + dy) : { x: NaN, y: NaN };
+  const report = {
+    dir, from: by ? { x: by.x, y: by.y } : { x: job.at.x - dx, y: job.at.y - dy },
+    stick: true, everywhere: false, push: power, blast, strength: power, by,
+    moved: [], fell: [], carried: [], homed: [], swung: [],
+    turbines: [], reached: [], zephyrs: [], lifted: [], heavy: false,
+  };
+  const { cells: run, ring } = runFrom(board, job.at, dir);
+  if (!run.length) return report;
+  const heavy = ring || run.length > power || run.some((c) => immovable(c) || (!!holds && holds(c)));
+  report.heavy = heavy;
+  report.reached = heavy ? run.slice(0, power) : run.slice();
+  for (const c of report.reached) if (turbineOn(c)) report.turbines.push(c);
+
+  if (!heavy) {
+    // Far end first, so every square a tile moves into has just been left.
+    const lap = board.wraps ? (dx === 0 ? board.span.h : board.span.w) : MAX_RUN;
+    for (let i = run.length - 1; i >= 0; i--) {
+      const cell = run[i];
+      const was = { x: cell.x, y: cell.y };
+      let steps = 1;
+      if (blast) {
+        // Fired: on until the square in front is taken, round the map if
+        // it has to, and never further than a lap.
+        while (steps < lap) {
+          const n = board.norm(was.x + dx * (steps + 1), was.y + dy * (steps + 1));
+          if (board.get(n.x, n.y) || (board.bounds && !board.wraps && !board.inBounds(n.x, n.y))) break;
+          steps++;
+        }
+      }
+      if (!board.shift(was, { x: was.x + dx * steps, y: was.y + dy * steps })) continue;
+      report.moved.push({ cell, from: was, steps });
+    }
+  } else {
+    // Too heavy: nothing moves, and the followers on the tiles it reaches
+    // are blown a square downwind, the front one first.
+    for (let i = report.reached.length - 1; i >= 0; i--) blowFollower(board, report.reached[i], dir, report);
+  }
+
+  // The windvanes it reached turn onto the wind, moved or not.
+  for (const cell of report.reached) {
+    if (!swings(cell) || cell.anchored || cell.fixed) continue;
+    if (board.get(cell.x, cell.y) !== cell) continue;
+    const want = dx === 0 ? 0 : 1;
+    if ((cell.rot & 1) === want) continue;
+    board.replace(cell.x, cell.y, cell.type, want);
+    report.swung.push(cell);
+  }
+  board.rebuild();
+  return report;
+}
+
+/**
+ * One follower blown a square downwind: onto the next tile, or, over open
+ * sky, on until it lands on one, round the map if it has to. It stays where
+ * it is if a city wall stands in the way (on its own tile's edge, or on the
+ * one it would come down on) or the tile it would land on has a figure.
+ */
+function blowFollower(board, cell, dir, report) {
+  const m = cell.meeple;
+  if (!m || m.flat) return;
+  const [dx, dy] = SIDE_STEP[dir];
+  if (board.edgeAt(cell, dir) === WALL) return;
+  const lap = board.wraps ? (dx === 0 ? board.span.h : board.span.w) : MAX_RUN;
+  let dest = null;
+  for (let n = 1; n <= lap; n++) {
+    const sq = board.norm(cell.x + dx * n, cell.y + dy * n);
+    if (board.bounds && !board.wraps && !board.inBounds(sq.x, sq.y)) break;
+    dest = board.get(sq.x, sq.y);
+    if (dest) break;
+  }
+  if (!dest || dest === cell || dest.meeple) return;
+  if (board.edgeAt(dest, opposite(dir)) === WALL) return;
+  const type = m.feat == null ? null : cell.type.feats[m.feat]?.type;
+  dest.meeple = { ...m, feat: landingFeature(dest, type) };
+  cell.meeple = null;
+  report.carried.push({ ...m, from: { x: cell.x, y: cell.y }, to: { x: dest.x, y: dest.y } });
 }

@@ -1,250 +1,86 @@
 // ---------------------------------------------------------------------------
 // Soffiando — the cloud kingdom, where the board itself is weather.
 //
-// You place tiles and claim features like Carcassonne, and then the wind
-// rearranges the country underneath you. Nothing in the sky is nailed down:
-// every tile on the board can be pushed, finished or not, and the only thing
-// that stops one is a city wall standing square across the wind.
+// You lay tiles and claim features as in Carcassonne, and then you blow the
+// country about underneath everybody. The rulebook (soffiando-rulebook.js) is
+// the short version of all of this, every rule tested on this engine;
+// MODES.md has the history and the measurements.
 //
-// THE ZEPHYR is the engine — twenty-two of them in the deck. Play one and it
-// blows down its lane, and what it does there is not what you would guess: it
-// does NOTHING to the country it passes through. Country packed against more
-// country is country the wind can't get under. What it moves is THE LOOSE END
-// — the run of tiles downwind of the zephyr stops somewhere, at a gap or at
-// open sky, and the last tiles before that gap are the ones that come away.
+// A TURN is three steps (Timothy, 2026-10-27: "you have to use your zephyr
+// every turn in addition to placing a tile and placing a meeple"): lay a
+// tile, claim on it or not, and then BLOW. Every player has a zephyr of their
+// own. You put it against any tile, on any side, and that tile and every tile
+// touching in front of it, up to the first gap, go one square, if there are
+// no more of them than your PUSH POWER: 1, plus 1 for every Abbazia on the
+// board, the same for everybody ("push power ... is based on how many
+// abbazzias are present on the board"; "both players start with 1"). A
+// zephyr tile the blow pushes then pushes in its turn, the way it points, at
+// its own push plus yours, and what that pushes chains on ("if any of the
+// pushed tiles had a zephyr, they then push tiles as well ... and it chains
+// as it goes"); a gust cannon fires what is in front of it instead, each tile
+// flying until the square ahead of it is taken. A zephyr tile does nothing
+// when it is laid: the blow is the only wind there is (wind.js `blow`).
 //
-// HOW MANY, AND HOW FAR, IS THE POWER. A gust arriving at the loose end with
-// power N pops the last N tiles off and carries each of them N squares. A row
-// of five with a zephyr on the right of it blowing west: power one, so the
-// leftmost tile alone goes one square west. Put a second west-blowing zephyr
-// in that row and the gust absorbs it, arrives at power two, and the leftmost
-// TWO tiles come away two squares each — as a raft, because they were touching
-// before and they all travel together.
+// A push too heavy to move, or with a tower in it, moves no tile, but blows
+// the followers on the tiles it reaches a square downwind ("you can blow on
+// an area even if you can't move any tiles, and it will still move meeple").
+// TOWERS HOLD TILES AND WALLS HOLD FOLLOWERS ("castle walls protect meeple,
+// towers/sfera protect tiles"): a tile with a tower on it never moves, and a
+// follower is never blown across a city wall, but a tile with a wall on it
+// moves like any other.
 //
-// THE GUST CANNON is the other kind of wind, and six tiles in the deck carry
-// one. It is a zephyr in every way the engine cares about — direction,
-// absorption, chaining, and one that somebody else's gust WAKES still fires
-// like a cannon — except in what it does at the loose end. It does not carry
-// the tiles; it FIRES them, and a fired tile travels until the square in front
-// of it is occupied, however far away that is. So a raft crosses a strait it
-// could never have crossed a square at a time, the leading tile going furthest
-// and the ones behind piling up against it. And one fired down a lane with
-// nothing else in it goes on round the map until it meets the back of its own
-// cannon. Followers are unchanged by all of it — a person is not a
-// projectile.
+// A TILE THAT NO LONGER FITS MOVES ON. One a blow moved that comes to rest
+// with any edge against country it cannot meet slides on, the way the player
+// whose turn it is chooses, to the first empty square where it fits; only one
+// with every way blocked falls, back on top of the deck, and the player whose
+// turn it is lays one more tile. Until it moves, the seam it does not meet
+// joins nothing (Board.cracks).
 //
-// AND IT BUILDS. Power used to stop at three; it doesn't any more. A gust that
-// runs over a zephyr blowing the SAME way absorbs it and blows a square harder
-// beyond it — never harder upon it, so a zephyr is never shoved along by its
-// own breath. A zephyr pointing ANY OTHER way is woken rather than absorbed:
-// the storm turns and carries on down the new zephyr's lane, in the new
-// zephyr's direction, ONE POWER HARDER THAN IT ARRIVED. Every corner a storm
-// turns it hits harder, and the raft it tears off the next end is wider. What
-// keeps that finite is that no zephyr contributes the same direction to the
-// same storm twice. The ones that blow several ways at once open a lane each
-// out of the same square. Two DOUBLE ZEPHYRS open at two.
+// TOWERS ARE THE SCORING (sferas until 2026-10-27). A tower half meets only a
+// half of its own colour ("each color has to go to each color"), and the two
+// close a tower, which fires its colour once: a scoring pass over the whole
+// board, paying whoever holds the most of each feature of that kind.
 //
-// NOTHING FALLS FOR BEING ALONE. A tile the wind shakes free of everything
-// hangs there over open air, and it stays there. That is the engine of the
-// whole mode now: the fragments the weather makes are the ISLANDS, and the old
-// rule — a tile touching nothing drops out of the sky — was an eraser that
-// deleted them before they could ever become country, so the board healed back
-// into one mass every turn and the archipelago was a thing you read about in
-// the rules.
+//   GREEN  the farms: a point for every two tiles of field
+//   BLUE   the cities: a point a district, plus 1, 3 or 6 for two, three or
+//          four kinds, all doubled once walled all round; plus 2 a garden
+//   RED    the Abbazias: a point for every tile round one, to whoever has the
+//          most followers on and round it
+//   YELLOW the roads: a point a tile, plus 1 for each open city a road
+//          reaches and 2 for each closed one
 //
-// AND THREE RULES TURN THOSE FRAGMENTS INTO AN ARCHIPELAGO. Removing the
-// eraser was not enough by itself — it left the board covered in single tiles
-// that were nobody's and could never grow. So:
+// THE SUN AND THE BLACK HOLE are the big towers, four quarters each closing a
+// 2x2: the sun fires every colour, and the black hole swallows the twelve
+// squares round it, shuffled back into the deck.
 //
-//   THE WIND CROSSES GAPS. It takes the loose end of EVERY run down its lane,
-//     not just the first, and its strength carries over the open air between
-//     them. A board that is one tile thick in two places is a board one gust
-//     can cut in two places.
-//   WHAT THE WIND CAN GET UNDER GOES WHOLE. The Palazzo's mainland is the only
-//     country too big to lift. Everything else adrift the gust reaches travels
-//     entire — arms, followers and all — and slides until it comes to rest
-//     ALONGSIDE what stops it. Rocks meet and become islands; islands meet and
-//     become bigger islands; and an island driven back into the mainland is
-//     swallowed by it, which is the price of the whole thing being weather.
-//   EVERY FRAGMENT IS AN ISLAND, down to a single tile. The wind's commonest
-//     act is popping ONE tile off a loose end, so nearly every fragment it
-//     makes is a singleton, and calling those rocks rather than islands meant
-//     they scored nothing and could never be BUILT ON. A tile you have
-//     somebody standing on is somewhere you may lay a tile — so the wind makes
-//     the seed and the players grow it.
+// A feature a tower pays is emptied: its followers come home, or one of the
+// current player's walks on down a road. Nothing pays for being finished,
+// except a windmill, and a road or city closed with NOBODY in it, which pays
+// whoever closed it what its tower would ("things that go unclaimed are
+// scored by whoever places the last piece of that feature").
 //
-// A TILE THAT NO LONGER FITS MOVES ON. One the wind MOVED that comes to rest
-// with ANY edge against country it cannot meet does not stay (Timothy,
-// 2026-10-24: "roads can no longer mismatch in any way and still stay
-// together"): a road jammed against a field, a field against a city. From
-// 2026-10-24 it fell; from 2026-10-26 it slides on to where it fits, and only
-// one with nowhere to go falls (see the stick, below). A tile with no
-// neighbours at all has nothing to disagree with, so it floats.
+// FOLLOWERS: five each ("you only have 5 meeple"). A road or city that is
+// still open may be joined even if somebody is already in it ("you can add
+// meeple to finished roads and cities even if other meeple are there, but
+// not if they are closed", read as: not yet closed); a closed one never, nor
+// a tower or an Abbazia ("you not longer claim them").
 //
-// FOLLOWERS ARE BLOWN LIKE TILES, WHICH IS NOT WHAT HAPPENS TO THE TILES. One
-// standing on the raft rides it and never notices. Every other follower in the
-// lane is picked up and put down downwind, on whatever is there. One blown off
-// a ledge KEEPS FLYING downwind until it lands on country; only one with no
-// country anywhere ahead of it goes home.
+// THE MAINLAND is whatever piece of country is biggest, and every other piece,
+// down to a single tile, is an ISLAND: it pays double, and you may build onto
+// it only if you already stand on it. At the end, 10 to whoever stands on the
+// most islands, and then every colour fires once more.
 //
-// A FEATURE THAT SCORES IS EMPTIED. Farms, cities, roads, temples: a colour
-// firing over a thing you are standing in pays you, and then hands the figure
-// back. That is the brake on the whole economy — without it a figure put down
-// early collects from every sphere for the rest of the game and never moves,
-// which is a game of who claimed fastest in the first ten turns.
+// THE PLAZA is the tile the game starts on, in the middle of a 17 x 17 map
+// whose edges meet, and it does nothing else (it was the Palazzo, which towed
+// the islands; Timothy: "i don't want the pallazzo to really do anything
+// anymore"). Islands no longer travel as one piece either.
 //
-// Eight each. One figure never comes home: one LYING FLAT, which is a follower
-// you have retired into its city on purpose — it keeps the city, and the city
-// never pays the walled double for as long as only flat followers hold it.
-//
-// And one of yours a sphere sends home on your own turn may WALK instead:
-// out along a road connected to where it stood, as far as the road runs, and
-// take up whatever it finds. A dead end is the road itself. A road with
-// somebody else's follower on it is a road you may not use. It is the only way
-// a figure moves anywhere under its own steam.
-//
-// NOTHING IS PAID FOR BEING FINISHED. The sferas are the scoring engine, and
-// closing a sphere is the event the whole mode turns on: each of its two halves
-// fires a scoring pass over one kind of thing, EVERYWHERE ON THE BOARD, paying
-// whoever is standing in each one.
-//
-//   GREEN  the farms — a point for every two tiles of field, to the majority
-//            farmer; a field a rival is already farming is closed to you
-//   BLUE   the cities — by districts and kinds (see CITIES below)
-//   RED    the temples — 1 for every tile standing in the eight around one
-//   YELLOW the roads — 1 a tile, plus 1 for each city the road reaches and 2
-//            if that city has closed, whoever owns the far end
-//
-// Any half fits any other, and BOTH fire: two yellows score the roads twice
-// over, a yellow against a blue scores the roads and the cities once each. So
-// the question every turn is never "can I close this" but "will a sphere close
-// while I am still standing in it" — and finishing a city is not a payday, it
-// is a rate change on every blue sphere still to come.
-//
-// One thing still pays outside the spheres, and it is the WINDMILL. It stands
-// in a city OR on a road, and it pays 2 to whoever HOLDS that feature — once
-// for every gust that blows through it, and once more when the feature
-// finishes. Whoever laid the closing tile gets nothing for it: a mill is a
-// thing you own, not a race you win.
-//
-// And a city you were HOLDING, finished, that the wind blows open again costs
-// you a point a tile. Nothing was paid for finishing it; that is the price of
-// having been the one holding it when the weather arrived.
-//
-// AN ISLAND pays exactly DOUBLE, all of it — and at the end a flat 10 goes to
-// whoever has a follower standing on more separate islands than anybody else.
-//
-// AT THE END the sky fires every colour once, and that is all.
-//
-// THE MAINLAND IS WHATEVER IS BIGGEST, and every other piece of country is an
-// ISLAND, down to a single tile. It used to be whichever piece the Palazzo
-// happened to be standing on, which meant a gust that blew the seat onto a
-// two-tile rock demoted the whole kingdom to an island and doubled every rate
-// on the board in one move.
-//
-// You may not build onto an island unless you are ALREADY
-// STANDING on it — being blown out there is meant to be an opportunity rather
-// than a sentence, but you cannot sail out to an empty rock and start.
-// Islands are made, not chosen: you were standing there when the country blew
-// apart, or you blew a tile across the gap, or you flew somebody out on a
-// flying machine. And when the wind gets hold of the PALAZZO ITSELF, every
-// island in the sky slides one square the way the seat went.
-//
-// CITIES ARE DISTRICTS (Timothy, 2026-10-24). Every city tile is one whole
-// square of one kind: GARDEN, TEMPLE, RESIDENTIAL, INDUSTRIAL or TRADE, each
-// its own colour and texture. A district opens onto the sides its city runs
-// on through and is WALLED on the rest; the old city caps are those same
-// walls, lying flat on the tile across the seam. A city pays a point per
-// district plus a bonus that compounds with the number of DIFFERENT kinds in
-// it (0, 1, 3, 6, 10), doubled once walls close it all round. And a wall stands up
-// to the wind: a tile with a wall square across the way a gust is blowing
-// cannot be pushed by it. A wind running along the wall moves it like
-// anything else.
-//
-// EVERY PLAYER HAS A STICK (Timothy, 2026-10-26: "an actual little like stick
-// that you use to push tiles ... you're going to be able to push like entire
-// lanes of tiles ... But I also want to still somehow make it so that it's
-// possible for islands to form really often"). It took the place of the
-// player's cloud, which blew like a zephyr from 2026-10-24. Instead of
-// claiming, once a turn, you put it against a tile and push: that tile and
-// every tile touching in front of it, up to the first gap, go one square, as
-// a row of real tiles goes in front of a real stick. At most three; a longer
-// train is too heavy (`STICK_MOST`, Claude's call, measured). Everything
-// behind the stick stays, so the lane splits where it went in, and the train
-// slides past the lanes beside it. A push is not wind: it wakes no zephyr,
-// pays no windmill, blows nobody along and tows nothing; a follower on the
-// train rides it. A wall square across the push holds it still, as it holds
-// against the wind.
-//
-// AND WHAT NO LONGER FITS MOVES ON (Timothy, 2026-10-26: "if there's room for
-// that tile to move, then you can basically move the tile one space away [of]
-// your choice so that it is no longer mismatched with anything. If it is
-// completely surrounded by tiles, then yes, it still falls"). A tile the
-// wind, the Palazzo or a stick has moved that comes to rest against an edge
-// it does not meet slides on, the way the player whose turn it is chooses,
-// to the first empty square where every edge meets what is beside it ("it
-// keeps going"). Only one with every way blocked falls. Until it moves, the
-// seam it does not meet joins nothing (Board.cracks).
-//
-// THE MAP WRAPS (Timothy, 2026-10-25: "tiles that are pushed off the map
-// appear on the other side pac-man style, still connected"). It is seventeen
-// squares a side with the Palazzo in the very middle, and each edge meets the
-// edge across from it: a tile on the east edge has the west edge's tile as
-// its neighbour, and what the wind pushes off one side comes on at the other.
-// A lane still runs only to the edge; it is what the wind PUSHES, fires or
-// blows that crosses. Nothing is lost off the map any more.
-//
-// WALLS ARE ON THE EDGE (2026-10-25). A district's walls stand on its tile's
-// edge, so farmland may lie against one and a road may run into one, ending
-// at a gate in its middle; yellow pays a road for the city behind the gate.
-//
-// THE DECK IS A LIST of 72 (soffiando-deck.js), and LONE WALLS are out of it,
-// for now: a city closes on its districts' own walls and on the Abbazia,
-// whose four walls are drawn as a district's are.
-//
-// THE BALENA, a sky whale the size of a district, is OUT of the default rules
-// (Timothy, 2026-10-24) and plays only with `options.balena`. Whatever tile it
-// lies on cannot be moved by any wind, and on your turn, instead of placing a
-// follower, you may send it anywhere on the board.
-//
-// THE WINDVANE has four ways in and only two of them joined, and the wind picks
-// which two. It is the ONLY tile the weather re-cuts — a straight road used to
-// swing onto the wind as well, and a road you built should stay where you built
-// it.
-//
-// A FOLLOWER HOPS a one-square gap. Run off one tile, across one empty square,
-// and straight on out of the tile beyond, and a walker can step over it. What
-// it is NOT is one road — the two halves score separately, and there is nothing
-// standing in the gap to see. There used to be a plank drawn across it and the
-// halves scored as one, on the argument that a gust cuts a road and the two
-// ends can never rejoin, so roads were paid by exactly the quantity the weather
-// destroys; the bridge gave the length back and looked like a plank floating in
-// mid-air, which is what it was. The step is the half worth keeping.
-//
-// A TEMPLE is a monastery with no cloister left in it, and it is the one thing
-// on the board whose value is its NEIGHBOURS: red pays its keeper a point for
-// every tile standing in the eight squares around it, so a temple laid early
-// and garrisoned is worth more every time somebody builds near it — and worth
-// something to your rival every time you do. Red pays it and then takes the
-// keeper back, like every other colour.
-//
-// THE ABBAZIA takes any edge and CAPS everything it touches: a road running
-// into one ends there, a city walls itself off against it, and both can finish
-// without ever meeting anything. It is also perfectly blowable — and when it
-// goes, everything it was holding shut is open country again.
-//
-// THE FLYING MACHINE points down a lane, and does one of three things along it.
-// It can put a NEW follower on any tile out there — an island included, which
-// is the one way to reach one on purpose. It can go and FETCH one of yours off
-// the lane, back into your supply. Or it can fetch one and SET IT DOWN again
-// further along the same flight, which is the only way a figure in this mode
-// ever moves anywhere on purpose.
-//
-// The thesis is in one line: NOTHING IS SETTLED AND NOTHING IS BANKED. A city
-// is finished until the weather says otherwise, the mainland is wherever the
-// Palazzo happens to be this turn, what you hold is only worth anything at the
-// moment somebody closes a sphere, and the only thing that stands against the
-// wind is a wall, and only when the wind hits it square.
+// CITIES ARE DISTRICTS: garden, residential, industrial and trade, each a
+// whole square, walled on every edge its city does not run on through. A road
+// may run into a wall and ends there, at a gate. THE ABBAZIA fits anything,
+// caps what it touches and adds to everybody's push. THE FLYING MACHINE flies
+// a follower out down its lane, or fetches one home. THE WINDVANE turns onto
+// the wind. THE BALENA, a sky whale, is an option: no push moves its tile.
 // ---------------------------------------------------------------------------
 
 import { Mode } from './mode.js';
@@ -256,8 +92,7 @@ import { DECK_COUNTS } from './soffiando-deck.js';
 import { DESIGN } from '../design.js';
 import { claimableFeatures, citiesFed, hasMark } from '../mechanics.js';
 import {
-  storm, zephyrDirs, zephyrPush, isCannon, worldDir, turbineOn, isTemple, MAX_STRENGTH, fitsAll,
-  trainOf, shove,
+  zephyrDirs, isCannon, worldDir, turbineOn, isTemple, fitsAll, blow, runFrom, immovable,
 } from '../wind.js';
 
 /**
@@ -267,7 +102,7 @@ import {
  * sky go back on it, so a stormy game runs past the deck it started with.
  */
 const STORM_LIMIT = 96;
-const TURBINE = 2;           // to the feature's holder, per gust through it
+const TURBINE = 2;           // to the feature's holder, per push that reaches it
 /**
  * EVERY OPINION THE COMPUTER PLAYER HAS, in one object.
  *
@@ -300,17 +135,15 @@ export const SOFFIANDO_WEIGHTS = {
   farm: 4,           // …scaled per feature type, because the four colours pay
   city: 1,           //    over different numbers of tiles and the bot has no
   road: 1.1,         //    way of knowing which of them is actually winnable
-  temple: 1.2,
-  sphere: 1,         // closing one, net of what it hands the table
-  sferaHalf: 1,      // holding a half nobody has paired yet
-  parish: 0.6,       // filling a square in somebody's parish
-  parishFree: 0.3,   // …and an empty temple you could go and stand in
-  turbineMine: 10,   // a windmill in a city we hold
+  sphere: 1,         // closing a tower, net of what it hands the table
+  closeTower: 8,     // …and closing one at all (measured: 8 against 2, even over 24 games; 8 closes more, as people do)
+  quarter: 1.5,      // a quarter of a big tower laid against another, per quarter it joins
+  parish: 0.6,       // a tile round an Abbazia, to whoever holds its neighbourhood
+  closer: 1,         // a road or city closed with nobody in it, paid to the closer
+  turbineMine: 10,   // a windmill in a feature we hold
   turbineTheirs: -3.4, // …or one somebody else does
-  gust: 1.84,        // everything a gust does, as one dial
-  gustBlow: 1,       // shoving a follower — ours out, theirs off
+  blowLook: 12,      // blows tried for real each turn, of the best guessed
   whale: 0,          // points of shelter before the Balena is worth a turn
-  push: 1,           // what a push must be worth, at least, before it beats a claim
   walk: 2,           // what a walk has to be worth before it beats the supply
 };
 
@@ -318,12 +151,12 @@ export const SOFFIANDO_WEIGHTS = {
 const weightsFor = (mode, seat) => mode.brains?.[seat] || SOFFIANDO_WEIGHTS;
 const WINDMILL = 2;          // …and per windmill, to whoever HOLDS the feature it finishes
 const REOPENED = 1;          // per tile, off a held city the wind blows open again
-const MAX_CHAIN = 6;         // storms raised while a storm is still landing
 const FLIGHT_RANGE = 24;     // squares, before we assume the zephyrs are a loop
 const ARCHIPELAGO = 10;      // at the end, to whoever stands on the most islands
-const EXTRA_FOLLOWERS = 1;   // …on top of everyone's usual seven
-const SUPPLY = 8;            // …which is what the panel draws
-const STICK_MOST = 3;        // with the stick: the most tiles one push moves
+const FOLLOWERS = 5;         // each (Timothy, 2026-10-27: "you only have 5 meeple")
+const SUPPLY = FOLLOWERS;    // …which is what the panel draws
+const BASE_PUSH = 1;         // everybody's push power with no Abbazia on the board
+const GARDEN = 2;            // blue, per garden district in a city, open or closed
 
 /**
  * What everything pays, on the mainland and out on an island — and everything
@@ -332,18 +165,18 @@ const STICK_MOST = 3;        // with the stick: the most tiles one push moves
  */
 /**
  * A CITY pays a point a district, plus a VARIETY bonus for how many kinds of
- * district it has (garden, temple, residential, industrial, trade) that
- * compounds: nothing for one kind, then 1, 3, 6, 10, each new kind worth one
- * more than the last. A city WALLED all round pays double on top, and out on
- * an island double again.
+ * district it has (garden, residential, industrial, trade) that compounds:
+ * nothing for one kind, then 1, 3, 6. A city WALLED all round pays double
+ * that, and 2 more for every garden district open or closed (Timothy,
+ * 2026-10-27: "every garden district you have scores the city an extra 2p,
+ * closed or open"); out on an island, double the lot.
  *
- * It was a multiplier first (a point a district, times 1, 2, 3, 5 or 8 for
- * the kinds), and in 30 bot games a side that multiplier made cities 62% of
- * all the points and ran the mean score from 101 to 174. As a bonus, cities
- * are 35% and the mean is 105: the second income after farms, and up from
- * 13% under the old city rules. See MODES.md, twenty-third pass.
+ * The bonus was a multiplier first (a point a district, times 1, 2, 3, 5 or 8
+ * for the kinds), and in 30 bot games a side that multiplier made cities 62%
+ * of all the points. As a bonus, cities were 35%: see MODES.md, twenty-third
+ * pass. The temple district went on 2026-10-27, so four kinds now, not five.
  */
-const VARIETY = [0, 0, 1, 3, 6, 10];
+const VARIETY = [0, 0, 1, 3, 6];
 const WALLED = 2;
 
 /** The city feature on a tile that is a district, if it has one. */
@@ -354,7 +187,7 @@ const RATE = {
   farm: { main: 1, isle: 2, per: 2 },     // per `per` tiles of field
   cityOpen: { main: 1, isle: 2 },         // per tile, unfinished
   cityDone: { main: 2, isle: 4 },         // per tile, finished
-  temple: { main: 1, isle: 2 },           // per tile standing around it
+  abbazia: { main: 1, isle: 2 },          // red, per tile standing around one
   road: { main: 1, isle: 2 },             // per tile
   roadCity: { main: 1, isle: 2 },         // …plus this per city the road reaches
   roadCityDone: { main: 2, isle: 4 },     // …and this if that city is finished
@@ -369,7 +202,7 @@ const RATE = {
 const COLOURS = {
   green: 'the farms',
   blue: 'the cities',
-  red: 'the temples',
+  red: 'the Abbazias',
   yellow: 'the roads',
 };
 
@@ -396,15 +229,18 @@ const listTally = (things, label = (t) => t) =>
 
 const DIR_NAMES = ['north', 'east', 'south', 'west'];
 
-/** The eight squares around a tile — a temple's parish, and what red counts. */
+/** The eight squares around a tile: an Abbazia's neighbourhood, and what red counts. */
 const RING = [[-1, -1], [0, -1], [1, -1], [-1, 0], [1, 0], [-1, 1], [0, 1], [1, 1]];
 
-const isPalazzo = (cell) => cell?.type.id === 'Kpz';
-const hasPalazzo = (cells) => cells.some(isPalazzo);
+/** A tile with a tower on it, a half or a quarter of a big one: no push moves it. */
+const isTower = (cell) => cell.type.feats.some((f) => f.type === 'sfera');
 const key = (c) => `${c.x},${c.y}`;
 
+/** What may be joined while it is open, however many are in it already. */
+const SHARED = new Set(['road', 'city']);
+
 export class Soffiando extends Mode {
-  /** The kingdom starts with a seat, and the seat is as blowable as anything. */
+  /** The kingdom starts with the Plaza, as blowable as anything. */
   seeds() { return [{ x: 0, y: 0, id: 'Kpz', rot: 0 }]; }
 
   /**
@@ -438,46 +274,37 @@ export class Soffiando extends Mode {
   }
 
   setup() {
-    // One more follower than anywhere else. Everything comes home off a scored
-    // feature now, so the supply turns over — but a sphere is also the only
-    // thing that ever pays, and being caught one figure short of the board you
-    // wanted when one closes is the whole loss.
-    for (const p of this.game.players) p.meeples += EXTRA_FOLLOWERS;
+    // Five each (2026-10-27). Everything comes home off a scored feature, so
+    // the supply turns over, and a short one makes every claim a choice.
+    for (const p of this.game.players) p.meeples = FOLLOWERS;
     this.flight = null;
     this.lifted = null;
     this.laid = 0;
-    this.gusts = 0;
+    this.gusts = 0;            // pushes a zephyr tile made, in somebody's chain
+    this.blows = 0;            // blows made, one a turn
+    this.pushes = 0;           // …and every push of either kind
     this.fallen = 0;           // tiles the wind has taken out of the sky
+    this.swallowed = 0;        // …and the black hole
     this.lost = 0;             // …of them, the ones blown off the map for good
     this.caught = false;       // …and whether one has come back to hand this turn
-    this.spheres = 0;          // spheres closed so far
+    this.spheres = 0;          // towers closed so far
     this.hues = {};            // …and how many of each colour
-    this.drifts = 0;           // times the Palazzo has towed the islands along
+    this.closerPaid = 0;       // points paid for closing what nobody held
     this.blowing = false;
     this.blame = null;         // whose weather is currently running
-    this.queued = [];
-    this.pending = [];         // followers the sphere has paid, waiting to come off
+    this.pending = [];         // followers the tower has paid, waiting to come off
     this.strollers = [];       // followers offered a walk when the scoring settles
     this.stroll = null;        // …and the one being asked about now
     this.laidFlat = false;     // one follower retired into a city per turn
     this.balenaMoved = false;  // …and the whale has already swum this turn
-    // The whale starts asleep over the seat of government. Nothing else is on
-    // the board yet for it to lie on, and the first player who wants the
-    // Palazzo blowable has only to move it.
-    //
-    // OUT OF THE DEFAULT RULES (Timothy, 2026-10-24: "for now, remove the
-    // balena in the default rules"). It is still all here, and a game with
-    // `options.balena` plays it; without, there is no whale, no button for
-    // it and nothing in the panel about it. City walls are now the brake.
+    // The whale starts asleep over the Plaza. OUT OF THE DEFAULT RULES
+    // (Timothy, 2026-10-24: "for now, remove the balena in the default
+    // rules"); a game with `options.balena` plays it.
     this.balena = this.game.options?.balena ? { x: 0, y: 0 } : null;
     this.settleBalena();
-    // THE STICK (2026-10-26), in the cloud's place; see the header.
-    // `options.stickMost` overrides how many tiles one push moves, for
-    // measuring; nothing in the game sets it.
-    this.stickMost = this.game.options?.stickMost ?? STICK_MOST;
-    this.stickDir = 1;
-    this.pushed = false;       // …and whether this turn's push has been made
-    this.pushes = 0;
+    // YOUR ZEPHYR, every turn, after the follower step (see the header).
+    this.blowDir = 1;
+    this.blown = false;        // …and whether this turn's blow has been made
     // …and what no longer fits moves on: until it does, the seam it does
     // not meet joins nothing (Board.cracks).
     this.game.board.cracks = true;
@@ -490,9 +317,10 @@ export class Soffiando extends Mode {
 
   // --- the mainland, and everything adrift from it ---------------------------
   //
-  // The Palazzo decides what "the mainland" is, and everything else follows
-  // from that one fact: where you may build, where a follower may be put down,
-  // and what every closure is worth. It moves, so all of that moves with it.
+  // The biggest piece of country is the mainland, and everything else
+  // follows from that one fact: where you may build, where a follower may be
+  // put down, and what every closure is worth. The wind moves it about, so
+  // all of that moves with it.
 
   /**
    * Where every tile on the board stands: the kingdom, and the sky adrift from
@@ -517,8 +345,7 @@ export class Soffiando extends Mode {
     // Palazzo happened to be standing on, which meant a gust that blew the seat
     // onto a two-tile rock demoted the entire kingdom to an island and doubled
     // every rate on the board in one move. Size is the reading a player makes
-    // anyway — the big one is the mainland — and it leaves the Palazzo doing
-    // the one job it is actually good at, which is towing the archipelago.
+    // anyway: the big one is the mainland.
     const main = groups[0] || [];
     // EVERY piece of country off the mainland is an island, down to a single
     // tile. It used to take two — "a lone tile adrift is not an island, it is a
@@ -578,15 +405,18 @@ export class Soffiando extends Mode {
   }
 
   /**
-   * On top of the host's own rule that a feature has to be unclaimed:
+   * On top of the host's own rule (a feature has to be unclaimed, unless the
+   * mode lets it be shared, `mayShare`):
    *
    *   AN ISLAND is somewhere you are blown or flown to, unless you are already
    *     standing on it — the same reach that decides where a tile may go.
-   *   YOU MAY NOT DOUBLE UP. A feature you already have somebody on is not a
-   *     feature you may put a second follower on, whatever route you took.
-   *   A FIELD WITH A RIVAL'S FARMER ON IT is closed to you outright. Farms are
-   *     the one thing here decided by a majority you cannot un-place, so a
-   *     contest for one is a race nobody can win by arriving second.
+   *   A CLOSED ROAD OR CITY is never claimed (Timothy, 2026-10-27: "not if
+   *     they are closed"). One closed with nobody in it has already paid
+   *     whoever closed it.
+   *   AN OPEN ROAD OR CITY may be joined, by anybody, you too, however many
+   *     are in it (rule 10); the majority is paid.
+   *   A FIELD WITH ANYBODY'S FARMER ON IT is closed to you, yours included.
+   *     Farms are the one thing decided by a majority you cannot un-place.
    */
   claimAllowed({ x, y, i, f }) {
     const board = this.game.board;
@@ -599,47 +429,45 @@ export class Soffiando extends Mode {
     if (f.type === 'city' && !cell.type.feats[i]?.district) return false;
     const d = board.featureOf(x, y, i);
     if (!d) return false;
-    const seat = this.game.current;
-    if (d.meeples.some((m) => m.player === seat)) return false;
-    if (f.type === 'field' && d.meeples.some((m) => m.player !== seat)) return false;
-    return true;
+    if (SHARED.has(d.type)) return d.open > 0;
+    return d.meeples.length === 0;
   }
+
+  /** The host asks before offering a feature somebody already holds. */
+  mayShare(d) { return SHARED.has(d.type) && d.open > 0; }
 
   // --- placing --------------------------------------------------------------
 
   afterPlace(cell) {
     cell.round = this.game.round;
     this.laid++;
-    const dirs = zephyrDirs(cell);
-    if (dirs.length) {
-      this.game.say(dirs.length > 1
-        ? `${this.game.player.name} lets the wind out ${dirs.length} ways at once.`
-        : isCannon(cell)
-          ? `${this.game.player.name} touches off the gust cannon.`
-          : `${this.game.player.name} lets the zephyr out.`);
-      const from = { x: cell.x, y: cell.y };
-      // …at its own strength, and as its own kind of weather: a double zephyr
-      // opens at two whether the wind that let it out was somebody else's gust
-      // or its owner's hand, and a gust cannon fires rather than pushes.
-      const push = zephyrPush(cell);
-      const blast = isCannon(cell);
-      this.weather(dirs.map((dir) => ({ dir, from, push, blast })), this.game.current);
-    }
+    // A zephyr tile does nothing when it is laid (2026-10-27): it pushes only
+    // when a blow has pushed it. Closing things does: a road or city closed
+    // with nobody in it pays whoever closed it, on the spot, and a tower
+    // fires.
+    this.settle(this.game.current);
     this.joinSferas();
-    // The flight is worked out after the weather, because the weather may have
-    // just rearranged everything the machine was going to fly over.
     this.flight = this.flightPath(cell);
-    // A sphere that just paid one of your followers has opened a WALK, and the
-    // answer here becomes the host's next phase. Returning 'meeple'
-    // unconditionally overwrote the walk the moment it was offered: 25 walks
-    // offered across twelve bot games, none of them ever reachable, by a bot
-    // or by anybody else.
-    // What the weather moved and no longer fits moves on first, and the
-    // follower step waits for it.
+    // A tower that just paid one of your followers has opened a WALK, and
+    // the answer here becomes the host's next phase.
     this.astrayThen = 'meeple';
     if (this.resolveAstray()) return 'astray';
     if (this.game.phase === 'over') return null;
     return this.game.phase === 'stroll' || this.beginStroll() ? 'stroll' : 'meeple';
+  }
+
+  /**
+   * THE BLOW IS THE LAST STEP OF A TURN, and it is not optional. The host
+   * asks this before it ends a turn; the first time each turn the answer is
+   * to hold it and hand the player their zephyr. Once the blow has been made
+   * (`blowAt`) the turn ends as it always did. A tile caught on the same turn
+   * is laid and claimed on without a second blow.
+   */
+  holdTurn() {
+    const g = this.game;
+    if (this.blown || g.phase === 'over' || !g.board.size) return false;
+    g.phase = 'blow';
+    return true;
   }
 
   endTurn() {
@@ -650,7 +478,7 @@ export class Soffiando extends Mode {
     this.strollers.length = 0;
     this.laidFlat = false;
     this.balenaMoved = false;
-    this.pushed = false;
+    this.blown = false;
     this.astray = [];
     this.astrayAt = null;
     this.movedNow.clear();
@@ -685,14 +513,10 @@ export class Soffiando extends Mode {
     switch (d.type) {
       case 'field':
         return Math.floor(d.tiles.size / RATE.farm.per) * per('farm') * w.farm;
-      case 'city': {
-        const { n, kinds } = this.districtsIn(d);
-        return (n + VARIETY[kinds]) * (d.open === 0 ? WALLED : 1) * (isle ? 2 : 1) * w.ahead * w.city;
-      }
+      case 'city':
+        return this.cityPoints(d).pts * w.ahead * w.city;
       case 'road':
         return d.tiles.size * per('road') * w.road;
-      case 'temple':
-        return board.surroundCount(d.at.x, d.at.y) * per('temple') * w.temple;
       default:
         return null;
     }
@@ -701,10 +525,8 @@ export class Soffiando extends Mode {
   // --- turbines -------------------------------------------------------------
 
   /**
-   * Every gust that runs through a turbine pays whoever holds the city it is
-   * built into. Nobody in the city, nobody paid — and since a follower now
-   * stays in a city it has finished, a windmill you have garrisoned keeps
-   * paying for the rest of the game.
+   * Every push that reaches a windmill pays whoever holds the feature it
+   * stands in. Nobody there, nobody paid.
    */
   payTurbines(cells) {
     const board = this.game.board;
@@ -732,56 +554,94 @@ export class Soffiando extends Mode {
     });
   }
 
-  // --- the sfera and the farms ----------------------------------------------
+  // --- the towers ------------------------------------------------------------
 
   /**
-   * Two half-spheres meeting is the one event in the mode that pays for the
-   * GROUND rather than for what was built on it. It can only happen
-   * deliberately — a sfera edge meets nothing else — and all it does now is
-   * call the harvest in on the field the sphere itself is lying in.
+   * Two tower halves of one colour meeting close a tower, and four quarters
+   * meeting close a big one. Either can only happen by a tile being laid: no
+   * push moves a tower. A tower fires its colour ONCE (it fired a pass per
+   * half when any half fitted any other, and two of one colour fired twice;
+   * one colour a tower now, so once). The sun fires every colour; the black
+   * hole swallows what is round it.
    *
-   * The pair is remembered on the tiles rather than by position, because the
-   * weather will move them: `sphered` says this half has already been counted,
-   * wherever in the sky it ends up.
+   * The pair is remembered on the tiles (`sphered`), so a tower is counted
+   * once however often the board is rebuilt.
    */
   joinSferas() {
     const board = this.game.board;
-    for (const d of board.allComponents()) {
-      if (d.type !== 'sfera' || d.tiles.size < 2) continue;
+    for (let guard = 0; guard < 32; guard++) {
+      const d = board.allComponents().find((c) => c.type === 'sfera' && c.tiles.size >= 2
+        && c.open === 0 && !board.cellsOf(c).every((cell) => cell.sphered));
+      if (!d) return;
       const cells = board.cellsOf(d);
-      if (cells.every((c) => c.sphered)) continue;          // an old one
       for (const c of cells) c.sphered = true;
-      // BOTH halves fire. Two yellows score the roads twice over; a yellow
-      // against a blue scores the roads and the cities once each. The pairing
-      // is the decision, and it is why any half fits any other — a colour you
-      // have no partner for is still worth playing against whatever you can
-      // reach.
-      const hues = cells.map(sferaHue).filter(Boolean);
+      const hue = sferaHue(cells[0]);
       this.spheres++;
-      for (const h of hues) this.hues[h] = (this.hues[h] || 0) + 1;
-      const names = tallyOf(hues).map(([h]) => h);
-      this.game.say(`A ${listOf(names)} sphere closes — the sky scores `
-        + `${listTally(hues, (h) => COLOURS[h])}.`);
+      this.hues[hue] = (this.hues[hue] || 0) + 1;
       this.game.emit('landmark');
-      for (const h of hues) this.fire(h);
+      if (hue === 'hole') {
+        this.swallow(cells);
+        continue;
+      }
+      if (hue === 'sun') {
+        this.game.say('The sun rises over the kingdom: every colour fires at once.');
+        for (const h of Object.keys(COLOURS)) this.fire(h);
+      } else {
+        this.game.say(`A ${hue} tower closes: the sky scores ${COLOURS[hue]}.`);
+        this.fire(hue);
+      }
       this.sweep();
       this.beginStroll();
     }
   }
 
   /**
-   * One half-sphere going off: a scoring pass over one kind of thing, over the
-   * whole board, paying whoever holds each one. Nothing in Soffiando is paid for
-   * being finished any more — finishing a city changes what it is worth when a
-   * blue sphere next closes, and that is all. Which means the question every
-   * turn is not "can I close this" but "will a sphere close while I am still
-   * standing in it".
+   * THE BLACK HOLE. Every tile in the twelve squares round the 2x2 goes into
+   * it: shuffled back into the deck, every follower on them home. What it
+   * swallowed was finishing things, so they are open again (`reopen`).
+   */
+  swallow(hole) {
+    const g = this.game;
+    const board = g.board;
+    const inHole = new Set(hole.map((c) => board.key(c.x, c.y)));
+    const ring = new Map();
+    for (const c of hole) {
+      for (const [dx, dy] of RING) {
+        const k = board.key(c.x + dx, c.y + dy);
+        if (inHole.has(k) || ring.has(k)) continue;
+        const t = board.get(c.x + dx, c.y + dy);
+        if (t) ring.set(k, t);
+      }
+    }
+    const fell = [];
+    for (const t of ring.values()) {
+      if (t.meeple) {
+        g.emit('meeple', { recall: true, player: t.meeple.player, at: { x: t.x + 0.5, y: t.y + 0.5 } });
+        g.sendHome(t);
+      }
+      fell.push({ x: t.x, y: t.y, type: t.type, rot: t.rot, look: t.seq });
+      g.deck.splice(Math.floor(g.rng() * (g.deck.length + 1)), 0, t.type.id);
+      board.remove(t.x, t.y, { quiet: true });
+    }
+    this.swallowed += fell.length;
+    board.rebuild();
+    this.reopen();
+    this.settleBalena();
+    g.say(fell.length
+      ? `The black hole closes and swallows ${fell.length} tile${fell.length > 1 ? 's' : ''} round it, back into the deck.`
+      : 'The black hole closes, and there is nothing round it to swallow.');
+    if (fell.length) g.emit('gust', { dir: 0, moves: [], fell });
+  }
+
+  /**
+   * One colour going off: a scoring pass over one kind of thing, over the
+   * whole board, paying whoever holds each one.
    */
   fire(hue) {
     switch (hue) {
       case 'green': return this.scoreFarms();
       case 'blue': return this.scoreCities();
-      case 'red': return this.scoreTemples();
+      case 'red': return this.scoreAbbazias();
       case 'yellow': return this.scoreRoads();
       default: return undefined;
     }
@@ -813,12 +673,9 @@ export class Soffiando extends Mode {
   }
 
   /**
-   * BLUE — the cities, by their districts: a point a district, plus the
-   * variety bonus for its kinds (0, 1, 3, 6, 10 for one to five); a city
-   * walled all round pays double, and one out on an island double again.
-   * Finishing a city pays nothing by itself; what walls it in is a higher
-   * rate on every blue sphere still to come, and a city the wind can no
-   * longer push about.
+   * BLUE — the cities, by their districts (`cityPoints`). Finishing a city
+   * pays nothing by itself, unless nobody is in it; what walls it in is a
+   * higher rate on every blue tower still to come.
    */
   scoreCities() {
     const board = this.game.board;
@@ -826,79 +683,94 @@ export class Soffiando extends Mode {
       if (d.type !== 'city' || !d.meeples.length) continue;
       const cells = board.cellsOf(d);
       if (!cells.length) continue;
-      const { n, kinds } = this.districtsIn(d);
-      // A city held by a figure LYING FLAT pays as an open one forever: the
-      // retired follower keeps the city but not the walled rate, which is the
-      // whole of the trade you make when you lay one down.
-      const flat = d.meeples.every((m) => m.flat);
-      const walled = d.open === 0 && !flat;
-      const isle = this.onIsland(cells[0]);
-      const pts = (n + VARIETY[kinds]) * (walled ? WALLED : 1) * (isle ? 2 : 1);
-      this.payHolders(d, pts,
-        `${flat ? 'A city kept by a retired follower' : walled ? 'A walled city' : 'An open city'}`
-        + ` of ${n} district${n === 1 ? '' : 's'} in ${kinds} kind${kinds === 1 ? '' : 's'}`
-        + `${isle ? ' out on an island' : ''}`, cells);
+      const { pts, line } = this.cityPoints(d);
+      this.payHolders(d, pts, line, cells);
     }
   }
 
   /**
-   * How many districts a city has, and of how many kinds. Walls are part of
-   * the city's component (they are what closes it) but they are not
-   * districts, and pay nothing.
+   * What blue pays a city: a point a district plus the variety bonus, both
+   * doubled once it is walled all round, plus 2 a garden district; out on an
+   * island double the lot. A city held only by followers LYING FLAT pays as
+   * an open one forever: the retired follower keeps the city but not the
+   * walled rate, which is the trade you make when you lay one down.
+   */
+  cityPoints(d) {
+    const board = this.game.board;
+    const cells = board.cellsOf(d);
+    const { n, kinds, gardens } = this.districtsIn(d);
+    const flat = d.meeples.length > 0 && d.meeples.every((m) => m.flat);
+    const walled = d.open === 0 && !flat;
+    const isle = cells.length > 0 && this.onIsland(cells[0]);
+    const pts = ((n + VARIETY[Math.min(kinds, VARIETY.length - 1)]) * (walled ? WALLED : 1)
+      + GARDEN * gardens) * (isle ? 2 : 1);
+    const line = `${flat ? 'A city kept by a retired follower' : walled ? 'A walled city' : 'An open city'}`
+      + ` of ${n} district${n === 1 ? '' : 's'} in ${kinds} kind${kinds === 1 ? '' : 's'}`
+      + `${gardens ? `, ${gardens} garden${gardens === 1 ? '' : 's'}` : ''}`
+      + `${isle ? ' out on an island' : ''}`;
+    return { pts, line };
+  }
+
+  /**
+   * How many districts a city has, of how many kinds, and how many of them
+   * are gardens. Walls are part of the city's component (they are what
+   * closes it) but they are not districts, and pay nothing.
    */
   districtsIn(d) {
     const board = this.game.board;
     const kinds = new Set();
-    let n = 0;
+    let n = 0, gardens = 0;
     for (const cell of board.cellsOf(d)) {
       const i = board.featIndexOn(cell, d);
       const kind = i == null ? null : cell.type.feats[i].district;
       if (!kind) continue;
       n++;
+      if (kind === 'garden') gardens++;
       kinds.add(kind);
     }
-    return { n, kinds: kinds.size };
+    return { n, kinds: kinds.size, gardens };
   }
 
   /**
-   * RED — the temples. A point for every tile standing in the eight squares
-   * around one, doubled on an island. Red is a temple's only income, so a
-   * temple is the one thing on the board whose value is its neighbours.
+   * RED — the Abbazias (2026-10-27; it was the temples, and the temples are
+   * Abbazias now, which nobody claims). Each pays a point for every tile in
+   * the eight squares round it, doubled on an island, to whoever has the
+   * most followers on those eight and on the Abbazia itself; tied, each in
+   * full. They are paid as neighbours, not as holders, so nobody comes home.
    */
-  scoreTemples() {
-    const board = this.game.board;
+  scoreAbbazias() {
+    const g = this.game;
+    const board = g.board;
     for (const cell of board.cells.values()) {
-      // AN ABBAZIA WITH SOMEBODY ON IT IS A TEMPLE. Nothing on it can be
-      // claimed when you lay it — it has no features at all, which is the whole
-      // of what makes it a cap — but the wind can put a follower down on one,
-      // and a walled house in the sky with somebody living in it is a temple by
-      // every test that matters. Red pays it for its parish like any other.
-      // Being blown into one is the only way anybody ever gets there, which is
-      // exactly the kind of thing this mode should reward.
-      const abbey = hasMark(cell, 'abbazia') && cell.meeple;
-      if ((!isTemple(cell) && !abbey) || !cell.meeple) continue;
+      if (!hasMark(cell, 'abbazia')) continue;
       const around = board.surroundCount(cell.x, cell.y);
       if (!around) continue;
-      const per = this.onIsland(cell) ? RATE.temple.isle : RATE.temple.main;
-      this.pay(cell.meeple.player, around * per,
-        `${abbey ? 'An Abbazia kept as a temple' : 'A temple'} with ${around} tile${around === 1 ? '' : 's'} around it`
-        + `${per > RATE.temple.main ? ' out on an island' : ''}`
-        + ` — ${this.game.players[cell.meeple.player].name}`,
-        [{ x: cell.x, y: cell.y }]);
-      // …and then the keeper comes off it, like everybody else the sky has just
-      // paid. A temple is never finished — the parish can always lose a tile to
-      // the weather again — so waiting for a full eight was waiting for a thing
-      // that mostly never came.
-      if (!cell.meeple.flat) this.pending.push({ x: cell.x, y: cell.y });
+      const winners = this.abbaziaHolders(cell);
+      if (!winners.length) continue;
+      const per = this.onIsland(cell) ? RATE.abbazia.isle : RATE.abbazia.main;
+      for (const p of winners) {
+        this.pay(p, around * per,
+          `The Abbazia at (${cell.x}, ${cell.y}) with ${around} tile${around === 1 ? '' : 's'} round it`
+          + `${per > RATE.abbazia.main ? ' out on an island' : ''} — ${g.players[p].name}`,
+          [{ x: cell.x, y: cell.y }]);
+      }
     }
   }
 
+  /** Who has the most followers on an Abbazia and the eight squares round it. */
+  abbaziaHolders(cell) {
+    const board = this.game.board;
+    const counts = new Map();
+    for (const [dx, dy] of [[0, 0], ...RING]) {
+      const m = board.get(cell.x + dx, cell.y + dy)?.meeple;
+      if (m) counts.set(m.player, (counts.get(m.player) || 0) + 1);
+    }
+    const best = Math.max(0, ...counts.values());
+    return best ? [...counts].filter(([, n]) => n === best).map(([p]) => p) : [];
+  }
+
   /**
-   * YELLOW — the roads. A point a tile, plus what each city the road runs into
-   * is worth: 1 for one still open, 2 for one that has closed. WHOSE city that
-   * is doesn't matter — a road is paid for what it reaches, not for who owns
-   * the far end, which is what makes building into somebody else's country a
-   * thing worth doing rather than a favour.
+   * YELLOW — the roads (`roadPoints`).
    */
   scoreRoads() {
     const board = this.game.board;
@@ -906,44 +778,56 @@ export class Soffiando extends Mode {
       if (d.type !== 'road' || !d.meeples.length) continue;
       const cells = board.cellsOf(d);
       if (!cells.length) continue;
-      const isle = this.onIsland(cells[0]);
-      const per = isle ? RATE.road.isle : RATE.road.main;
-      let pts = per * d.tiles.size;
-      // Cities the road arrives at, deduped: one city sprawling over four of
-      // the road's tiles is one city and is counted once.
-      const seen = new Set();
-      let reached = 0;
-      const reach = (city) => {
-        if (!city) return;
-        const root = board.find(city.parts[0]);
-        if (seen.has(root)) return;
-        seen.add(root);
-        reached++;
-        const key2 = city.open === 0 ? 'roadCityDone' : 'roadCity';
-        pts += isle ? RATE[key2].isle : RATE[key2].main;
-      };
-      const mine = board.find(d.parts[0]);
-      for (const cell of cells) {
-        cell.type.feats.forEach((f, i) => {
-          if (f.type === 'city') reach(board.featureOf(cell.x, cell.y, i));
-        });
-        // …and the city behind a wall the road runs into: it ends at a gate
-        // in the middle of that wall (2026-10-25), and through the gate is
-        // the city.
-        for (let s = 0; s < 4; s++) {
-          const fi = board.featAt(cell, s);
-          if (fi == null || board.find(`${key(cell)}#${fi}`) !== mine) continue;
-          const nb = board.neighbor(cell.x, cell.y, s);
-          if (!nb || board.edgeAt(nb, opposite(s)) !== WALL) continue;
-          const di = nb.type.feats.findIndex((g) => g.district);
-          if (di >= 0) reach(board.featureOf(nb.x, nb.y, di));
-        }
-      }
-      this.payHolders(d, pts,
-        `Road of ${d.tiles.size} tile${d.tiles.size === 1 ? '' : 's'}`
-        + `${reached ? ` into ${reached} cit${reached === 1 ? 'y' : 'ies'}` : ''}`
-        + `${isle ? ' out on an island' : ''}`, cells);
+      const { pts, line } = this.roadPoints(d);
+      this.payHolders(d, pts, line, cells);
     }
+  }
+
+  /**
+   * What yellow pays a road: a point a tile, plus what each city it runs
+   * into is worth, 1 for one still open and 2 for one that has closed. WHOSE
+   * city that is doesn't matter: a road is paid for what it reaches.
+   */
+  roadPoints(d) {
+    const board = this.game.board;
+    const cells = board.cellsOf(d);
+    const isle = cells.length > 0 && this.onIsland(cells[0]);
+    const per = isle ? RATE.road.isle : RATE.road.main;
+    let pts = per * d.tiles.size;
+    // Cities the road arrives at, deduped: one city sprawling over four of
+    // the road's tiles is one city and is counted once.
+    const seen = new Set();
+    let reached = 0;
+    const reach = (city) => {
+      if (!city) return;
+      const root = board.find(city.parts[0]);
+      if (seen.has(root)) return;
+      seen.add(root);
+      reached++;
+      const key2 = city.open === 0 ? 'roadCityDone' : 'roadCity';
+      pts += isle ? RATE[key2].isle : RATE[key2].main;
+    };
+    const mine = board.find(d.parts[0]);
+    for (const cell of cells) {
+      cell.type.feats.forEach((f, i) => {
+        if (f.type === 'city') reach(board.featureOf(cell.x, cell.y, i));
+      });
+      // …and the city behind a wall the road runs into: it ends at a gate
+      // in the middle of that wall (2026-10-25), and through the gate is
+      // the city.
+      for (let s = 0; s < 4; s++) {
+        const fi = board.featAt(cell, s);
+        if (fi == null || board.find(`${key(cell)}#${fi}`) !== mine) continue;
+        const nb = board.neighbor(cell.x, cell.y, s);
+        if (!nb || board.edgeAt(nb, opposite(s)) !== WALL) continue;
+        const di = nb.type.feats.findIndex((g) => g.district);
+        if (di >= 0) reach(board.featureOf(nb.x, nb.y, di));
+      }
+    }
+    const line = `Road of ${d.tiles.size} tile${d.tiles.size === 1 ? '' : 's'}`
+      + `${reached ? ` into ${reached} cit${reached === 1 ? 'y' : 'ies'}` : ''}`
+      + `${isle ? ' out on an island' : ''}`;
+    return { pts, line };
   }
 
   /**
@@ -1159,9 +1043,9 @@ export class Soffiando extends Mode {
   afterScoring() {
     const g = this.game;
     if (g.phase !== 'meeple') return;
-    // The stick was used INSTEAD of a follower: once its push has been
-    // scored and walked, the turn is over.
-    if (this.pushed || (!g.meepleOptions().length && !this.holdsMeeplePhase())) g.endTurn();
+    // After the blow there is nothing left of the turn; before it, the
+    // follower step carries on if there is anything in it.
+    if (this.blown || (!g.meepleOptions().length && !this.holdsMeeplePhase())) g.endTurn();
   }
 
   // --- retiring a follower into a city ---------------------------------------
@@ -1274,8 +1158,7 @@ export class Soffiando extends Mode {
    */
   holdsMeeplePhase() {
     return !!this.lifted || this.flightLifts().length > 0 || this.canLieDown()
-      || (!this.balenaMoved && this.balenaTargets().length > 0)
-      || (!this.pushed && [0, 1, 2, 3].some((d) => this.stickTargets(d).length > 0));
+      || (!this.balenaMoved && this.balenaTargets().length > 0);
   }
 
   /** Instead of putting a follower down: send the whale somewhere. */
@@ -1290,7 +1173,7 @@ export class Soffiando extends Mode {
     if (this.game.phase === 'stroll') return this.strollTo(x, y);
     if (this.game.phase === 'flat') return this.flatAt(x, y);
     if (this.game.phase === 'flight') return this.liftAt(x, y);
-    if (this.game.phase === 'stick') return this.pushAt(x, y);
+    if (this.game.phase === 'blow') return this.blowAt(x, y);
     if (this.game.phase === 'astray') return this.sendAstray(x, y);
     if (this.game.phase !== 'balena') return false;
     if (!this.balenaTargets().some((t) => t.x === x && t.y === y)) return false;
@@ -1303,75 +1186,75 @@ export class Soffiando extends Mode {
     return true;
   }
 
-  // --- the stick ------------------------------------------------------------
+  // --- your zephyr ------------------------------------------------------------
   //
-  // Timothy, 2026-10-26: "an actual little stick that you use to push tiles".
-  // It took the place of the cloud (2026-10-24 to 26), in the game rather than
-  // as a switch ("we need to weave these rules into the actual game, not as
-  // toggles"). Instead of claiming, once a turn: turn it (R) to the way you
-  // mean to push, then pick the tile to put it against. That tile and every
-  // one touching in front of it, up to the first gap, go a square (wind.js
-  // `trainOf`, `shove`). The lane splits where the stick went in.
+  // Every turn, after the follower step, you blow (Timothy, 2026-10-27; it
+  // was a stick you could push with instead of claiming, 2026-10-26, and a
+  // cloud before that). Turn it (R) to the way you mean to blow, then pick
+  // the tile to put it against. That tile and every one touching in front of
+  // it, up to the first gap, go a square, if your push power will move them;
+  // every zephyr tile among them pushes in its turn (wind.js `blow`).
 
-  /** R, or the button: the stick in hand turns a quarter. */
+  /** R, or the button: the zephyr in hand turns a quarter. */
   turnOther(dir = 1) {
-    if (this.game.phase !== 'stick') return false;
-    this.stickDir = (this.stickDir + dir + 4) % 4;
+    if (this.game.phase !== 'blow') return false;
+    this.blowDir = (this.blowDir + dir + 4) % 4;
     return true;
   }
 
-  /** The tiles a push the current way could go against. */
-  stickTargets(dir = this.stickDir) {
+  /** Everybody's push power: 1, and 1 more for every Abbazia on the board. */
+  pushPower() {
+    let n = BASE_PUSH;
+    for (const c of this.tiles()) if (hasMark(c, 'abbazia')) n++;
+    return n;
+  }
+
+  /** The tiles on the board you can see (a tide may have drowned some). */
+  tiles() {
     const board = this.game.board;
-    const pinned = (c, d) => this.pinned(c, d);
-    const out = [];
-    for (const cell of board.cells.values()) {
-      if (trainOf(board, cell, dir, { most: this.stickMost, pinned })) out.push({ x: cell.x, y: cell.y });
-    }
-    return out;
+    return [...board.cells.values()].filter((c) => board.get(c.x, c.y) === c);
   }
 
-  /** The train a push against (x, y) the current way would move, or null. */
-  trainAt(x, y, dir = this.stickDir) {
-    return trainOf(this.game.board, { x, y }, dir, { most: this.stickMost, pinned: (c, d) => this.pinned(c, d) });
+  /** A tile no push moves: a tower, or the whale's. */
+  holds(cell) { return isTower(cell) || immovable(cell); }
+
+  /**
+   * What a blow against (x, y) the current way would do first: the run of
+   * tiles in front of it, and whether it is too heavy to move (in which case
+   * it blows the followers on the first `power` of them instead).
+   */
+  trainAt(x, y, dir = this.blowDir) {
+    const board = this.game.board;
+    if (!board.get(x, y)) return null;
+    const power = this.pushPower();
+    const { cells, ring } = runFrom(board, { x, y }, dir);
+    const heavy = ring || cells.length > power || cells.some((c) => this.holds(c));
+    return { cells: heavy ? cells.slice(0, power) : cells, heavy };
   }
 
-  canPush() {
-    return this.game.phase === 'meeple' && !this.pushed
-      && [0, 1, 2, 3].some((d) => this.stickTargets(d).length);
+  /** Every tile on the board: a blow may go against any of them. */
+  blowTargets() {
+    return this.tiles().map((c) => ({ x: c.x, y: c.y }));
   }
 
-  /** Instead of putting a follower down: take up the stick. */
-  beginPush() {
-    if (!this.canPush()) return false;
-    this.game.phase = 'stick';
-    this.game.say(`${this.game.player.name} takes up their stick.`);
-    return true;
-  }
-
-  cancelPush() {
-    if (this.game.phase !== 'stick') return false;
-    this.game.phase = 'meeple';
-    return true;
-  }
-
-  /** Push the train against (x, y), and the turn ends. */
-  pushAt(x, y) {
+  /** Blow against (x, y), and the turn ends once what it moved has settled. */
+  blowAt(x, y) {
     const g = this.game;
-    if (g.phase !== 'stick') return false;
-    const train = this.trainAt(x, y);
-    if (!train) return false;
-    const dir = this.stickDir;
-    this.pushed = true;
+    if (g.phase !== 'blow' || !g.board.get(x, y)) return false;
+    const dir = this.blowDir;
+    const power = this.pushPower();
+    this.blown = true;
+    this.blows++;
     g.phase = 'meeple';
-    g.say(`${g.player.name} pushes ${train.length > 1 ? `${train.length} tiles` : 'a tile'} a square ${DIR_NAMES[dir]} with their stick.`);
+    g.say(`${g.player.name} blows ${DIR_NAMES[dir]} at (${x}, ${y}), with a push of ${power}.`);
     g.emit('landmark');
     this.blowing = true;
     this.stormAt = 0;
     this.stormN = 0;
     this.blame = g.current;
     try {
-      this.applyGust(shove(g.board, { at: { x, y }, dir, most: this.stickMost, pinned: (c, d) => this.pinned(c, d) }));
+      const reports = blow(g.board, { at: { x, y }, dir, power, holds: (c) => this.holds(c) });
+      for (const r of reports) this.applyGust(r);
       this.settleBalena();
       this.reopen();
       this.settle(g.current);
@@ -1379,9 +1262,6 @@ export class Soffiando extends Mode {
       this.blowing = false;
       this.blame = null;
     }
-    // Anything the push set off (a closure raising weather) runs after it.
-    const queued = this.queued.splice(0);
-    for (const [spec, by] of queued) this.weather(spec, by);
     this.joinSferas();
     // What no longer fits moves on, and then the turn ends.
     this.astrayThen = 'end';
@@ -1669,51 +1549,11 @@ export class Soffiando extends Mode {
 
   // --- the weather ----------------------------------------------------------
 
-  /**
-   * Blow, then pay for whatever that finished, then blow again if the settling
-   * raised another wind.
-   *
-   * Re-entrant on purpose: scoring a closure can move the board, and moving the
-   * board can score. Rather than recursing through `onClosed` — which would
-   * interleave two storms and score them in an order nobody could follow —
-   * anything raised mid-storm is queued and run after the current one lands.
-   */
-  weather(spec, by) {
-    if (this.blowing) { this.queued.push([spec, by]); return; }
-    this.blowing = true;
-    // The visual clock. The rules resolve the whole storm synchronously —
-    // nothing here waits — but each gust's EFFECTS are stamped a beat later
-    // than the last, so a chain plays out on screen as a sequence you can
-    // follow: streak, wake, slide, streak, wake, slide.
-    this.stormAt = 0;
-    this.stormN = 0;
-    try {
-      let job = [spec, by];
-      for (let n = 0; job && n < MAX_CHAIN; n++) {
-        this.blame = job[1];
-        // The mainland is the one thing in the sky too big for the wind to get
-        // under; it is recomputed per gust because the storm keeps changing
-        // what the mainland IS.
-        const rooted = () => this.land().mainKeys;
-        const pinned = (c, d) => this.pinned(c, d);
-        for (const report of storm(this.game.board, job[0], { rooted, pinned })) this.applyGust(report);
-        this.settleBalena();
-        this.reopen();
-        this.settle(job[1]);
-        job = this.queued.shift();
-      }
-      if (this.queued.length) this.game.say('The sky runs out of breath.');
-      this.queued.length = 0;
-    } finally {
-      this.blowing = false;
-      this.blame = null;
-    }
-  }
-
   /** Turn one gust's report into points, losses, log lines and pictures. */
   applyGust(r) {
     const g = this.game;
-    if (r.stick) this.pushes++; else this.gusts++;
+    this.pushes++;
+    if (r.by) this.gusts++;
     for (const m of r.moved) this.movedNow.add(m.cell);
     const at = this.stormAt || 0;
     // The first gusts of a storm take a full beat; later ones come quicker, so
@@ -1751,14 +1591,14 @@ export class Soffiando extends Mode {
     // (A gust that only knocked tiles out of the sky did something, and so
     // did one that blew a tile over the edge of a map that has one. Those
     // used to stop here, so a fallen tile never went back on the deck.)
+    const who = r.by ? (r.blast ? 'The cannon' : 'The zephyr') : 'The blow';
+    if (r.heavy && r.reached.length) {
+      g.say(`${who} is too weak for the ${r.reached.length > 1 || !r.reached.length ? 'tiles' : 'tile'} in front of it`
+        + `${r.carried.length ? `, and blows ${r.carried.length} follower${r.carried.length > 1 ? 's' : ''} a square instead` : ', and nobody standing there moves'}.`);
+    }
     if (!r.moved.length && !r.fell.length && !r.swung.length && !r.homed.length && !r.lifted.length) {
-      if (!r.reached.length) {
-        g.say(r.blast
-          ? 'The cannon fires out over open sky and finds nothing to hit.'
-          : 'The zephyr blows out over open sky and finds nothing to push.');
-      } else if (!r.fell.length) {
-        g.say(`The zephyr blows, and the country in its lane is packed too tight to shift.`);
-      }
+      if (!r.reached.length) g.say(`${who} blows out over open sky and finds nothing to push.`);
+      if (r.carried.length) this.stepFollowers(r, at);
       return;
     }
 
@@ -1768,8 +1608,9 @@ export class Soffiando extends Mode {
       moves: r.moved.map((m) => this.slide(m.cell, m.from, r.dir, m.steps)),
       fell: r.fell.map((f) => ({ x: f.x, y: f.y, type: f.type, rot: f.rot, look: f.cell?.seq })),
     });
-    if (r.strength > 1) {
-      g.say(`The gust picks up — ${r.strength} tiles off the end, ${r.strength} squares each.`);
+    if (r.moved.length) {
+      g.say(`${who} ${r.blast ? 'fires' : 'pushes'} ${r.moved.length} tile${r.moved.length > 1 ? 's' : ''} ${DIR_NAMES[r.dir]}`
+        + `${r.blast ? '' : ' a square'}.`);
     }
 
     // A TILE OUT OF THE SKY IS A TILE BACK IN YOUR HAND. Whatever took it —
@@ -1812,9 +1653,30 @@ export class Soffiando extends Mode {
     // Followers travel with the weather. One the wind put down somewhere is
     // still on the board and still counts for whoever owns it; one it carried
     // out over open sky is the only figure that ever comes home by accident.
+    this.stepFollowers(r, at);
+    for (const m of r.homed) {
+      g.players[m.player].meeples++;
+      if (m.big) g.players[m.player].big++;
+      g.say(m.why === 'fell'
+        ? `${g.players[m.player].name}'s follower goes down with its tile and comes home.`
+        : `${g.players[m.player].name}'s follower is blown into open sky and comes home.`);
+      g.emit('meeple', { recall: true, player: m.player, at: { x: m.x + 0.5, y: m.y + 0.5 } });
+    }
+
+    if (r.swung.length) {
+      g.say(`${r.swung.length} road${r.swung.length > 1 ? 's swing' : ' swings'} onto the wind.`);
+    }
+    this.joinSferas();
+  }
+
+  /**
+   * Followers the wind put down somewhere: each steps there on screen. One
+   * carried round the seam of the map comes in from beyond the edge across
+   * from the one it left by, rather than back over the board.
+   */
+  stepFollowers(r, at) {
+    const g = this.game;
     for (const m of r.carried) {
-      // One carried round the seam of the map comes in from beyond the edge
-      // across from the one it left by, rather than back over the board.
       const d = this.ahead(m.from, m.to, r.dir);
       const [dx, dy] = SIDE_STEP[r.dir];
       const from = d != null ? { x: m.to.x - dx * d, y: m.to.y - dy * d } : m.from;
@@ -1825,33 +1687,6 @@ export class Soffiando extends Mode {
         delay: at + 220,
       });
     }
-    for (const m of r.homed) {
-      g.players[m.player].meeples++;
-      if (m.big) g.players[m.player].big++;
-      g.say(m.why === 'fell'
-        ? `${g.players[m.player].name}'s follower goes down with its tile and comes home.`
-        : `${g.players[m.player].name}'s follower is blown into open sky and comes home.`);
-      g.emit('meeple', { recall: true, player: m.player, at: { x: m.x + 0.5, y: m.y + 0.5 } });
-    }
-
-    // An island going somewhere as one thing is the most visible event on the
-    // board, and the one a player most needs told: the country they were
-    // standing on has just sailed.
-    for (const l of r.lifted) {
-      if (!l.steps) continue;
-      g.say(`An island of ${l.cells.length} tile${l.cells.length > 1 ? 's' : ''} sails `
-        + `${l.steps} square${l.steps > 1 ? 's' : ''} down the wind.`);
-    }
-
-    if (r.swung.length) {
-      g.say(`${r.swung.length} road${r.swung.length > 1 ? 's swing' : ' swings'} onto the wind.`);
-    }
-
-    // …and if the seat of government itself has just been shoved, the whole
-    // archipelago is towed along behind it.
-    // A stick is not wind, and tows nothing.
-    if (!r.stick && r.moved.some((m) => isPalazzo(m.cell))) this.driftIslands(r.dir);
-    this.joinSferas();
   }
 
   /**
@@ -1914,83 +1749,6 @@ export class Soffiando extends Mode {
   }
 
   /**
-   * The Palazzo moves, and every island moves with it. The kingdom staying put
-   * while the sky slides one square past it is the one thing on the board that
-   * changes which pieces of country are touching which, without a single tile
-   * being laid — so blowing the seat about is how you close a gap you were
-   * never allowed to build across.
-   *
-   * An island only goes if the whole of it can: something in the way, or the
-   * whale lying on any part of it, and it stays exactly where it is.
-   */
-  driftIslands(dir) {
-    const board = this.game.board;
-    const [dx, dy] = SIDE_STEP[dir];
-    const { isles } = this.land();
-    const moves = [];
-    const towed = [];
-    const gone = [];
-    for (const group of isles) {
-      // The whale holds an island down, and so does a wall standing across
-      // the way it would go.
-      if (group.some((c) => c.balena || this.pinned(c, dir))) continue;
-      const mine = new Set(group.map(key));
-      const clear = group.every((c) => {
-        const to = board.get(c.x + dx, c.y + dy);
-        return !to || mine.has(board.key(c.x + dx, c.y + dy));
-      });
-      if (!clear) continue;
-      // All of it at once (Board.shiftAll): an island lying across the seam
-      // of the map has no far end to start from.
-      const go = [];
-      for (const c of group) {
-        // Towed over the edge of a map that has one: gone into the aether.
-        if (!board.inBounds(c.x + dx, c.y + dy)) {
-          if (c.meeple) { this.game.players[c.meeple.player].meeples++; c.meeple = null; }
-          gone.push({ x: c.x, y: c.y, type: c.type, rot: c.rot, look: c.seq });
-          board.remove(c.x, c.y, { quiet: true });
-          continue;
-        }
-        go.push({ cell: c, from: { x: c.x, y: c.y }, to: { x: c.x + dx, y: c.y + dy } });
-      }
-      for (const m of board.shiftAll(go)) {
-        towed.push(m.cell);
-        this.movedNow.add(m.cell);
-        moves.push(this.slide(m.cell, m.from, dir, 1));
-      }
-    }
-    if (!moves.length && !gone.length) return;
-    // A towed tile is a blown tile: if it has come to rest against an edge it
-    // cannot meet, it moves on (rule 31), from `movedNow` like the rest.
-    const fell = [];
-    if (gone.length) {
-      this.fallen += gone.length;
-      this.lost += gone.length;
-      this.game.say(`${gone.length} tile${gone.length > 1 ? 's are' : ' is'} towed off the edge of the map, gone for good.`);
-      fell.push(...gone);
-    }
-    board.rebuild();
-    this.drifts++;
-    this.settleBalena();
-    this.game.say(`The Palazzo goes with the wind, and the islands go with the Palazzo — ${moves.length} tile${moves.length > 1 ? 's' : ''} adrift.`);
-    this.game.emit('gust', { dir, moves, fell });
-  }
-
-  /**
-   * WALLS STAND ACROSS THE WIND (Timothy, 2026-10-24). A tile with a city
-   * wall on it cannot be pushed by a wind blowing straight at that wall or
-   * straight away from it; a wind running along the wall moves it as it
-   * would anything else. So a city walled all round has a wall across every
-   * wind and stays where it is built, and an open one goes with the weather.
-   */
-  pinned(cell, dir) {
-    const walls = wallSides(cell.type);
-    if (!walls.size) return false;
-    const b = this.game.board;
-    return walls.has(b.canonSide(cell, dir)) || walls.has(b.canonSide(cell, opposite(dir)));
-  }
-
-  /**
    * …and the wind can UN-finish things. An Abbazia was capping that road; the
    * wind took the Abbazia away, and the road is open country again. Nothing is
    * taken back — nothing was paid for finishing in the first place — but it
@@ -2046,8 +1804,27 @@ export class Soffiando extends Mode {
   // --- closing --------------------------------------------------------------
 
   onClosed(d, closer) {
-    if (d.type === 'city' || d.type === 'road') return this.millsPay(d);
-    if (d.type === 'temple') return this.templeCloses(d);
+    if (d.type !== 'city' && d.type !== 'road') return;
+    this.millsPay(d);
+    if (!d.meeples.length && closer != null) this.payCloser(d, closer);
+  }
+
+  /**
+   * A ROAD OR CITY CLOSED WITH NOBODY IN IT pays whoever closed it, at once,
+   * what its tower would pay for it (Timothy, 2026-10-27: "things that go
+   * unclaimed are scored by whoever places the last piece of that feature";
+   * asked when, he chose on the spot). Whoever's turn it is closed it, by
+   * laying its last piece or by their blow.
+   */
+  payCloser(d, closer) {
+    const g = this.game;
+    const cells = g.board.cellsOf(d);
+    if (!cells.length) return;
+    const { pts, line } = d.type === 'road' ? this.roadPoints(d) : this.cityPoints(d);
+    if (pts <= 0) return;
+    this.closerPaid += pts;
+    this.pay(closer, pts, `${line}, closed with nobody in it — ${g.players[closer].name}`,
+      cells.map((c) => ({ x: c.x, y: c.y })));
   }
 
   /**
@@ -2081,18 +1858,6 @@ export class Soffiando extends Mode {
         `${mills} windmill${mills > 1 ? 's' : ''} in a finished ${d.type} — ${g.players[p].name}`,
         where);
     }
-  }
-
-  /**
-   * A temple with all eight squares around it filled is a temple at its
-   * ceiling: red pays a point a tile of the parish, and eight is as many tiles
-   * as a parish holds. Nothing is paid for reaching it — it is worth saying
-   * out loud because the parish is the one thing on the board that fills up.
-   */
-  templeCloses(d) {
-    this.game.say(`The temple at (${d.at.x}, ${d.at.y}) is enclosed — a full parish, `
-      + 'and as much as red will ever pay for it.');
-    this.game.emit('landmark');
   }
 
   // --- the season -----------------------------------------------------------
@@ -2160,32 +1925,78 @@ export class Soffiando extends Mode {
   // --- what a computer player can't see -------------------------------------
   //
   // The bot reads the board: what closed, who holds it, what it pays. None of
-  // that includes the weather, and in this mode the weather is the game.
+  // that includes the towers, the Abbazias or the blow, and in this mode
+  // those are most of the game.
 
   botPlaceBonus(cells, player) {
     const w = weightsFor(this, player);
     let value = 0;
     for (const cell of cells) {
-      value += this.templeValue(cell, player);
-      // Closing a sphere is not a bonus in this mode, it is the scoring round:
-      // everything the two colours count pays out over the whole board, to
-      // whoever is standing in it. Priced as what it would pay US minus what
-      // it would pay the best rival, so a sphere the table is better placed
-      // for is one the bot leaves alone.
-      const joins = this.joinsSphere(cell);
-      if (joins) value += this.sphereValue(joins, player) * w.sphere;
-      else if (cell.type.feats.some((f) => f.type === 'sfera')) value += w.sferaHalf;
+      // Closing a tower is the scoring round: priced as what it would pay US
+      // minus what it would pay the best rival, so a tower the table is
+      // better placed for is one the bot leaves alone.
+      const hue = this.closesTower(cell);
+      if (hue) value += this.towerValue(hue, cell, player) * w.sphere + w.closeTower;
+      else value += this.quarterValue(cell) * w.quarter;
       value += this.turbineValue(cell, player);
-      for (const d of zephyrDirs(cell)) value += this.gustValue(cell, d, player) * w.gust;
+      value += this.abbaziaValue(cell, player);
+      // A road or city this tile closes with nobody in it pays us now.
+      value += this.closerValue(cell) * w.closer;
+    }
+    return value;
+  }
+
+  /** The colour of the tower this tile closes, laid where it is, or null. */
+  closesTower(cell) {
+    const board = this.game.board;
+    const i = cell.type.feats.findIndex((f) => f.type === 'sfera');
+    if (i < 0) return null;
+    const d = board.featureOf(cell.x, cell.y, i);
+    if (!d || d.open !== 0 || d.tiles.size < 2) return null;
+    if (board.cellsOf(d).every((c) => c.sphered)) return null;
+    return cell.type.feats[i].hue;
+  }
+
+  /** How many quarters of a big tower this one joins, laid where it is (the sun's 2x2 is a set of four). */
+  quarterValue(cell) {
+    const f = cell.type.feats.find((x) => x.quarter);
+    if (!f || f.hue === 'hole') return 0;
+    const board = this.game.board;
+    const d = board.featureOf(cell.x, cell.y, cell.type.feats.indexOf(f));
+    return d ? d.tiles.size - 1 : 0;
+  }
+
+  /** What closing a tower of this colour is worth to us, net of the table. */
+  towerValue(hue, cell, player) {
+    if (hue === 'sun') return this.sphereValue(Object.keys(COLOURS), player);
+    if (hue !== 'hole') return this.sphereValue([hue], player);
+    // The black hole: what it swallows of ours is lost, of theirs a gain.
+    const board = this.game.board;
+    const i = cell.type.feats.findIndex((f) => f.type === 'sfera');
+    const d = board.featureOf(cell.x, cell.y, i);
+    const hole = new Set(board.cellsOf(d).map((c) => key(c)));
+    let value = 0;
+    const seen = new Set();
+    for (const c of board.cellsOf(d)) {
+      for (const [dx, dy] of RING) {
+        const t = board.get(c.x + dx, c.y + dy);
+        if (!t || hole.has(key(t)) || seen.has(t)) continue;
+        seen.add(t);
+        const m = t.meeple;
+        if (!m || m.feat == null) continue;
+        const f = board.featureOf(t.x, t.y, m.feat);
+        const worth = (f && this.valueOf(f)) || 1;
+        value += m.player === player ? -worth : 0.7 * worth;
+      }
     }
     return value;
   }
 
   /**
-   * What closing this sphere is worth to us, net of what it hands everybody
-   * else. Both halves fire, so both colours are counted; the pass is run for
-   * real against a scratch tally rather than estimated, because the board-wide
-   * passes are cheap and guessing at them was never going to be close.
+   * What closing a tower would pay us, net of what it hands everybody else.
+   * The pass is run for real against a scratch tally rather than estimated,
+   * because the board-wide passes are cheap and guessing at them was never
+   * going to be close.
    */
   sphereValue(hues, player) {
     const before = this.game.players.map((p) => p.score);
@@ -2196,7 +2007,7 @@ export class Soffiando extends Mode {
     try {
       for (const hue of hues) this.fire(hue);
     } finally {
-      this.pending.length = 0;              // thinking about a sphere doesn't empty the board
+      this.pending.length = 0;              // thinking about a tower doesn't empty the board
       this.game.say = quiet;
       this.game.emit = emit;
     }
@@ -2210,25 +2021,41 @@ export class Soffiando extends Mode {
   }
 
   /**
-   * Filling a square in somebody's parish. Red pays a temple's keeper a point
-   * for every tile standing around it, so every square of the eight you fill
-   * in is worth a point to them on every red sphere still to come — which
-   * means building beside a rival's temple is a gift, and beside your own is
-   * an annuity.
+   * Filling a square round an Abbazia, or laying one. Red pays whoever has
+   * the most followers round an Abbazia a point for every tile there, so a
+   * square filled next to one we hold is worth a point on every red tower
+   * still to come, and next to one a rival holds the same to them.
    */
-  templeValue(cell, player, weight = 1) {
+  abbaziaValue(cell, player) {
     const board = this.game.board;
     const w = weightsFor(this, player);
     let value = 0;
-    for (const [dx, dy] of RING) {
-      const t = board.get(cell.x + dx, cell.y + dy);
-      if (!t || !isTemple(t)) continue;
-      const per = (this.onIsland(t) ? RATE.temple.isle : RATE.temple.main) * w.ahead;
-      if (t.meeple) value += (t.meeple.player === player ? per : -per) * weight * w.parish;
-      // An empty temple you could stand in yourself is a parish waiting for a
-      // keeper, and worth rather more than one square of somebody else's.
-      else value += w.parishFree * per * weight * w.parish;
+    for (const [dx, dy] of [[0, 0], ...RING]) {
+      const a = board.get(cell.x + dx, cell.y + dy);
+      if (!a || !hasMark(a, 'abbazia')) continue;
+      const holders = this.abbaziaHolders(a);
+      if (!holders.length) continue;
+      const tiles = a === cell ? board.surroundCount(a.x, a.y) : 1;
+      const per = (this.onIsland(a) ? RATE.abbazia.isle : RATE.abbazia.main) * w.ahead * w.parish;
+      value += (holders.includes(player) ? 1 : -0.7) * per * tiles;
     }
+    return value;
+  }
+
+  /** What the roads and cities this tile closes with nobody in them pay its layer. */
+  closerValue(cell) {
+    const board = this.game.board;
+    let value = 0;
+    const seen = new Set();
+    cell.type.feats.forEach((f, i) => {
+      if (!SHARED.has(f.type)) return;
+      const d = board.featureOf(cell.x, cell.y, i);
+      if (!d || d.open !== 0 || d.scored || d.meeples.length) return;
+      const root = board.find(d.parts[0]);
+      if (seen.has(root)) return;
+      seen.add(root);
+      value += (d.type === 'road' ? this.roadPoints(d) : this.cityPoints(d)).pts;
+    });
     return value;
   }
 
@@ -2238,7 +2065,7 @@ export class Soffiando extends Mode {
     if (!t || t.on == null) return 0;
     const w = weightsFor(this, player);
     const d = this.game.board.featureOf(cell.x, cell.y, t.on);
-    if (!d) return 0;                            // no city under it, no income
+    if (!d) return 0;                            // no feature under it, no income
     const mine = d.meeples.some((m) => m.player === player);
     return mine ? w.turbineMine : w.turbineTheirs;
   }
@@ -2253,25 +2080,7 @@ export class Soffiando extends Mode {
     const g = this.game;
     const w = weightsFor(this, seat);
     if (g.current === seat && g.phase === 'stroll') return this.botStroll();
-    if (g.current === seat && g.phase === 'stick') return this.botPush(seat);
     if (g.current !== seat || g.phase !== 'meeple') return false;
-    // The stick, instead of a follower, when the push is worth more than the
-    // best claim on offer: both are priced in what they will pay (valueOf).
-    // Measured against the old cloud's bar, a flat 4, the bots pushed three
-    // times as often as they had ever blown, and scored a fifth as much.
-    if (this.canPush()) {
-      const best = this.bestPush(seat);
-      let claim = 0;
-      for (const o of g.meepleOptions()) {
-        const d = g.board.featureOf(o.x, o.y, o.i);
-        if (d) claim = Math.max(claim, this.valueOf(d) || 0);
-      }
-      const bar = Math.max(w.push ?? 1, claim);
-      if (best && best.value > bar && this.beginPush()) {
-        this.stickDir = best.dir;
-        return this.pushAt(best.x, best.y);
-      }
-    }
     if (!this.canSwim()) return false;
     if (g.meepleOptions().length) return false;
     let best = null;
@@ -2279,24 +2088,22 @@ export class Soffiando extends Mode {
       const value = this.shelterValue(t, seat);
       if (!best || value > best.value) best = { ...t, value };
     }
-    // A threshold rather than a scale. `whale` used to multiply the shelter
-    // value, which changed neither the argmax nor the sign test and so did
-    // precisely nothing — a sweep caught it returning identical games at half
-    // and at double. As a bar the whale has to clear, it is a real dial: how
-    // good the shelter has to be before it is worth a follower placement.
     if (!best || best.value <= w.whale) return false;
     if (!this.beginSwim()) return false;
     return this.onCellClick(best.x, best.y);
   }
 
   /**
-   * A choice the rules force on whoever's turn it is, which every computer
-   * player answers whatever its level: where a tile that no longer fits moves
-   * on to. Where it leaves this seat's followers best placed (`holding`).
+   * The choices the rules force on whoever's turn it is, which every
+   * computer player answers whatever its level: the blow, which is every
+   * turn, and where a tile that no longer fits moves on to. Both are decided
+   * by the board they leave (`holding`).
    */
   botMust(seat) {
     const g = this.game;
-    if (g.current !== seat || g.phase !== 'astray' || !this.astrayAt) return false;
+    if (g.current !== seat) return false;
+    if (g.phase === 'blow') return this.botBlow(seat);
+    if (g.phase !== 'astray' || !this.astrayAt) return false;
     const { cell, targets } = this.astrayAt;
     const board = g.board;
     let best = null;
@@ -2310,58 +2117,109 @@ export class Soffiando extends Mode {
     return this.sendAstray(best.x, best.y);
   }
 
-  /**
-   * The best push of this seat's stick. Every push is guessed at quickly by
-   * what it would do to the islands (`pushValue`), and the few that guess
-   * best are then MADE, priced and taken back (`tryPush`, `holding`): a crack
-   * that puts a follower out on an island usually cuts what it stands in as
-   * well, and only the board after the push can say how much. On the guess
-   * alone the bots pushed most turns and scored less than half as much.
-   */
-  bestPush(seat) {
-    const guesses = [];
-    for (let dir = 0; dir < 4; dir++) {
-      for (const t of this.stickTargets(dir)) guesses.push({ ...t, dir, guess: this.pushValue(t, dir, seat) });
-    }
-    if (!guesses.length) return null;
-    guesses.sort((a, b) => b.guess - a.guess);
-    const base = this.holding(seat);
-    let best = null;
-    for (const g of guesses.slice(0, 10)) {
-      const value = this.tryPush(g, g.dir, () => this.holding(seat)) - base;
-      if (!best || value > best.value) best = { x: g.x, y: g.y, dir: g.dir, value };
-    }
-    return best;
+  /** Blow where it does most for us, or, if nothing helps, where it does nothing. */
+  botBlow(seat) {
+    const best = this.bestBlow(seat);
+    this.blowDir = best.dir;
+    return this.blowAt(best.x, best.y);
   }
 
   /**
-   * Make a push, ask `fn` about the board it leaves, and put every tile,
-   * follower and finished feature back as it was. For a computer player
-   * weighing a push it has not made.
+   * The best blow for a seat. Every blow is sorted out cheaply first: one
+   * that would move no tile and blow nobody does nothing at all, and is the
+   * fallback; the rest are guessed at by whose followers they touch and how
+   * much moves (`blowGuess`), and the few that guess best are then MADE,
+   * priced and taken back (`tryBlow`). Only the board after a blow can say
+   * what it did, because a moved tile that no longer fits moves on, and a
+   * chain can carry the push anywhere.
    */
-  tryPush(at, dir, fn) {
+  bestBlow(seat) {
     const board = this.game.board;
-    const was = [...board.cells.values()].map((c) => ({ c, x: c.x, y: c.y, meeple: c.meeple }));
+    const power = this.pushPower();
+    let idle = null;
+    const guesses = [];
+    for (const c of this.tiles()) {
+      for (let dir = 0; dir < 4; dir++) {
+        const { cells, ring } = runFrom(board, c, dir);
+        const heavy = ring || cells.length > power || cells.some((t) => this.holds(t));
+        const reached = heavy ? cells.slice(0, power) : cells;
+        const touches = reached.some((t) => (heavy ? t.meeple && !t.meeple.flat : true) || turbineOn(t) || isCannon(t) || zephyrDirs(t).length);
+        if (!touches) {
+          if (!idle) idle = { x: c.x, y: c.y, dir, value: 0 };
+          continue;
+        }
+        guesses.push({ x: c.x, y: c.y, dir, guess: this.blowGuess(reached, heavy, seat) });
+      }
+    }
+    let best = idle;
+    guesses.sort((a, b) => b.guess - a.guess);
+    const w = weightsFor(this, seat);
+    const base = this.holding(seat);
+    for (const t of guesses.slice(0, w.blowLook)) {
+      const value = this.tryBlow(t, t.dir, seat) - base;
+      if (!best || value > best.value) best = { x: t.x, y: t.y, dir: t.dir, value };
+    }
+    return best || { x: guesses[0].x, y: guesses[0].y, dir: guesses[0].dir, value: 0 };
+  }
+
+  /** A quick guess at a blow: whose followers it carries or blows, and how much it moves. */
+  blowGuess(reached, heavy, seat) {
+    let value = 0;
+    for (const t of reached) {
+      if (t.meeple) value += t.meeple.player === seat ? -1 : 1;
+      if (!heavy && zephyrDirs(t).length) value += 1;
+    }
+    return value + (heavy ? 0 : 0.2 * reached.length) + this.game.rng() * 0.5;
+  }
+
+  /**
+   * Make a blow, price the board it leaves for `seat` (`holding`, plus what
+   * its windmills and closings pay), and put every tile, follower and
+   * finished feature back as it was. Payments are not made: they are counted.
+   */
+  tryBlow(at, dir, seat) {
+    const g = this.game;
+    const board = g.board;
+    const was = [...board.cells.values()].map((c) => ({ c, x: c.x, y: c.y, rot: c.rot, type: c.type, meeple: c.meeple }));
     const scored = [...board.scoredParts];
+    const supply = g.players.map((p) => p.meeples);
     try {
-      const r = shove(board, { at, dir, most: this.stickMost, pinned: (c, d) => this.pinned(c, d) });
+      const reports = blow(board, { at, dir, power: this.pushPower(), holds: (c) => this.holds(c) });
+      let paid = 0;
+      for (const r of reports) {
+        for (const t of r.turbines) {
+          const m = turbineOn(t);
+          if (!m || m.on == null || board.get(t.x, t.y) !== t) continue;
+          const d = board.featureOf(t.x, t.y, m.on);
+          if (!d || !d.meeples.length) continue;
+          for (const p of board.majority(d)) paid += p === seat ? TURBINE : -TURBINE;
+        }
+      }
       // …and what no longer fits moves on, the nearest way it can, or falls.
-      for (const m of r.moved) {
-        const c = m.cell;
-        if (board.get(c.x, c.y) !== c || !board.degree(c.x, c.y) || fitsAll(board, c)) continue;
-        const t = this.astrayTargets(c).sort((a, b) => a.n - b.n)[0];
-        if (t) board.shift({ x: c.x, y: c.y }, t); else board.remove(c.x, c.y, { quiet: true });
+      for (const r of reports) {
+        for (const m of r.moved) {
+          const c = m.cell;
+          if (board.get(c.x, c.y) !== c || !board.degree(c.x, c.y) || fitsAll(board, c)) continue;
+          const t = this.astrayTargets(c).sort((a, b) => a.n - b.n)[0];
+          if (t) board.shift({ x: c.x, y: c.y }, t); else board.remove(c.x, c.y, { quiet: true });
+        }
       }
       board.rebuild();
-      return fn();
+      // A road or city the blow closed with nobody in it pays us.
+      for (const d of board.allComponents()) {
+        if (!SHARED.has(d.type) || d.scored || d.open !== 0 || d.meeples.length) continue;
+        paid += (d.type === 'road' ? this.roadPoints(d) : this.cityPoints(d)).pts;
+      }
+      return this.holding(seat) + paid;
     } finally {
       board.cells.clear();
       for (const w of was) {
-        w.c.x = w.x; w.c.y = w.y; w.c.meeple = w.meeple;
+        w.c.x = w.x; w.c.y = w.y; w.c.rot = w.rot; w.c.type = w.type; w.c.meeple = w.meeple;
         board.cells.set(board.key(w.x, w.y), w.c);
       }
       board.scoredParts.clear();
       for (const p of scored) board.scoredParts.add(p);
+      g.players.forEach((p, i) => { p.meeples = supply[i]; });
       board.version++;
       board.rebuild();
     }
@@ -2370,17 +2228,26 @@ export class Soffiando extends Mode {
   /**
    * What the board as it stands is worth to a seat: what its followers stand
    * in (valueOf, which doubles it out on an island), less a little of what
-   * everybody else's do, and 2 for every separate island it is standing on
-   * (the archipelago's 10, a little at a time).
+   * everybody else's do; the Abbazias it would win red for; and 2 for every
+   * separate island it is standing on (the archipelago's 10, a little at a
+   * time).
    */
   holding(seat) {
     const board = this.game.board;
+    const w = weightsFor(this, seat);
     const { isles } = this.land();
     const isleOf = new Map();
     isles.forEach((grp, i) => { for (const c of grp) isleOf.set(c, i); });
     const mine = new Set();
     let value = 0;
     for (const c of board.cells.values()) {
+      if (hasMark(c, 'abbazia')) {
+        const holders = this.abbaziaHolders(c);
+        if (holders.length) {
+          const per = (this.onIsland(c) ? RATE.abbazia.isle : RATE.abbazia.main) * w.ahead * w.parish;
+          value += (holders.includes(seat) ? 1 : -0.7) * per * board.surroundCount(c.x, c.y);
+        }
+      }
       if (!c.meeple || c.meeple.feat == null) continue;
       const d = board.featureOf(c.x, c.y, c.meeple.feat);
       const worth = (d && this.valueOf(d)) || 0;
@@ -2390,99 +2257,6 @@ export class Soffiando extends Mode {
     }
     return value + 2 * mine.size;
   }
-
-  /** Already holding the stick: push where it does most, or put it down. */
-  botPush(seat) {
-    const best = this.bestPush(seat);
-    if (!best) return this.cancelPush();
-    this.stickDir = best.dir;
-    return this.pushAt(best.x, best.y);
-  }
-
-  /**
-   * What a push is worth to a seat, worked out on the board as it would be
-   * after it rather than by making it: where every tile would stand, which
-   * of the moved ones would fall (without cracks), and then which pieces of
-   * country there would be. A follower of ours that ends up out on an island
-   * is worth what it stands in again (an island pays double), one brought
-   * back to the mainland the same taken away, and a rival's the other way
-   * round at a little less; standing on more separate islands is the
-   * archipelago's 10; a follower that goes down with its tile is lost.
-   */
-  pushValue(at, dir, seat) {
-    const board = this.game.board;
-    const train = this.trainAt(at.x, at.y, dir);
-    if (!train) return -Infinity;
-    const [dx, dy] = SIDE_STEP[dir];
-    const moving = new Set(train);
-    const where = new Map();                       // square -> cell, after the push
-    const pos = new Map();                         // cell -> its square after
-    for (const c of board.cells.values()) {
-      const p = moving.has(c) ? board.norm(c.x + dx, c.y + dy) : { x: c.x, y: c.y };
-      where.set(board.key(p.x, p.y), c);
-      pos.set(c, p);
-    }
-    const near = (c, s) => {
-      const p = pos.get(c);
-      const [sx, sy] = SIDE_STEP[s];
-      return where.get(board.key(p.x + sx, p.y + sy)) || null;
-    };
-    const meets = (c, s, nb) => edgesMeet(board.edgeAt(c, s), board.edgeAt(nb, opposite(s)));
-    const fell = new Set();
-    if (!board.cracks) {
-      for (const c of train) {
-        for (let s = 0; s < 4; s++) {
-          const nb = near(c, s);
-          if (nb && !meets(c, s, nb)) { fell.add(c); break; }
-        }
-      }
-      for (const c of fell) where.delete(board.key(pos.get(c).x, pos.get(c).y));
-    }
-    // The pieces of country after, biggest first.
-    const piece = new Map();
-    const sizes = [];
-    for (const c of where.values()) {
-      if (piece.has(c)) continue;
-      const id = sizes.length;
-      let n = 0;
-      const queue = [c];
-      piece.set(c, id);
-      while (queue.length) {
-        const cur = queue.pop();
-        n++;
-        for (let s = 0; s < 4; s++) {
-          const nb = near(cur, s);
-          if (!nb || fell.has(nb) || piece.has(nb)) continue;
-          if (board.cracks && !meets(cur, s, nb)) continue;
-          piece.set(nb, id);
-          queue.push(nb);
-        }
-      }
-      sizes.push(n);
-    }
-    const main = sizes.indexOf(Math.max(...sizes));
-    const w = weightsFor(this, seat);
-    let value = 0;
-    const islesBefore = new Set(), islesAfter = new Set();
-    for (const c of board.cells.values()) {
-      if (!c.meeple) continue;
-      const mine = c.meeple.player === seat;
-      const d = c.meeple.feat != null ? board.featureOf(c.x, c.y, c.meeple.feat) : null;
-      const stake = Math.max(1, (d && this.valueOf(d)) || 0);
-      const was = this.onIsland(c);
-      if (fell.has(c)) { value += (mine ? -2 : 1.4) * w.gustBlow; continue; }
-      const now = piece.get(c) !== main;
-      if (mine) {
-        if (was) islesBefore.add(this.land().isles.findIndex((grp) => grp.includes(c)));
-        if (now) islesAfter.add(piece.get(c));
-      }
-      if (was === now) continue;
-      value += (now ? stake : -stake) * (mine ? 1 : -0.7);
-    }
-    value += (islesAfter.size - islesBefore.size) * 2;
-    return value;
-  }
-
 
   /**
    * The walk, for a computer player. It used to be answered by the first
@@ -2522,78 +2296,6 @@ export class Soffiando extends Mode {
     return value;
   }
 
-  /**
-   * Does this tile put a half-sphere against another half? Returns the two
-   * colours that would fire, or null — any half fits any other, so what the
-   * pairing is worth depends entirely on which two.
-   */
-  joinsSphere(cell) {
-    const board = this.game.board;
-    for (let s = 0; s < 4; s++) {
-      const i = board.featAt(cell, s);
-      if (i == null || cell.type.feats[i].type !== 'sfera') continue;
-      const nb = board.neighbor(cell.x, cell.y, s);
-      if (!nb || nb.sphered) continue;
-      const theirs = board.featAt(nb, opposite(s));
-      if (theirs != null && nb.type.feats[theirs].type === 'sfera') {
-        return [cell.type.feats[i].hue, nb.type.feats[theirs].hue];
-      }
-    }
-    return null;
-  }
-
-  /**
-   * What letting this gust out does. It is the same questions the wind itself
-   * asks — how far down the lane does the country run, how hard is it blowing
-   * by the time it gets to the loose end, whose figures are standing in the
-   * way, whose temples and turbines does it feed — answered by walking the
-   * lane rather than by simulating it, because the bot prices hundreds of
-   * candidate squares a turn.
-   *
-   * The shape of the answer changed with the wind. A gust does nothing to the
-   * country it passes through; what it is worth is what it does to the RAFT it
-   * tears off the far end, and to every follower standing in the lane between
-   * here and there.
-   */
-  gustValue(cell, dir, player) {
-    const board = this.game.board;
-    const w = weightsFor(this, player);
-    const [dx, dy] = SIDE_STEP[dir];
-    let value = 0;
-    let strength = 1;
-    const run = [];
-    const reach = board.wraps ? (dx === 0 ? board.span.h : board.span.w) - 1 : 24;
-    for (let step = 1; step <= reach; step++) {
-      const other = board.get(cell.x + dx * step, cell.y + dy * step);
-      if (!other) break;                         // the gap: this is the loose end
-      if (other.balena) return value;            // the whale: nothing comes away
-      run.push({ cell: other, force: strength });
-      value += this.turbineValue(other, player) * 0.3;
-      if (zephyrDirs(other).includes(dir)) strength = Math.min(MAX_STRENGTH, strength + 1);
-    }
-    if (!run.length) return value;
-    const power = run[run.length - 1].force;
-    const raft = new Set(run.slice(Math.max(0, run.length - power)).map((r) => r.cell));
-    for (const { cell: other, force } of run) {
-      // A follower about to be moved: ours is a risk, theirs is an
-      // opportunity. One on the raft rides it and is only as exposed as its
-      // tile; one on the country between is picked up and put down blind.
-      if (other.meeple) {
-        const steps = raft.has(other) ? power : force;
-        const dest = board.get(other.x + dx * steps, other.y + dy * steps);
-        const worse = (dest ? 0.6 : 2) * w.gustBlow * (raft.has(other) ? 0.5 : 1);
-        value += other.meeple.player === player ? -worse : worse * 0.7;
-      }
-      // Only the raft actually lands somewhere new, so only the raft can
-      // arrive in — or leave — somebody's parish.
-      if (!raft.has(other)) continue;
-      value += this.templeValue(
-        { x: other.x + dx * power, y: other.y + dy * power }, player, 0.6);
-      value -= this.templeValue({ x: other.x, y: other.y }, player, 0.6);
-    }
-    return value;
-  }
-
   // --- UI -------------------------------------------------------------------
 
   /**
@@ -2623,10 +2325,9 @@ export class Soffiando extends Mode {
     if (g.phase === 'flight') {
       return [{ label: 'Leave them where they are', fn: () => this.cancelLift() }];
     }
-    if (g.phase === 'stick') {
+    if (g.phase === 'blow') {
       return [
-        { label: `Turn it (pushing ${DIR_NAMES[this.stickDir]})`, key: 'R', fn: () => g.rotate(1) },
-        { label: 'Put the stick down', fn: () => this.cancelPush() },
+        { label: `Turn your zephyr (blowing ${DIR_NAMES[this.blowDir]}, push ${this.pushPower()})`, key: 'R', fn: () => g.rotate(1), wide: true },
       ];
     }
     if (g.phase !== 'meeple') return [];
@@ -2635,7 +2336,6 @@ export class Soffiando extends Mode {
       fn: () => this.beginSwim(),
       disabled: !this.canSwim(),
     }] : [];
-    out.unshift({ label: 'Push with your stick', fn: () => this.beginPush(), disabled: !this.canPush() });
     if (this.canLift()) {
       out.unshift({ label: 'Fly out and pick a follower up', fn: () => this.beginLift() });
     }
@@ -2648,9 +2348,9 @@ export class Soffiando extends Mode {
     return out;
   }
 
-  /** What the panel names that the host's own signature does not see: which way the stick faces, and which loose tile is moving on. */
+  /** What the panel names that the host's own signature does not see: which way the zephyr faces, the push, and which loose tile is moving on. */
   signature() {
-    return `${this.stickDir}/${this.astrayAt ? `${this.astrayAt.cell.x},${this.astrayAt.cell.y}` : '-'}`;
+    return `${this.blowDir}/${this.pushPower()}/${this.astrayAt ? `${this.astrayAt.cell.x},${this.astrayAt.cell.y}` : '-'}`;
   }
 
   cancelLift() {
@@ -2670,9 +2370,8 @@ export class Soffiando extends Mode {
     const adrift = isles.reduce((n, g) => n + g.length, 0);
     return `${this.laid} tiles laid · mainland of ${main.length}`
       + ` · ${isles.length} island${isles.length === 1 ? '' : 's'} (${adrift} tiles)`
-      + ` · ${this.gusts} gust${this.gusts === 1 ? '' : 's'}`
-      + ` · ${this.pushes} push${this.pushes === 1 ? '' : 'es'}`
-      + (this.drifts ? ` · ${this.drifts} towed by the Palazzo` : '');
+      + ` · push ${this.pushPower()}`
+      + ` · ${this.blows} blow${this.blows === 1 ? '' : 's'}`;
   }
 
   panel() {
@@ -2690,9 +2389,9 @@ export class Soffiando extends Mode {
         </div>`;
     }).join('');
     const whale = this.balena ? ` · The Balena rests at (${this.balena.x}, ${this.balena.y}).` : '';
-    const closed = ['green', 'blue', 'red'].filter((h) => this.hues[h])
-      .map((h) => `${this.hues[h]} ${h}`).join(', ');
-    return `${rows}<p class="hint">${this.gusts} gust${this.gusts === 1 ? '' : 's'} · ${this.fallen} tile${this.fallen === 1 ? '' : 's'} fallen · ${this.spheres ? `spheres harvested: ${closed}` : 'no sphere closed yet'}${whale}</p>`;
+    const closed = ['green', 'blue', 'red', 'yellow', 'sun', 'hole'].filter((h) => this.hues[h])
+      .map((h) => `${this.hues[h]} ${h === 'hole' ? 'black hole' : h}`).join(', ');
+    return `${rows}<p class="hint">Push power ${this.pushPower()} · ${this.fallen} tile${this.fallen === 1 ? '' : 's'} fallen · ${this.spheres ? `towers closed: ${closed}` : 'no tower closed yet'}${whale}</p>`;
   }
 }
 
@@ -2724,20 +2423,16 @@ Soffiando.spec = {
   ],
   tideStart: 5,
   opening: 'A first stone hangs in the cloud. Everything else is weather.',
-  hint: 'A zephyr does nothing to the country it blows through — it tears the LOOSE END off it. '
-    + 'The run downwind ends at a gap, and the last tiles before it come away: power N pops N tiles off and carries each of them N squares. '
-    + 'A GUST CANNON — three in the deck — does not carry them, it FIRES them: each flies until the square in front of it is taken, however far that is, round the map if it has to. '
-    + 'It gains a power off every zephyr blowing its own way and off every corner it turns, and it no longer stops at three. '
-    + 'A tile the wind shakes loose of everything HANGS THERE, and every fragment off the biggest landmass is an ISLAND, down to one tile. Anything that falls goes back on top of the deck, and if your own weather or stick knocked it down you lay one more tile this turn, which is that one — once a turn. '
-    + 'The mainland is the only country too big for the wind to get under: everything else adrift sails whole, and slides until it comes to rest against something — so islands meet and merge. '
-    + 'Nothing is paid for being finished: closing a SPHERE is the scoring round, and both its halves fire a pass over the whole board. '
-    + 'Green scores the farms (1 per two tiles of field), blue the cities, red the temples (1 per tile around one), yellow the roads (1 a tile plus what each city it reaches is worth). '
-    + 'A city is made of DISTRICTS (garden, temple, residential, industrial, trade) and pays a point per district, plus 1, 3, 6 or 10 for having two, three, four or five different kinds; walled all round, double that. '
-    + 'A wall square across the wind holds its tile still; a wind along it does not. A tile the wind or a stick moves that no longer meets ALL its neighbours MOVES ON: you pick a way, and it slides that way to the first empty square where it fits. Only one with every way blocked falls. '
-    + 'Any half fits any other, so the pairing is the decision. '
-    + 'You may only build onto the mainland, or an island you are already standing on; islands pay double. '
-    + 'Every player has a STICK: instead of a follower, push a tile (R turns the push) and every tile touching in front of it, up to the first gap, goes a square, three at most. Everything behind it stays, so the lane splits where the stick went in. A push is not wind: no zephyr wakes, nobody is blown along. '
-    + 'The map is 17 squares a side and its edges meet: a tile blown off one side comes on at the other, still joined to what it was joined to. '
-    + 'A city wall stands on its tile\'s edge: farmland stops against it, and a road may run into it, ending at a gate, and yellow pays that road for the city behind. '
-    + 'A follower blown onto a zephyr rides it, and again, and again; one blown off a ledge flies on until it lands on country. A feature that scores hands its followers back — or they walk on down a road, out over any amount of open air as long as a road points off the cliff on both sides.',
+  hint: 'A turn is three steps: lay a tile, claim on it or not, and BLOW. '
+    + 'Your zephyr goes against any tile on any side (R turns it): that tile and every tile touching in front of it, up to the first gap, go one square, if there are no more of them than your PUSH POWER, which is 1 plus every Abbazia on the board. '
+    + 'A zephyr tile your blow pushes then pushes the way it points, at its own push plus yours, and that chains on; a gust cannon fires what is in front of it until each tile hits something. Zephyr tiles do nothing when laid. '
+    + 'Too heavy to move, or with a TOWER in it (towers never move), a blow moves no tile but blows the followers it reaches a square downwind, never across a city wall. '
+    + 'A moved tile that no longer meets all its neighbours MOVES ON: you pick a way, and it slides to the first empty square where it fits. Only one with every way blocked falls, and you lay one more tile. '
+    + 'TOWERS are the scoring: a half meets only its own colour, and a closed tower scores its colour over the whole board. '
+    + 'Green the farms (1 per two tiles of field), blue the cities (1 a district, plus 1, 3 or 6 for two, three or four kinds, doubled once walled, plus 2 a garden), red the Abbazias (1 per tile round one, to whoever has most followers there), yellow the roads (1 a tile plus 1 or 2 for each city they reach). '
+    + 'The SUN, four quarters in a 2x2, fires every colour; the BLACK HOLE swallows the ring round it back into the deck. '
+    + 'A road or city closed with nobody in it pays whoever closed it, on the spot. '
+    + 'Five followers each. You may join an open road or city however many are in it, never a closed one. A feature a tower pays hands its followers back, or one of yours walks on down a road. '
+    + 'The biggest piece of country is the mainland; every other piece is an ISLAND, pays double, and is buildable only by somebody standing on it. At the end, 10 to whoever stands on most islands. '
+    + 'The map is 17 squares a side with the Plaza in the middle, and its edges meet: a tile pushed off one side comes on at the other, still joined.',
 };

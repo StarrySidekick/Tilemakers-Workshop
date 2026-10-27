@@ -336,7 +336,7 @@ export class Bot {
     for (const cell of laid) {
       cell.type.feats.forEach((f, i) => {
         const d = board.featureOf(cell.x, cell.y, i);
-        if (!d || d.scored || d.meeples.length) return;
+        if (!d || d.scored || (d.meeples.length && !this.game.m.mayShare?.(d))) return;
         if (NO_MEEPLE.has(f.type)) return;
         out.add(board.find(d.parts[0]));
       });

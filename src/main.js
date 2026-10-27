@@ -845,9 +845,9 @@ function renderGroups() {
 
 // --- a mode's own switches ----------------------------------------------------
 //
-// Options a mode declares for itself (`spec.switches`): Soffiando's stick,
-// cracks and Balena (2026-10-26). Ticked here, kept per mode, and passed in
-// with the mechanics when the next game starts.
+// Options a mode declares for itself (`spec.switches`): Soffiando's Balena.
+// Ticked here, kept per mode, and passed in with the mechanics when the next
+// game starts.
 const SWITCHES_KEY = 'tilemakers-workshop/switches';
 let modeSwitches = {};
 try { modeSwitches = JSON.parse(localStorage.getItem(SWITCHES_KEY) || '{}') || {}; } catch { /* ignore */ }
@@ -1306,7 +1306,7 @@ const PHASE_TEXT = {
   rob: 'Post your robber on an opponent',
   balena: 'Send the Balena — click any tile on the board',
   astray: 'A tile no longer fits: click where it moves on to',
-  stick: 'Push with your stick: click a tile, and it and the tiles in front of it go a square — R turns the push',
+  blow: 'Blow: click a tile, and it and the tiles in front of it go a square (gold), or its followers do if it is too heavy (violet). R turns your zephyr',
   flight: 'Click one of your followers on the flight to pick it up',
   stroll: 'Walk the follower on down the road, or send it home',
   flat: 'Click one of your followers in a city to lay it flat',
@@ -1652,7 +1652,7 @@ function signature() {
     game.pendingWalk ? game.pendingWalk.targets.length : '-',
     game.players.map((p) => `${p.score}/${p.meeples}`).join(','),
     // …and whatever a mode has in hand that the panel names: Soffiando's
-    // cloud and stick, which way they face.
+    // zephyr, which way it faces and how hard it pushes.
     game.m.signature ? game.m.signature() : '-',
   ].join('|');
 }
