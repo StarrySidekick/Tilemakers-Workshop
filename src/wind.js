@@ -264,7 +264,10 @@ function everyLane(board, dx, dy) {
   return out;
 }
 
-/** The whole connected piece of country a tile belongs to, corners not counting. */
+/**
+ * The whole connected piece of country a tile belongs to, corners not
+ * counting, and on a board with cracks only across seams that hold.
+ */
 function regionOf(board, seed) {
   const seen = new Set([kOf(seed.x, seed.y)]);
   const out = [seed];
@@ -273,7 +276,7 @@ function regionOf(board, seed) {
     const c = queue.pop();
     for (let s = 0; s < 4; s++) {
       const nb = board.neighbor(c.x, c.y, s);
-      if (!nb) continue;
+      if (!nb || !board.seamHolds(c, s)) continue;
       const k = kOf(nb.x, nb.y);
       if (seen.has(k)) continue;
       seen.add(k);
@@ -566,8 +569,10 @@ export function gust(board, {
     drop(cell, aether);                              // nothing to stop it: off the map
   }
 
+  // On a board with CRACKS nothing falls for not fitting: the seam it does
+  // not meet is a crack, and joins nothing (Board.cracks).
   for (const m of report.moved) {
-    if (board.size <= 1) break;
+    if (board.size <= 1 || board.cracks) break;
     const cell = m.cell;
     if (board.get(cell.x, cell.y) !== cell || cell.balena) continue;
     if (!board.degree(cell.x, cell.y)) continue;     // nothing to disagree with: it floats
@@ -734,4 +739,82 @@ export function storm(board, first, { cap = MAX_GUSTS, rooted = null, pinned = n
     }
   }
   return out;
+}
+
+// --- the stick -----------------------------------------------------------------
+//
+// Timothy, 2026-10-26, thinking of the table: a little stick you push tiles
+// with, which can push a whole lane, and islands still forming often. A push
+// is not wind: it goes in at a seam of the player's choosing and moves the
+// tile against it and every tile touching in front of it, up to the first
+// gap, one square, as a train of real tiles would go. Everything behind the
+// stick stays, so the lane splits where the stick went in, and the train
+// slides past the lanes beside it. It wakes no zephyr, pays no windmill and
+// blows nobody along; a follower on the train rides it.
+
+/**
+ * The train a stick against `at` would push down `dir`: that tile and every
+ * tile touching in front of it, up to the first gap, round the seam of a
+ * wrapping map. Null when there is no push: no tile there, no gap ahead (a
+ * lane full all the way round, or the edge of a map that does not wrap), more
+ * than `most` tiles, or any of them held against that way (the whale, an
+ * anchor, or whatever `pinned` says, in Soffiando a wall square across it).
+ */
+export function trainOf(board, at, dir, { most = Infinity, pinned = null } = {}) {
+  const first = board.get(at.x, at.y);
+  if (!first) return null;
+  const [dx, dy] = SIDE_STEP[dir];
+  const cells = [first];
+  let cur = first;
+  for (let n = 0; n < MAX_RUN; n++) {
+    const next = board.norm(cur.x + dx, cur.y + dy);
+    if (board.bounds && !board.wraps && !board.inBounds(next.x, next.y)) return null;
+    const there = board.get(next.x, next.y);
+    if (!there) break;                                  // the gap: the train ends here
+    if (there === first) return null;                   // full all the way round
+    cells.push(there);
+    if (cells.length > most) return null;               // too heavy
+    cur = there;
+  }
+  if (cells.some((c) => immovable(c) || (!!pinned && pinned(c, dir)))) return null;
+  return cells;
+}
+
+/**
+ * One push of the stick: the train against `at` goes one square down `dir`,
+ * far end first. Reported as a gust is, so a mode can pay for it and draw it
+ * the same way (`stick` marks it): what moved, and, on a board without
+ * cracks, what fell for no longer fitting, with its follower sent home.
+ */
+export function shove(board, { at, dir, most = Infinity, pinned = null }) {
+  const report = {
+    dir, from: null, stick: true, everywhere: false, push: 1, blast: false, strength: 1,
+    moved: [], fell: [], carried: [], homed: [], swung: [],
+    turbines: [], reached: [], zephyrs: [], lifted: [],
+  };
+  const train = trainOf(board, at, dir, { most, pinned });
+  if (!train) return report;
+  const [dx, dy] = SIDE_STEP[dir];
+  for (let i = train.length - 1; i >= 0; i--) {
+    const cell = train[i];
+    const was = { x: cell.x, y: cell.y };
+    if (!board.shift(was, { x: was.x + dx, y: was.y + dy })) continue;
+    report.moved.push({ cell, from: was, steps: 1 });
+  }
+  if (!board.cracks) {
+    for (const m of report.moved) {
+      const cell = m.cell;
+      if (board.size <= 1) break;
+      if (board.get(cell.x, cell.y) !== cell || cell.balena) continue;
+      if (!board.degree(cell.x, cell.y) || fitsAll(board, cell)) continue;
+      if (cell.meeple) {
+        report.homed.push({ ...cell.meeple, x: cell.x, y: cell.y, why: 'fell' });
+        cell.meeple = null;
+      }
+      report.fell.push({ id: cell.type.id, x: cell.x, y: cell.y, type: cell.type, rot: cell.rot, cell, why: 'mismatch' });
+      board.remove(cell.x, cell.y, { quiet: true });
+    }
+  }
+  board.rebuild();
+  return report;
 }

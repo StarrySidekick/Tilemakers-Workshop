@@ -254,7 +254,7 @@ function newGame() {
     players, seed, mode,
     meeples: $('useMeeples').checked,
     groups: [...enabledGroups],
-    options: { ...mechanics },
+    options: { ...mechanics, ...switchesFor(mode) },
     ruleset,
     tilesPerTurn: Number($('tilesPerTurn').value) || 1,
   }));
@@ -305,6 +305,7 @@ function onModeChange() {
     hint = 'No meeples — a feature pays whoever closes it.';
   }
   $('modeHint').textContent = hint;
+  renderSwitches(id);
   // The cloud kingdom is printed on parchment rather than lit in twilight, and
   // the panel has to agree with the board or the whole thing looks like two
   // games in one window. One class, and the palette variables do the rest.
@@ -842,6 +843,41 @@ function renderGroups() {
 // the accessor itself, and a game that won't start because it couldn't save a
 // checkbox is worse than one that forgets.
 
+// --- a mode's own switches ----------------------------------------------------
+//
+// Options a mode declares for itself (`spec.switches`): Soffiando's stick,
+// cracks and Balena (2026-10-26). Ticked here, kept per mode, and passed in
+// with the mechanics when the next game starts.
+const SWITCHES_KEY = 'tilemakers-workshop/switches';
+let modeSwitches = {};
+try { modeSwitches = JSON.parse(localStorage.getItem(SWITCHES_KEY) || '{}') || {}; } catch { /* ignore */ }
+
+/** The switches ticked for a mode, as game options. */
+function switchesFor(mode) {
+  const list = spec(mode)?.switches || [];
+  return Object.fromEntries(list.filter((w) => modeSwitches[mode]?.[w.id]).map((w) => [w.id, true]));
+}
+
+function renderSwitches(mode) {
+  const host = $('modeSwitches');
+  const list = spec(mode)?.switches || [];
+  host.style.display = list.length ? '' : 'none';
+  host.innerHTML = list.length ? '<p class="hint">Switches, for the next new game:</p>' : '';
+  for (const w of list) {
+    const label = document.createElement('label');
+    label.title = w.note;
+    const box = document.createElement('input');
+    box.type = 'checkbox';
+    box.checked = !!modeSwitches[mode]?.[w.id];
+    box.onchange = () => {
+      modeSwitches[mode] = { ...modeSwitches[mode], [w.id]: box.checked };
+      try { localStorage.setItem(SWITCHES_KEY, JSON.stringify(modeSwitches)); } catch { /* ignore */ }
+    };
+    label.append(box, ` ${w.name}`);
+    host.append(label);
+  }
+}
+
 const SAVE_KEY = 'tilemakers-workshop/settings';
 const SAVED_FIELDS = [
   'mode', 'playerCount', 'botCount', 'botSkill', 'botSpeed', 'tilesPerTurn',
@@ -1269,7 +1305,8 @@ const PHASE_TEXT = {
   crop: 'A crop circle — choose what everyone does',
   rob: 'Post your robber on an opponent',
   balena: 'Send the Balena — click any tile on the board',
-  cloud: 'Set your cloud down beside the country — R turns it',
+  astray: 'A tile no longer fits: click where it moves on to',
+  stick: 'Push with your stick: click a tile, and it and the tiles in front of it go a square — R turns the push',
   flight: 'Click one of your followers on the flight to pick it up',
   stroll: 'Walk the follower on down the road, or send it home',
   flat: 'Click one of your followers in a city to lay it flat',
@@ -1614,6 +1651,9 @@ function signature() {
     game.players.map((p) => `${p.big}${p.mayors}${p.abbots}${p.phantoms}${p.pigs}`).join(''),
     game.pendingWalk ? game.pendingWalk.targets.length : '-',
     game.players.map((p) => `${p.score}/${p.meeples}`).join(','),
+    // …and whatever a mode has in hand that the panel names: Soffiando's
+    // cloud and stick, which way they face.
+    game.m.signature ? game.m.signature() : '-',
   ].join('|');
 }
 
@@ -1695,7 +1735,7 @@ if (restored) {
 game = bind(new Game({
   players: Number($('playerCount').value) || 2,
   groups: [...enabledGroups],
-  options: { ...mechanics },
+  options: { ...mechanics, ...switchesFor($('mode').value) },
   ruleset,
   meeples: $('useMeeples').checked,
   tilesPerTurn: Number($('tilesPerTurn').value) || 1,

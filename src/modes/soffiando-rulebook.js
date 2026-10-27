@@ -43,7 +43,6 @@ const MISMATCH = 'roads can no longer mismatch in any way and still stay togethe
 const LEDGE = 'I don\'t know if we did this yet, but meeple that are blown off a ledge keep flying until they land on an island.';
 const DISTRICTS = 'cities have different districts, garden, temple, residential, industrial, and trade, each a different color and texture.';
 const COMPOUND = 'Cities get compounding levels of points depending on how many different districts they have.';
-const CLOUD = 'every player start with a person zephyr that is an entire cloud as a tile, that blows in one direction. it can be moved every turn instead of placing a meeple. it activates when moved. it\'s interacts with zephyrs on tiles the same in that its gust can be amplified by them and vice versa.';
 const LONE = 'for now remove single castle wall tiles from the tile pool, just want to see what it looks like.';
 const BALENA = 'for now, remove the balena in the default rules';
 // …and of 2026-10-25.
@@ -51,6 +50,11 @@ const D25 = '2026-10-25';
 const SEVENTY_TWO = 'make sure we stick to 72 tiles, and add to the artifact a list of all our tiles, and any extra, and toggle for them all';
 const SEVENTEEN = 'map needs to be 17x17 in order to allow the palazzo to be perfectly in the middle';
 const WRAP = 'instead of flying off the side of the world, tiles that are pushed off the map appear on the other side pac-man style, still connected';
+// …and of 2026-10-26.
+const D26 = '2026-10-26';
+const STICK = 'when I make the physical game, being like an actual little like stick that you use to push tiles, because it just sounds really fun. So with that said, that means that like That means you\'re going to be able to push like entire lanes of tiles, which could be really interesting. But I also want to still somehow make it so that it\'s possible for islands to form really often.';
+const WOVEN = 'we need to weave these rules into the actual game, not as toggles.';
+const MOVE_ON = 'Instead of the tiles that crack falling into the, just falling into nowhere land, if there\'s room for that tile to move, then you can basically move the tile one space away if your choice so that it is no longer mismatched with anything. If it is completely surrounded by tiles, then yes, it still falls into nowhere land.';
 const GATES = 'since city walls now push to the edges of tiles, farmland can now be placed against a city wall, as well as roads, as if the road is running straight from the middle of the castle wall.';
 
 export const GROUPS = [
@@ -65,7 +69,7 @@ export const GROUPS = [
   { id: 'spheres', name: 'Spheres', ask: 'The only thing that scores.' },
   { id: 'colours', name: 'Green, red and yellow', ask: 'What three of the four colours pay.' },
   { id: 'cities', name: 'Cities', ask: 'Districts, walls, and what blue pays.' },
-  { id: 'cloud', name: 'Your cloud', ask: 'The wind of your own.' },
+  { id: 'stick', name: 'Your stick', ask: 'Pushing the country with your own hand.' },
   { id: 'tiles', name: 'Windmills and flying machines', ask: 'Two tiles with rules of their own.' },
   { id: 'end', name: 'The end of the season', ask: 'When it ends, and the last scoring.' },
   { id: 'options', name: 'Options', ask: 'Rules that are off unless a game switches them on.' },
@@ -105,11 +109,13 @@ export const RULES = [
     text: 'It must touch the mainland (rule 40), or an island you already have a follower standing on.',
     from: H('eighth', 'No building on islands at all at first; on an island you stand on since the fifteenth pass, and YOUR follower since the twenty-first. Timothy liked the island puzzle in his review of 2026-10-22 (INTENT.md).') },
   { n: 8, id: 'turn-step', group: 'turn',
-    text: 'Then your follower step: claim a feature on the tile you laid (rule 10), set your cloud down (rule 56), or neither. On a turn you laid a flying machine you may use its flight instead (rules 61 and 62). Before any of that, once a turn, you may lay one of your followers flat (rule 16).',
-    from: CARC('The follower step is Carcassonne\'s; the cloud, the flight and lying flat are this mode\'s.') },
+    text: 'Then your follower step: claim a feature on the tile you laid (rule 10), push with your stick (rule 70), or neither. On a turn you laid a flying machine you may use its flight instead (rules 61 and 62). Before any of that, once a turn, you may lay one of your followers flat (rule 16).',
+    from: CARC('The follower step is Carcassonne\'s; the stick, the flight and lying flat are this mode\'s.'), changed: D26,
+    was: 'Then your follower step: claim a feature on the tile you laid (rule 10), set your cloud down (rule 56), or neither. On a turn you laid a flying machine you may use its flight instead (rules 61 and 62). Before any of that, once a turn, you may lay one of your followers flat (rule 16).' },
   { n: 9, id: 'turn-catch', group: 'turn',
-    text: 'If your own weather knocks tiles out of the sky back onto the deck (rule 31), you lay one more tile that turn: the top of the deck, which is the last tile that fell. Once a turn, however many fall.',
-    from: H('sixteenth', 'Catch and throw. Until 2026-10-25 the fallen tiles went to the bottom of the deck, so the tile you laid was not one that fell; found writing this rulebook and fixed to what the rule always said.') },
+    text: 'If tiles fall back onto the deck on your turn (rule 31), you lay one more tile that turn: the top of the deck, which is the last tile that fell. Once a turn, however many fall.',
+    from: H('sixteenth', 'Catch and throw. Until 2026-10-25 the fallen tiles went to the bottom of the deck, so the tile you laid was not one that fell; found writing this rulebook and fixed to what the rule always said.'), changed: D26,
+    was: 'If your own weather knocks tiles out of the sky back onto the deck (rule 31), you lay one more tile that turn: the top of the deck, which is the last tile that fell. Once a turn, however many fall.' },
 
   // --- Followers. ------------------------------------------------------------
   { n: 10, id: 'followers-claim', group: 'followers',
@@ -186,11 +192,17 @@ export const RULES = [
 
   // --- Out of the sky. -------------------------------------------------------
   { n: 31, id: 'fall-mismatch', group: 'fall',
-    text: 'A tile the wind moved falls if any of its edges now meets a neighbour it does not match. It goes back on top of the deck.',
-    from: T(D24, MISMATCH, 'Until then a moved tile stayed up if any one edge matched.') },
+    text: 'A tile the wind, the Palazzo or a stick has moved that now meets a neighbour it does not match moves on, before anything else happens: the player whose turn it is picks a way, and it slides that way, square by square, to the first empty square where every edge meets what is beside it, or where nothing is. It cannot pass through a tile, so a way blocked before it fits is no way; with only one way it just goes. Only a tile with every way blocked falls, back on top of the deck. A follower on it rides it.',
+    from: T(D26, MOVE_ON, 'Asked, he chose that it must move when it can, and that one with room but no square beside it that fits "keeps going". From 2026-10-24 ("' + MISMATCH + '") such a tile fell.'),
+    changed: D26,
+    was: 'A tile the wind moved falls if any of its edges now meets a neighbour it does not match. It goes back on top of the deck.' },
   { n: 32, id: 'fall-alone', group: 'fall',
     text: 'A tile touching nothing does not fall: it hangs in the sky.',
     from: H('fourteenth', 'Fragments are where islands come from; dropping them had healed the board back into one mass every turn.') },
+  { n: 69, id: 'fall-loose', group: 'fall',
+    text: 'Until it moves on, a tile that does not fit is joined to nothing across the edge it does not meet: no road, city, field or country runs across that seam (so it is loose from that neighbour, and may be an island, rule 40).',
+    from: T(D26, STICK, 'Claude offered cracks as one of three ways to keep islands forming when a stick can push whole lanes; he chose them ("yea i like one and two"), and then that a tile which does not fit moves on (rule 31), which leaves the crack only until it does.'),
+    added: D26 },
   { n: 34, id: 'fall-followers', group: 'fall',
     text: 'A follower on a tile that falls goes home.',
     from: H('fourteenth'), changed: D25,
@@ -223,9 +235,9 @@ export const RULES = [
     text: 'Everything on an island pays double.',
     from: H('eighth', 'Half again as much at first; double now.') },
   { n: 42, id: 'land-tow', group: 'land',
-    text: 'When the wind moves the Palazzo, every island slides one square the same way, if all of it can: nothing in its way and no wall across the wind. That includes the Palazzo itself if the gust has left it adrift. A tile towed against an edge it does not match falls.',
-    from: H('eighth', 'Walls across the wind since 2026-10-24.'), changed: D25,
-    was: 'When the wind moves the Palazzo, every island slides one square the same way, if all of it can: nothing in its way and no wall across the wind. That includes the Palazzo itself if the gust has left it adrift. A tile towed over the edge is gone, and one towed against an edge it does not match falls.' },
+    text: 'When the wind moves the Palazzo, every island slides one square the same way, if all of it can: nothing in its way and no wall across the wind. That includes the Palazzo itself if the gust has left it adrift. A tile towed against an edge it does not match moves on (rule 31).',
+    from: H('eighth', 'Walls across the wind since 2026-10-24.'), changed: D26,
+    was: 'When the wind moves the Palazzo, every island slides one square the same way, if all of it can: nothing in its way and no wall across the wind. That includes the Palazzo itself if the gust has left it adrift. A tile towed against an edge it does not match falls.' },
 
   // --- Spheres. --------------------------------------------------------------
   { n: 43, id: 'sphere-halves', group: 'spheres',
@@ -275,21 +287,15 @@ export const RULES = [
     text: 'An Abbazia closes any road or city side it touches. If the wind takes it away, that side is open again.',
     from: H('second') },
 
-  // --- Your cloud. -----------------------------------------------------------
-  { n: 55, id: 'cloud-start', group: 'cloud',
-    text: 'Every player has a cloud of their own, a whole tile of cloud that blows one way. It starts in hand.',
-    from: T(D24, CLOUD), settings: ['clouds'] },
-  { n: 56, id: 'cloud-set', group: 'cloud',
-    text: 'Instead of claiming, you may set your cloud down on an open square of sky beside the country, across the seam of the map too (rule 67), and not where a cloud is, facing any way. It blows the moment it lands, and your turn ends.',
-    from: T(D24, CLOUD, 'Two calls of Claude\'s, told to Timothy when it shipped: you choose the facing each time, and only beside the country, since a cloud further out in the same lane blows the same tiles.'), settings: ['clouds'],
-    changed: D25,
-    was: 'Instead of claiming, you may set your cloud down on an open square of sky beside the country, inside the map and not where a cloud is, facing any way. It blows the moment it lands, and your turn ends.' },
-  { n: 57, id: 'cloud-zephyr', group: 'cloud',
-    text: 'Where it stands, a cloud is a zephyr to every storm (rules 25 to 27), and its own gust is hardened by the zephyrs it crosses.',
-    from: T(D24, CLOUD), settings: ['clouds'] },
-  { n: 58, id: 'cloud-fixed', group: 'cloud',
-    text: 'The wind never moves a cloud; tiles slide under it as under the sky.',
-    from: C('Only its owner moves it, which is the point of having one.'), settings: ['clouds'] },
+  // --- Your stick. -----------------------------------------------------------
+  { n: 70, id: 'stick-push', group: 'stick',
+    text: 'Every player has a stick. Instead of claiming, once a turn, you may put it against any tile, on any side, and push: that tile and every tile touching in front of it, up to the first gap, go one square, round the seam of the map too (rule 67), as long as that is three tiles or fewer. Everything behind the stick stays where it is, and your turn ends.',
+    from: T(D26, STICK, 'In the game rather than as a switch ("' + WOVEN + '"), in the place of the cloud. Claude\'s calls, named to Timothy when it shipped: one square a push, and three tiles the most it moves (measured against one, two, five and a whole lane in MODES.md: the limit decides how big the islands are, hardly how many).'),
+    added: D26 },
+  { n: 71, id: 'stick-not-wind', group: 'stick',
+    text: 'A push is not wind: it wakes no zephyr, pays no windmill, moves no follower but those on the tiles it pushes, and tows no islands (rule 42). A tile with a wall square across the push holds the whole push still, as against the wind (rule 22). A pushed tile that no longer fits moves on (rule 31).',
+    from: C('A stick is a hand on the table, not weather, so it does what pushing real tiles does and no more; a wall that stands up to the wind stands up to a stick, or a walled city could be shoved where it could never be blown.'),
+    added: D26 },
 
   // --- Windmills and flying machines. -----------------------------------------
   { n: 59, id: 'windmill-finish', group: 'tiles',
@@ -325,6 +331,10 @@ export const RULES = [
 /** Rule numbers taken out, never used again. */
 export const RETIRED = [
   33,   // fall-edge, 2026-10-25: "A tile the wind carries over the edge of the map is gone for good." The map wraps now (rule 67).
+  55,   // cloud-start, 2026-10-26: "Every player has a cloud of their own, a whole tile of cloud that blows one way. It starts in hand." The stick took its place (rule 70).
+  56,   // cloud-set, 2026-10-26: setting the cloud down instead of claiming, beside the country, facing any way; it blew as it landed.
+  57,   // cloud-zephyr, 2026-10-26: where it stood, a cloud was a zephyr to every storm, its own gust hardened by the zephyrs it crossed.
+  58,   // cloud-fixed, 2026-10-26: the wind never moved a cloud.
 ];
 
 export const RULEBOOK = {
