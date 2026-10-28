@@ -517,10 +517,6 @@ for (const [what, mode, mech, kind] of [
       } else if (g.phase === 'astray') {
         const t = g.m.astrayAt.targets[0];
         g.cellClick(t.x, t.y);
-      } else if (g.phase === 'stroll') {
-        // A sphere paid one of our followers and offered it a walk; decline.
-        // Walks only became reachable once the host stopped overwriting them.
-        g.m.skipStroll();
       } else break;
       if (gusts && moved) break;
       // Let the render loop breathe now and then — the effects are made
@@ -615,9 +611,9 @@ for (const [what, mode, mech, kind] of [
   await page.selectOption('#mode', 'soffiando');
   await page.click('#newGame');
   await page.waitForTimeout(150);
-  // A tile both faces of which fit beside the Plaza: a through-district
-  // (its wall against the Plaza's road) and a straight road.
-  await page.evaluate(() => { const g = window.LAB.game; g.deck.push(g.tileKey); g.deck.push('DIg|U'); g.tile = null; g.drawTile(); });
+  // A tile both faces of which fit beside the Plaza: a straight road, and
+  // the same road with a zephyr across it.
+  await page.evaluate(() => { const g = window.LAB.game; g.deck.push(g.tileKey); g.deck.push('U|Kzr'); g.tile = null; g.drawTile(); });
   await page.waitForTimeout(150);
   const problems = [];
   const hand = () => page.evaluate(() => ({ id: window.LAB.game.tile?.id, key: window.LAB.game.tileKey, back: !document.getElementById('previewBack').hidden, name: document.getElementById('tileName').textContent }));
@@ -756,6 +752,59 @@ for (const [what, mode, mech, kind] of [
   if (errors.length) problems.push(errors[0].split('\n')[0]);
   if (problems.length) { failures++; console.log(`  ✗ soffiando move: ${problems.join(' · ')}`); }
   else console.log('  ✓ soffiando move      a follower walked out of a closed city through its gate, by the button and two clicks, then the blow');
+}
+
+// A keep built up and the Calcolo set down (2026-10-28), by the buttons and
+// clicks on the board, the stone on a square of open sky.
+{
+  errors.length = 0;
+  await page.selectOption('#mode', 'soffiando');
+  await page.click('#newGame');
+  await page.waitForTimeout(200);
+  await page.evaluate(async () => {
+    const g = window.LAB.game;
+    const { TILES } = await import('/src/tiles.js');
+    for (const c of [...g.board.cells.values()]) g.board.remove(c.x, c.y);
+    g.board.place(0, 0, TILES.DEk, 2); g.board.place(0, 1, TILES.DEr, 0);   // a keep in a closed city
+    const laid = g.board.place(3, 3, TILES.B, 0);
+    g.board.rebuild();
+    g.current = 0; g.tile = null;
+    g.lastPlaced = laid; g.phase = 'meeple';
+    window.LAB.renderer.glideTo?.(1, 1);
+  });
+  await page.waitForTimeout(800);
+  const problems = [];
+  const at = (x, y) => page.evaluate(([x, y]) => {
+    const r = window.LAB.renderer;
+    const [sx, sy] = r.toScreen(x + 0.5, y + 0.5);
+    const rect = r.canvas.getBoundingClientRect();
+    return { x: rect.left + sx, y: rect.top + sy };
+  }, [x, y]);
+  const keepBtn = page.locator('#actions button', { hasText: 'keep' });
+  if (!(await keepBtn.count())) problems.push('no keep button in the follower step');
+  else {
+    await keepBtn.first().click();
+    const k = await at(0, 0);
+    await page.mouse.click(k.x, k.y);
+    await page.waitForTimeout(200);
+    const after = await page.evaluate(() => ({ keep: window.LAB.game.board.get(0, 0).keep, phase: window.LAB.game.phase, left: window.LAB.game.players[0].keeps }));
+    if (after.keep !== 1 || after.left !== 3) problems.push(`the click did not build the keep (${JSON.stringify(after)})`);
+    if (after.phase !== 'blow') problems.push(`no blow after the keep (phase "${after.phase}")`);
+    const stoneBtn = page.locator('#actions button', { hasText: 'Calcolo' });
+    if (!(await stoneBtn.count())) problems.push('no Calcolo button at the blow');
+    else {
+      await stoneBtn.first().click();
+      const c = await at(-2, 3);
+      await page.mouse.click(c.x, c.y);
+      await page.waitForTimeout(200);
+      const st = await page.evaluate(() => ({ stone: window.LAB.game.m.calcolo, current: window.LAB.game.current }));
+      if (st.stone?.x !== -2 || st.stone?.y !== 3) problems.push(`the click did not set the Calcolo down (${JSON.stringify(st.stone)})`);
+      if (st.current !== 1) problems.push('the turn did not pass');
+    }
+  }
+  if (errors.length) problems.push(errors[0].split('\n')[0]);
+  if (problems.length) { failures++; console.log(`  ✗ soffiando keep, Calcolo: ${problems.join(' · ')}`); }
+  else console.log('  ✓ soffiando keep, Calcolo   a keep built up and the stone set down on open sky, by buttons and clicks');
 }
 
 // The endgame tally: many features settle in one frame, and they have to be

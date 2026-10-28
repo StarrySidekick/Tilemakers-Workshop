@@ -159,8 +159,25 @@ thirty-fourth pass.
 
 Then: "the abbazias tiles should have abbazias on both sides", and "The AI
 seems to not be really choosing to play the city side of tiles. why? and
-what could we do about that". That is the thirty-fifth pass; all six wait
-for his word to merge.
+what could we do about that". That is the thirty-fifth pass.
+
+Then a list: "followers no longer come back in general, even from roads";
+"specials can be on city faces too"; "meeple can be blown over walls now",
+and "Meeple that are blown into cities can enter them even if there are
+enemy meeple there"; a new "wooden block call the Calcolo, its a square
+stone that can be moved instead of blowing something that turn"; cities
+earn "an extra 1 point per garden district open or closed", "a bonus 5p if
+they have at least one of every district closed", trade districts "2p extra
+for each road attached to the city, closed"; a new district, the keep,
+replacing industrial ("a tower that grows upwards ... every stack of the
+tower makes the keep worth double that (1, 2, 4, 8, 16). the towers can
+collapse if blown"); the residential district "allows you to place meeple
+there on your turn if you own that city, even if you already have meeple
+there"; "Both sides of all the tiles should generally have like the same
+type of structure, just with some options changed"; and the cannon "may be
+usless now". Asked: districts pay 1 open and 2 closed; one Calcolo for the
+table, anywhere; four keep pieces each, any keep; remove the cannon. That is
+the thirty-sixth pass; all seven wait for his word to merge.
 
 **Fields: settled 2026-09-06, and Timothy was right.** They are fully built.
 `src/tiles.js` cuts the perimeter into eight half-edges with `halfPartner` as the

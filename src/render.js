@@ -237,6 +237,8 @@ export class Renderer {
 
     if (this.pixel) this.drawGates(game);
     if (game.board.wraps) this.drawSeam(game, fog);
+    // Soffiando's Calcolo: a stone on a square of open sky, no tile's.
+    if (game.m.calcolo && this.onScreen(game.m.calcolo.x, game.m.calcolo.y)) this.drawCalcolo(game.m.calcolo);
 
     if (game.phase === 'lift') this.drawCellTargets(game.m.allLiftable ? game.m.allLiftable() : liftableCells(game.board), THEME.violet, '107,90,140');
     if (game.phase === 'balena') this.drawCellTargets(game.m.balenaTargets(), THEME.teal, '95,191,174');
@@ -260,7 +262,7 @@ export class Renderer {
     }
     if (game.phase === 'flight') this.drawCellTargets(game.m.flightLifts(), THEME.teal, '95,191,174');
     if (game.phase === 'stride') this.drawCellTargets(game.m.strideFrom || [], THEME.teal, '95,191,174');
-    if (game.phase === 'stroll') this.drawCellTargets(game.m.stroll?.targets || [], MOVE_OK.line, MOVE_OK.rgb);
+    if (game.phase === 'keep') this.drawCellTargets(game.m.keepTargets(), THEME.gold, '212,175,95');
     if (game.phase === 'recall') this.drawCellTargets(game.myMeeples(), MOVE_COSTLY.line, MOVE_COSTLY.rgb);
     if (game.phase === 'walk') this.drawCellTargets(game.pendingWalk?.targets || [], MOVE_OK.line, MOVE_OK.rgb);
     if (game.phase === 'place') this.drawPlacementHints(game);
@@ -876,6 +878,60 @@ export class Renderer {
       if (this.pixel) this.drawPixelBalena(sx, sy, z);
       else this.drawBalena(sx, sy, z);
     }
+
+    // A keep's pieces (Soffiando): a stone course each, stacked in the tile's
+    // top corner, and the multiple they make its district worth.
+    if (overlay.keep) this.drawKeepStack(sx, sy, z, overlay.keep);
+  }
+
+  /** The Calcolo: a square block of stone, bevelled, with a chisel line across it. */
+  drawCalcolo({ x, y }) {
+    const ctx = this.ctx;
+    const [sx, sy] = this.toScreen(x, y);
+    const z = this.cam.zoom, m = z * 0.14, w = z - 2 * m, b = z * 0.06;
+    ctx.save();
+    ctx.fillStyle = 'rgba(30,26,20,0.28)';
+    ctx.fillRect(sx + m + b, sy + m + b * 1.5, w, w);
+    ctx.fillStyle = '#9d968a';
+    ctx.fillRect(sx + m, sy + m, w, w);
+    ctx.fillStyle = '#c9c2b4';
+    ctx.fillRect(sx + m, sy + m, w, b);
+    ctx.fillRect(sx + m, sy + m, b, w);
+    ctx.fillStyle = '#6f685d';
+    ctx.fillRect(sx + m, sy + m + w - b, w, b);
+    ctx.fillRect(sx + m + w - b, sy + m, b, w);
+    ctx.strokeStyle = '#3b332b';
+    ctx.lineWidth = Math.max(1, z * 0.02);
+    ctx.strokeRect(sx + m, sy + m, w, w);
+    ctx.beginPath();
+    ctx.moveTo(sx + m + w * 0.25, sy + m + w * 0.62);
+    ctx.lineTo(sx + m + w * 0.75, sy + m + w * 0.38);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  drawKeepStack(sx, sy, z, n) {
+    const ctx = this.ctx;
+    const w = z * 0.2, h = z * 0.075, x = sx + z * 0.74, base = sy + z * 0.36;
+    ctx.save();
+    for (let i = 0; i < n; i++) {
+      const y = base - (i + 1) * h;
+      ctx.fillStyle = '#d9d2c4';
+      ctx.fillRect(x, y, w, h);
+      ctx.lineWidth = Math.max(1, z * 0.012);
+      ctx.strokeStyle = '#3b332b';
+      ctx.strokeRect(x, y, w, h);
+    }
+    ctx.font = `bold ${Math.round(z * 0.13)}px sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    ctx.lineWidth = Math.max(2, z * 0.03);
+    ctx.strokeStyle = '#3b332b';
+    ctx.fillStyle = '#fff8e8';
+    const label = `x${2 ** n}`;
+    ctx.strokeText(label, x + w / 2, base + z * 0.01);
+    ctx.fillText(label, x + w / 2, base + z * 0.01);
+    ctx.restore();
   }
 
   /**

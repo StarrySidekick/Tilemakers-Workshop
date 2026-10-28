@@ -133,8 +133,7 @@ export class Bot {
     // Some modes offer a move that replaces the turn rather than decorating it
     // — Soffiando sends the Balena instead of putting a follower down. Only the
     // mode can price that, so it gets asked before we start pricing squares.
-    if ((g.phase === 'market' || g.phase === 'place' || g.phase === 'meeple'
-      || g.phase === 'stroll')
+    if ((g.phase === 'market' || g.phase === 'place' || g.phase === 'meeple')
       && this.level.verbs && g.m.botAction?.(this.seat)) return;
     switch (g.phase) {
       case 'market': return this.draft();

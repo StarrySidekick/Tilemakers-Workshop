@@ -91,9 +91,9 @@ function state(game) {
     game.tile?.id, game.usingAbbey, game.useBig, game.tilesLeft,
     game.market?.length, game.player.meeples, game.player.abbeys,
     game.river?.deck.length, game.pendingWalk ? 1 : 0,
-    // Soffiando offers walks one follower at a time, and turning one down to
-    // be offered the next moves nothing else on this list.
-    game.m.strollers?.length ?? '',
+    // Soffiando: a keep built up, or the Calcolo set down, moves nothing else
+    // on this list.
+    game.m.keepTargets?.().length ?? '', game.m.calcolo ? `${game.m.calcolo.x},${game.m.calcolo.y}` : '',
     // …and a tile that no longer fits moving on is a shift: same size, same
     // placements, a different board.
     game.m.movedOn ?? '',
@@ -127,12 +127,20 @@ function step(game, rng) {
       }
       return;
     }
-    // Soffiando: walking a follower on down a road after the sky has paid it.
-    case 'stroll': {
-      const spots = game.m.stroll?.targets || [];
-      if (!spots.length || rng() < 0.25) return void game.m.skipStroll();
+    // Soffiando: building a keep up instead of a follower (2026-10-28).
+    case 'keep': {
+      const spots = game.m.keepTargets();
+      if (!spots.length) return void game.m.cancelKeep();
       const t = pick(spots);
-      if (!game.cellClick(t.x, t.y)) game.m.skipStroll();
+      if (!game.cellClick(t.x, t.y)) game.m.cancelKeep();
+      return;
+    }
+    // …and the Calcolo, set down instead of the blow.
+    case 'calcolo': {
+      const spots = game.m.calcoloTargets();
+      if (!spots.length) return void game.m.cancelCalcolo();
+      const t = pick(spots);
+      if (!game.cellClick(t.x, t.y)) game.m.cancelCalcolo();
       return;
     }
     // Soffiando's flying machine, fetching a follower back off its own lane.
@@ -163,6 +171,7 @@ function step(game, rng) {
     // …and the blow every turn ends with (2026-10-27): turned at random,
     // against any tile at all.
     case 'blow': {
+      if (game.m.canCalcolo?.() && rng() < 0.1) return void game.m.beginCalcolo();
       // From open sky only (2026-10-28: no cutting), so a way with somewhere
       // to blow from.
       for (let i = Math.floor(rng() * 4); i > 0; i--) game.rotate(1);
@@ -185,8 +194,9 @@ function step(game, rng) {
       // the only one, and it never gets exercised unless something picks it.
       if (game.m.canLift?.() && rng() < 0.25) return void game.m.beginLift();
       if (game.m.canSwim?.() && rng() < 0.15) return void game.m.beginSwim();
-      // …or moving one of your followers instead (2026-10-28).
+      // …or moving one of your followers instead, or building a keep up (2026-10-28).
       if (game.m.canStride?.() && rng() < 0.25) return void game.m.beginStride();
+      if (game.m.canBuildKeep?.() && rng() < 0.25) return void game.m.beginKeep();
       if (game.canPlaceBuilding?.() && rng() < 0.5) game.placeBuilding();
       if (game.canBuildBridge?.() && rng() < 0.4) game.buildBridge();
       const opts = game.meepleOptions();
@@ -1095,59 +1105,52 @@ function checkSoffiando() {
     }
     if (!b.get(0, 0).meeple) return fail('a follower stays in the city it finished', 'it went home');
 
-    // …and a BLUE tower is what actually pays it: a point a district, walled
-    // or not (2026-10-28; walled was double), and the city keeps its
-    // follower, so the next blue tower pays it again.
+    // …and a BLUE tower is what actually pays it: 2 a district walled (1
+    // open; 2026-10-28), and the city keeps its follower, so the next blue
+    // tower pays it again.
     h.players[1].score = 0;
     h.players[1].meeples = 4;
     h.m.fire('blue');
-    h.m.sweep();
-    if (h.players[1].score !== 1) {
-      return fail('blue pays a walled city a point a district, not double', `paid ${h.players[1].score} for one district`);
+    if (h.players[1].score !== 2) {
+      return fail('blue pays a walled city 2 a district', `paid ${h.players[1].score} for one district`);
     }
     if (!b.get(0, 0).meeple || h.players[1].meeples !== 4) return fail('a city keeps its follower when blue pays it', 'it went home');
     h.m.fire('blue');
-    h.m.sweep();
-    if (h.players[1].score !== 2) return fail('and blue pays it again', `paid ${h.players[1].score} in all`);
+    if (h.players[1].score !== 4) return fail('and blue pays it again', `paid ${h.players[1].score} in all`);
   }
 
-  // VARIETY COMPOUNDS. A point a district, plus a bonus for the kinds a city
-  // has that grows by one more with each new kind: 0, 1, 3, 6; and 2 for
-  // every garden. Since 2026-10-28 the bonuses are paid only to a city that
-  // is closed, and to every city in the last scoring.
+  // CITIES (2026-10-28): a point a district open, 2 closed, a garden a
+  // point more either way; closed (or in the last scoring) 5 for one of
+  // every kind, and a trade district 2 for every road at a gate.
   {
     const h = fresh(48);
     const b = h.board;
     lay(b, 0, 0, 'DXg');                      // garden, open all round
     lay(b, 1, 0, 'DXr');                      // residential
-    lay(b, 0, 1, 'DXi');                      // industrial
+    lay(b, 0, 1, 'DXk');                      // keep
     b.addMeeple(0, 0, 0, 0);
     b.rebuild();
     h.m.fire('blue');
-    h.m.sweep();
-    if (h.players[0].score !== 3) {
-      return fail('an open city of three districts pays 3 and no bonuses', `paid ${h.players[0].score}`);
-    }
-    h.players[0].score = 0;
-    h.m.final = true;
-    h.m.fire('blue');
-    h.m.final = false;
-    if (h.players[0].score !== 8) {
-      return fail('in the last scoring, three districts of three kinds pay 3, a bonus of 3 and 2 for the garden', `paid ${h.players[0].score}`);
+    if (h.players[0].score !== 4) {
+      return fail('an open city of three districts pays 3, and 1 for its garden', `paid ${h.players[0].score}`);
     }
     h.players[0].score = 0;
     lay(b, 1, 1, 'DXm');
     b.rebuild();
+    h.m.fire('blue');
+    if (h.players[0].score !== 5) {
+      return fail('open, one of every kind earns nothing yet', `paid ${h.players[0].score}`);
+    }
+    h.players[0].score = 0;
     h.m.final = true;
     h.m.fire('blue');
     h.m.final = false;
-    if (h.players[0].score !== 12) {
-      return fail('four districts of four kinds pay 4, a bonus of 6 and 2 for the garden', `paid ${h.players[0].score}`);
+    if (h.players[0].score !== 10) {
+      return fail('in the last scoring, one of every kind earns 5', `paid ${h.players[0].score}`);
     }
   }
 
-  // A CLOSED CITY IS PAID ITS BONUSES whenever blue fires, and nothing is
-  // doubled (until 2026-10-28 its districts and kinds were).
+  // A CLOSED CITY: 2 a district, and nothing else doubled.
   {
     const h = fresh(51);
     const b = h.board;
@@ -1156,9 +1159,8 @@ function checkSoffiando() {
     b.addMeeple(0, 0, 0, 0);
     b.rebuild();
     h.m.fire('blue');
-    h.m.sweep();
     if (h.players[0].score !== 5) {
-      return fail('a walled city of two kinds pays 2 + 1, and 2 for its garden', `paid ${h.players[0].score}`);
+      return fail('a walled city of two districts pays 2 each, and 1 for its garden', `paid ${h.players[0].score}`);
     }
   }
 
@@ -1184,8 +1186,8 @@ function checkSoffiando() {
 
   // WALLS HOLD FOLLOWERS, NOT TILES (Timothy, 2026-10-27: "meeple can't be
   // blow through walls but tiles with castle wall can still be moved by
-  // winds"). A walled tile moves like any other; a follower is never blown
-  // across a wall.
+  // winds"). A walled tile moves like any other, and since 2026-10-28 a
+  // follower is blown over a wall too ("meeple can be blown over walls now").
   {
     const h = fresh(50);
     const b = h.board;
@@ -1205,8 +1207,8 @@ function checkSoffiando() {
     wb.addMeeple(0, 0, 0, 0);
     wb.rebuild();
     blowAt(w, 0, 0, 1);
-    if (!wb.get(0, 0)?.meeple || wb.get(1, 0)?.meeple) {
-      return fail('no follower is blown across a wall', 'it went through');
+    if (wb.get(0, 0)?.meeple || wb.get(1, 0)?.meeple?.player !== 0) {
+      return fail('a follower is blown over a wall (since 2026-10-28)', 'it stayed');
     }
     const o = fresh(53);
     const ob = o.board;
@@ -1232,7 +1234,6 @@ function checkSoffiando() {
     b.rebuild();
     h.players[0].meeples = 4;
     h.m.fire('blue');
-    h.m.sweep();
     if (h.players[0].score !== 1) {
       return fail('blue pays an open city of one district 1', `paid ${h.players[0].score}`);
     }
@@ -1290,7 +1291,6 @@ function checkSoffiando() {
     }
     b.get(0, 0).meeple = { player: 1, feat: null, big: false };
     h.m.fire('red');
-    h.m.sweep();
     if (h.players[0].score !== 0 || h.players[1].score !== 4) {
       return fail('red pays an Abbazia\'s four tiles to the follower holding it',
         `paid ${h.players[0].score} and ${h.players[1].score}`);
@@ -1313,7 +1313,6 @@ function checkSoffiando() {
     b.addMeeple(0, 0, road, 0);
     b.rebuild();
     h.m.fire('yellow');
-    h.m.sweep();
     // Three tiles at 1, plus 1 for the unfinished city it runs into.
     if (h.players[0].score !== 4) {
       return fail('yellow pays a road 1 a tile plus its cities', `paid ${h.players[0].score}, expected 4`);
@@ -1335,7 +1334,6 @@ function checkSoffiando() {
     b.get(0, 5).meeple = { player: 1, feat: null, big: false };
     b.rebuild();
     h.m.fire('green');
-    h.m.sweep();
     if (h.players[0].score !== 5 || h.players[1].score !== 5) {
       return fail('green pays 5 for each piece of country to whoever has most followers on it', `paid ${h.players[0].score} and ${h.players[1].score}`);
     }
@@ -1390,7 +1388,6 @@ function checkSoffiando() {
     for (const hue of ['green', 'blue', 'red', 'yellow']) h.m.fire(hue);
     const all = h.players[0].score;
     h.players[0].score = 0;
-    h.m.pending.length = 0;
     lay(b, 0, 0, 'Kqs', 0); lay(b, 1, 0, 'Kqs', 1); lay(b, 1, 1, 'Kqs', 2); lay(b, 0, 1, 'Kqs', 3);
     b.rebuild();
     h.m.joinSferas();
@@ -1454,25 +1451,25 @@ function checkSoffiando() {
     b.rebuild();
     if (b.featureOf(0, 0, 0).tiles.size !== 1) return fail('a hop is not one road', 'the halves scored as one');
     h.m.fire('yellow');
-    h.m.sweep();
     if (h.players[0].score !== 1) {
       return fail('yellow pays each half for itself', `paid ${h.players[0].score}`);
     }
   }
 
-  // …and the walk crosses it, which is the half of the old bridge worth
-  // keeping.
+  // …and a follower moving down the road crosses it, which is the half of
+  // the old bridge worth keeping.
   {
     const h = fresh(46);
     const b = h.board;
     lay(b, 0, 0, 'U');                        // the road it is standing on
     lay(b, 0, -2, 'Kta');                     // a temple with a road out of its south
     lay(b, 1, 0, 'B'); lay(b, 1, -1, 'B'); lay(b, 1, -2, 'B');
+    b.addMeeple(0, 0, 0, 0);
     b.rebuild();
-    const targets = h.m.strollTargets({ x: 0, y: 0, i: 0 });
-    if (!targets.some((t) => t.x === 0 && t.y === -2 && t.f.type === 'temple')) {
-      return fail('a walker steps over a one-square gap',
-        JSON.stringify(targets.map((t) => `${t.f.type}@${t.x},${t.y}`)));
+    const targets = h.m.strideTargets(0, 0);
+    if (!targets.some((t) => t.x === 0 && t.y === -2 && t.f?.type === 'temple')) {
+      return fail('a follower moving down a road steps over a one-square gap',
+        JSON.stringify(targets.map((t) => `${t.f?.type}@${t.x},${t.y}`)));
     }
   }
 
@@ -1612,64 +1609,19 @@ function checkSoffiando() {
     h.current = 0;
   }
 
-  // THE WALK. A follower a tower just paid off may go out along a road
-  // instead of home — as far as the road runs, and take up what it finds. It
-  // may not turn round and step back into the thing it just left. (A city
-  // keeps its followers since 2026-10-28, so it is a road that is paid here.)
+  // NOBODY COMES HOME (2026-10-28: "followers no longer come back in
+  // general, even from roads"): a road yellow pays keeps its follower, and
+  // the walk that used to take one on from there is gone.
   {
     const h = fresh(49);
     const b = h.board;
-    lay(b, 0, 0, 'Kzt');                      // city south, road east–west
-    lay(b, 0, 1, 'Kab');                      // capped, so the city is finished
-    lay(b, 1, 0, 'Kta', 1);                   // a temple down the road, unclaimed
-    b.addMeeple(0, 0, 1, 0);                  // on the road
+    lay(b, 0, 0, 'U', 1); lay(b, 1, 0, 'U', 1);
+    b.addMeeple(0, 0, 0, 0);
     b.rebuild();
-    h.current = 0;
     const had = h.players[0].meeples;
     h.m.fire('yellow');
-    h.m.sweep();
-    if (b.get(0, 0).meeple) return fail('a road yellow pays sends its follower off', 'it stayed');
-    if (h.players[0].meeples !== had + 1) {
-      return fail('the walker is back in the supply first', `${h.players[0].meeples} of ${had + 1}`);
-    }
-    const spots = h.m.strollTargets({ x: 0, y: 0, i: 1 });
-    if (spots.some((o) => o.x === 0 && o.y === 0)) {
-      return fail('a walk may not turn back into what it left, or into a closed city', 'it was offered');
-    }
-    if (!spots.some((o) => o.x === 1 && o.y === 0 && o.f.type === 'temple')) {
-      return fail('a walk reaches the temple down the road',
-        spots.map((o) => `${o.x},${o.y}:${o.f.type}`).join(' ') || 'nowhere');
-    }
-    if (!h.m.beginStroll()) return fail('the walk is offered', 'it was not');
-    // …and the host must not paper over it. A sphere closes inside the mode's
-    // afterPlace, and whatever that hands back becomes the next phase: it
-    // used to say 'meeple' unconditionally, so the walk was overwritten the
-    // moment it opened and nobody, bot or person, ever took one.
-    h.afterPlace(b.get(1, 0));
-    if (h.phase !== 'stroll') {
-      return fail('a walk opened by your own tile survives the follower step', `the phase is ${h.phase}`);
-    }
-    h.m.strollTo(1, 0);
-    if (!b.get(1, 0).meeple) return fail('the follower walks on and takes the temple', 'it did not');
-    if (h.players[0].meeples !== had) {
-      return fail('walking spends the follower it just got back', `${h.players[0].meeples}`);
-    }
-  }
-
-  // A road with somebody ELSE standing on it is a road you may not walk down.
-  {
-    const h = fresh(50);
-    const b = h.board;
-    lay(b, 0, 0, 'Kzt');
-    lay(b, 0, 1, 'Kab');
-    lay(b, 1, 0, 'Kta', 1);
-    b.addMeeple(0, 0, 0, 0);
-    b.addMeeple(1, 0, 1, 1);                  // a rival on the road itself
-    b.rebuild();
-    h.current = 0;
-    if (h.m.strollTargets({ x: 0, y: 0, i: 0 }).length) {
-      return fail('a road held by a rival is closed to the walk', 'it was offered');
-    }
+    if (!b.get(0, 0).meeple || h.players[0].meeples !== had) return fail('a road yellow pays keeps its follower', 'it went home');
+    if ('strollTargets' in h.m || 'beginStroll' in h.m) return fail('the walk is gone', 'it is still there');
   }
 
   // The flying machine picks a follower back up. It is the only thing in the
@@ -1719,7 +1671,6 @@ function checkSoffiando() {
     h.players[0].score = 0;
     h.players[1].score = 0;
     h.m.fire('blue');
-    h.m.sweep();
     // Two districts, and, walled, a bonus of 1 for two kinds and 2 for the
     // garden; on an island (x2).
     if (h.players[0].score !== 10) {
@@ -1831,7 +1782,7 @@ function checkSoffiando() {
   {
     const ids = (o) => new Game({ mode: 'soffiando', players: 2, seed: 5, options: o }).m.deck();
     const lone = (k) => k.split('|').some((id) => TILES[id].feats.some((f) => f.type === 'city' && !f.district));
-    const plain = ids({}), walled = ids({ deck: { Kce: 3, 'DIm|U': 0, 'DEr|Kde': 0 } });
+    const plain = ids({}), walled = ids({ deck: { Kce: 3, 'DIr|DIm': 0, 'DEg|DEr': 0, 'DEk|DEm': 0 } });
     if (!plain.every((k) => k.split('|').length === 2 && k.split('|').every((id) => TILES[id]))) return fail('every tile dealt has two faces', plain.filter((k) => !k.includes('|')).join(' '));
     if (plain.length !== 72) return fail('the deck is 72 tiles', `${plain.length}`);
     if (plain.some(lone)) return fail('no lone wall is dealt by default', plain.filter(lone).join(' '));

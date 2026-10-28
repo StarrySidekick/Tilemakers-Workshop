@@ -71,24 +71,32 @@
 export const DECK_SIZE = 72;
 
 const per = (kinds, make) => kinds.map(make);
-const KINDS = ['g', 'r', 'i', 'm'];
+const KINDS = ['g', 'r', 'k', 'm'];
 
 /** The deck in the groups the rulebook page shows, each tile as [id, copies]. */
 export const DECK_GROUPS = [
-  { name: 'Cities and roads', note: 'A district on one face, a road of the same shape on the other: a through-piece on a straight, a corner on a bend, an end on a dead end, a three-way on a junction town, an all-round district on a crossing. Some of the roads carry something: a zephyr or a gust cannon across the road (twelve), a windmill (four; two more are windmill districts, on a corner\'s face), a flying machine at a dead end (three), a windvane on a crossing (two). A zephyr tile pushes only when your blow pushes it, with its own push plus yours.',
+  // Both faces the same structure (Timothy, 2026-10-28: "Both sides of all
+  // the tiles should generally have like the same type of structure, just
+  // with some options changed. For example, like city tiles on both sides and
+  // roads on both sides"), and the specials on city faces too ("specials can
+  // be on city faces too"). Which pairs, and how the specials are spread, is
+  // Claude's call: the same twelve zephyr faces, six windmills, two windvanes
+  // as before, flying machines on four tiles, and no cannons ("Remove it").
+  { name: 'Cities', note: 'A district on both faces, of the same shape and two different kinds: you choose which kind to build. Some faces carry a zephyr across the district, a windmill or a flying machine.',
     tiles: [
-      ['DIg|U', 1], ['DIg|Kzr', 1], ['DIg|Kgr', 1],
-      ['DIr|Ktr', 1], ['DIr|Kzr', 1], ['DIr|Kzzr', 1],
-      ['DIi|U', 1], ['DIi|Kzr', 1], ['DIi|Kgr', 1],
-      ['DIm|Ktr', 1], ['DIm|U', 1], ['DIm|Kzr', 1],
-      ['DLg|V', 1], ['DLg|Ktw', 1], ['DLg|Kzb', 1],
-      ['DLr|V', 1], ['DLr|Ktw', 1], ['DLr|Kzb', 1],
-      ['Ktc|V', 2], ['DLi|Kgb', 1],
-      ['DLm|V', 1], ['DLm|Kzb', 2],
-      ['Kfg|Kfl', 1], ['DEg|Kde', 1], ['DEr|Kde', 2],
-      ['DEi|Kde', 2], ['Kft|Kfl', 1],
-      ...per(KINDS, (k) => [`DT${k}|Gw`, 1]),
-      ['DXm|Kw', 1], ['DXr|Kw', 1],
+      ['DXg|DXr', 1], ['DXk|DXm', 1],
+      ['DTg|DTk', 1], ['DTr|DTm', 1], ['DTg|DTm', 1], ['DTr|DTk', 1],
+      ['DLg|DLr', 1], ['DLk|DLzm', 1], ['Ktc|DLg', 1], ['Ktc|DLm', 1], ['DLzk|DLr', 1],
+      ['DIg|DIk', 1], ['DIr|DIm', 1], ['DIzg|DIm', 1], ['DIzr|DIk', 1],
+      ['Kfg|Kft', 1], ['DEg|DEr', 1], ['DEk|DEm', 1], ['DEr|DEk', 1],
+    ] },
+  { name: 'Roads', note: 'A road on both faces, of the same shape, one of them often carrying something: a zephyr across the road, a windmill, a flying machine, or a windvane on the crossing.',
+    tiles: [
+      ['U|Kzr', 3], ['U|Ktr', 2], ['Kzr|Kzzr', 1], ['U|Kfr', 1],
+      ['V|Kzb', 3], ['V|Ktw', 2],
+      ['Kde|Kfl', 2],
+      ['Gw|Gw', 2],
+      ['Kw|X', 2],
     ] },
   { name: 'Towers', note: 'A tower half on each face, two colours, the same shape both sides: a plain half, a half on a road, or a half in a district of its colour\'s kind. Every colour is on eight faces. A half meets only its own colour, and a closed tower fires its colour.',
     tiles: [
@@ -101,12 +109,12 @@ export const DECK_GROUPS = [
   // An Abbazia on both faces (Timothy, 2026-10-28: "the abbazias tiles should
   // have abbazias on both sides"). Until then their backs were a smattering of
   // country: Kab|X, Kab|Gw, three flying machines (Kab|Kfr, Kab|Kfb, Kab|Kff)
-  // and six districts (Kab|DXg, DXi, DTr, DTi, DIg, DLm).
+  // and six districts (Kab|DXg, DXk, DTr, DTk, DIg, DLm).
   { name: 'Abbazias', note: 'An Abbazia on both faces. Each one on the board adds 1 to everybody\'s push power, and one is held by a follower flown or blown onto it.',
     tiles: [['Kab|Kab', 11]] },
-  { name: 'Extras', note: 'One-faced, and not dealt: the zephyrs and cannons with no road (the plain zephyr, crosswind, split wind, trident, compass rose, double zephyr, gust cannon and double cannon), the temple districts and the temples.',
+  { name: 'Extras', note: 'One-faced, and not dealt: the zephyrs with no road (the plain zephyr, crosswind, split wind, trident, compass rose and double zephyr), the temple districts and the temples. The gust cannons went on 2026-10-28.',
     tiles: [
-      ['Kz', 0], ['Kzx', 0], ['Kzy', 0], ['Kzw', 0], ['Kzq', 0], ['Kzz', 0], ['Kg', 0], ['Kgg', 0],
+      ['Kz', 0], ['Kzx', 0], ['Kzy', 0], ['Kzw', 0], ['Kzq', 0], ['Kzz', 0],
       ['DEt', 0], ['DLt', 0], ['DIt', 0], ['DTt', 0], ['DXt', 0],
       ['Kt', 0], ['Kta', 0],
     ] },
@@ -115,7 +123,7 @@ export const DECK_GROUPS = [
   // like").
   { name: 'Lone walls', note: 'Out for now, since 2026-10-24: a plain wall, a turbine tower, a town under a wall, and the tower and wind tiles that carry one.',
     tiles: [
-      ['Kce', 0], ['Ktb', 0], ['Gl', 0], ['Kzc', 0], ['Kzt', 0], ['Kgc', 0],
+      ['Kce', 0], ['Ktb', 0], ['Gl', 0], ['Kzc', 0], ['Kzt', 0],
       ['Ksc', 0], ['Kbc', 0], ['Krc', 0], ['Kyc', 0],
     ] },
 ];

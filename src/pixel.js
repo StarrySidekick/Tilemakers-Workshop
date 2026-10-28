@@ -434,6 +434,32 @@ const TALL = [
   '.ooooo.',
 ];
 
+/** The keep (2026-10-28): a square stone tower with a flag, the one thing a keep district grows upwards from. */
+const KEEP = [
+  '.......oGGG....',
+  '.......oGGGG...',
+  '.......oGG.....',
+  '.......o.......',
+  'ooo.ooo.ooo.ooo',
+  'ooooooooooooooo',
+  'ossssssssssssso',
+  'offfffffffffffo',
+  'offkfffffffkffo',
+  'offkfffffffkffo',
+  'offfffffffffffo',
+  'ossssssssssssso',
+  'offfffffffffffo',
+  'offfffkkkfffffo',
+  'offfffkkkfffffo',
+  'offfffffffffffo',
+  'ossssssssssssso',
+  'offfffffffffffo',
+  'offffDDDDDffffo',
+  'offffDDDDDffffo',
+  'offffDDDDDffffo',
+  'ooooooooooooooo',
+]
+
 const SHRINE = [
   '....o....',
   '...oGo...',
@@ -723,7 +749,7 @@ const DISTRICT_INK = {
   garden: { ground: '#a6dcb8', deep: '#79c49b' },
   temple: { ground: '#f6e6b0', deep: '#e3c982' },
   residential: { ground: INK.plaster, deep: '#efc6dc' },
-  industrial: { ground: '#cdc6e0', deep: '#b3abcf' },
+  keep: { ground: '#cdc6e0', deep: '#b3abcf' },
   trade: { ground: '#fbd3a8', deep: '#eab585' },
 };
 
@@ -787,8 +813,8 @@ function districtGround(p, kind) {
   if (kind === 'temple') {
     // Flagstones on a grid symmetric about the middle, so every turn lays the same.
     p.layer(deep, (pen) => { for (const v of [1, 9, 17, 25, 33, 41, 49]) { pen.rect(v, 0, 1, PX); pen.rect(0, v, PX, 1); } }, { cut: 128, busy: false });
-  } else if (kind === 'industrial') {
-    // Brick: courses five high, the joints stepping half a brick each course.
+  } else if (kind === 'keep') {
+    // Ashlar round the keep: courses five high, the joints stepping half a block each course.
     p.layer(deep, (pen) => {
       for (let k = 0, y = 0; y < PX; k++, y += 5) {
         pen.rect(0, y + 4, PX, 1);
@@ -841,7 +867,7 @@ const T = {
   tall: thing(TALL), cottage: thing(COTTAGE), cottageDeep: thing(COTTAGE, { R: 'roofDeep', r: 'roof' }),
   temple: thing(TEMPLE), shrine: thing(SHRINE), obelisk: thing(OBELISK), statue: thing(BIG_STATUE),
   factory: thing(FACTORY, {}, smoke(11, 0)), shed: thing(SHED), stack: thing(STACK, {}, smoke(3, 0)),
-  crates: thing(CRATES), barrels: thing(BARRELS),
+  crates: thing(CRATES), barrels: thing(BARRELS), keep: thing(KEEP),
   stall: thing(STALL), stallBlue: thing(STALL, { R: 'wind' }), stallGold: thing(STALL, { R: 'gold' }),
   oak: thing(OAK, {}, crown(5, 4, 2.6)), tree: thing(TREE, {}, crown(3, 3, 1.8)), bush: thing(BUSH),
   hay: thing(HAY), well: thing(WELL), lamp: thing(LAMP), maypole: thing(BIG_MAYPOLE), blooms: thing(BLOOMS),
@@ -852,7 +878,7 @@ const FURNISH = {
   garden: [T.oak, T.tree, T.oak, T.tree, T.bush, T.tree, T.bush],
   temple: [T.temple, T.statue, T.obelisk, T.shrine, T.obelisk, T.bush],
   residential: [T.manor, T.house, T.tall, T.houseDeep, T.manorDeep, T.cottageDeep, T.tall, T.cottage, T.house],
-  industrial: [T.factory, T.stack, T.shed, T.crates, T.barrels, T.shed, T.crates],
+  keep: [T.keep, T.barrels, T.crates, T.bush],
   trade: [T.stall, T.stallBlue, T.stallGold, T.stall, T.crates, T.stallBlue, T.barrels, T.crates],
 };
 

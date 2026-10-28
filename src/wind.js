@@ -95,7 +95,7 @@
 //     along behind its own leading edge instead of piling up.
 // ---------------------------------------------------------------------------
 
-import { SIDE_STEP, NO_MEEPLE, opposite, edgesMeet, WALL } from './tiles.js';
+import { SIDE_STEP, NO_MEEPLE, opposite, edgesMeet } from './tiles.js';
 
 /**
  * A backstop, not the rule. What ends a cascade is that no zephyr blows twice
@@ -837,8 +837,9 @@ export function shove(board, { at, dir, most = Infinity, pinned = null }) {
 // Too many to move: no tile moves, and the followers on the tiles the push
 // reaches (as many as its power) are blown a square downwind instead
 // (Timothy: "you can blow on an area even if you can't move any tiles, and
-// it will still move meeple"), never across a city wall ("castle walls
-// protect meeple").
+// it will still move meeple"), over a city wall too since 2026-10-28
+// ("meeple can be blown over walls now, to allow for placement into/out of
+// cities and abbazias"; until then "castle walls protect meeple").
 // ---------------------------------------------------------------------------
 
 /**
@@ -977,15 +978,15 @@ function pushOnce(board, job, holds, keepOut) {
 
 /**
  * One follower blown a square downwind: onto the next tile, or, over open
- * sky, on until it lands on one, round the map if it has to. It stays where
- * it is if a city wall stands in the way (on its own tile's edge, or on the
- * one it would come down on) or the tile it would land on has a figure.
+ * sky, on until it lands on one, round the map if it has to, and over any
+ * city wall. It stays where it is if the tile it would land on has a figure.
+ * Where it lands it holds what `landingFeature` gives it, a city somebody
+ * else holds included.
  */
 function blowFollower(board, cell, dir, report) {
   const m = cell.meeple;
   if (!m || m.flat) return;
   const [dx, dy] = SIDE_STEP[dir];
-  if (board.edgeAt(cell, dir) === WALL) return;
   const lap = board.wraps ? (dx === 0 ? board.span.h : board.span.w) : MAX_RUN;
   let dest = null;
   for (let n = 1; n <= lap; n++) {
@@ -995,7 +996,6 @@ function blowFollower(board, cell, dir, report) {
     if (dest) break;
   }
   if (!dest || dest === cell || dest.meeple) return;
-  if (board.edgeAt(dest, opposite(dir)) === WALL) return;
   const type = m.feat == null ? null : cell.type.feats[m.feat]?.type;
   dest.meeple = { ...m, feat: landingFeature(dest, type) };
   cell.meeple = null;
