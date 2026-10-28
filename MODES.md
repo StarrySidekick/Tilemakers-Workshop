@@ -1274,6 +1274,62 @@ kingmakes badly, and you'd blame the mechanic instead of the count.
 > player.
 >
 > Rules 3, 5, 6, 7, 31, 44, 74, 75, 76 and 78 changed; 80 and 81 are new.
+>
+> **Thirtieth pass: two colours to a tower tile, zephyrs on the roads.**
+>
+> Timothy, 2026-10-28: "tiles that have towers on them should have
+> different colored towers on the other side". Asked where the zephyrs on
+> their backs should go, he chose that they ride on roads.
+>
+> - **Tower tiles** (rule 3): sixteen, a half on each face, two colours, the
+>   same shape both sides (plain, road, district); every colour on eight
+>   faces, every pair of colours on some tile. Laying one is choosing which
+>   colour to build, and every tower tile goes down as a tower.
+> - **Zephyrs ride on roads** (rules 3, 28): twelve of the 24 straights and
+>   bends on a district's back carry a zephyr, a double zephyr or a cannon,
+>   blowing across the road (the cannon bend, `Kgb`, came out of the
+>   extras). The zephyrs with no road, among them every one that points more
+>   than one way, are extras.
+> - **The backstop waits for the big towers** (rule 63): it ended one game
+>   in twelve with a big tower half made and its quarters still in the deck.
+>   Now, at 96 laid, the quarters left come up next and the season ends
+>   once they are down.
+>
+> Bots, two players, 24 games:
+>
+> | | last pass | this pass |
+> |---|---|---|
+> | score a player | 95 | 115 |
+> | ordinary towers closed | 0.5 | 4.7 |
+> | sun and black hole | 2.0 (23 games of 24) | 2.0 (every game) |
+> | tower halves laid | 5.8 | 21.8 |
+> | districts laid | 5.1 | 11.0 |
+> | chain pushes | 73 | 44 |
+> | claims | 20.1 | 24.6 |
+> | islands at the end | 15.4 | 17.5 |
+>
+> Where the points come from: closing what nobody holds 45% (53% last
+> pass); red 18%, green 13%, yellow 12%, blue 5%, the archipelago 5%,
+> windmills 2%. Three players (12 games): closers 38%, red 27%.
+>
+> **What is hardly used**, a game:
+> - **A closer paid again for the same road or city: 5.4 times, 29
+>   points**, about a quarter of all closer pay. Closed things are blown
+>   open about 50 times a game (`reopen`), and closing one again pays again;
+>   a tower closes once (rule 44), a road or city does not.
+> - **Joining a road or city somebody holds: 0.8** of 24.6 claims.
+> - **Followers blown by a heavy blow: 1.1**; 10% of blows are too heavy.
+> - **A city blown open costing its holder (rule 53): never** in 24 games.
+> - **Windvane swings: 1.3; windmills: 2% of points**, 3.8 laid.
+> - **The flying machine: 0.6 claims along a flight** of 3.4 laid.
+> - **No tower has ever been closed by a push.**
+> - The bots never lay a follower flat (rule 16) or lift one with a flying
+>   machine (rule 62): they have no code for either, so that says nothing
+>   about the rules.
+> - Lost with the field zephyrs: chains that branch (a crosswind or compass
+>   rose pushing down several lanes); chain pushes fell from 73 to 44.
+>
+> Rules 3, 28 and 63 changed.
 
 
 **Question it answers:** is a small board you keep *editing* better than a big

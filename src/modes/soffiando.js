@@ -8,9 +8,11 @@
 //
 // EVERY TILE HAS TWO FACES (Timothy, 2026-10-27: "make tiles double sided,
 // and you choose what side to play when you place them"): 72 tiles, 144
-// faces. A district backs onto a road of its shape, a tower half onto a
-// zephyr or a cannon, an Abbazia onto a windmill, a flying machine or a
-// windvane, and the sun's quarters onto the black hole's. You turn the
+// faces. A district backs onto a road of its shape (twelve of those roads
+// carry a zephyr or a cannon), a tower half onto a tower half of another
+// colour (2026-10-28: "tiles that have towers on them should have different
+// colored towers on the other side"), an Abbazia onto a windmill, a flying
+// machine or a windvane, and the sun's quarters onto the black hole's. You turn the
 // tile over as well as round (the host's `flipTile`, F); one whose front
 // fits nowhere is dealt back up. The deck holds them as "front|back"
 // (soffiando-deck.js), and so does every tile on the board (`cell.key`), so
@@ -104,7 +106,7 @@
 
 import { Mode } from './mode.js';
 import {
-  CENTRE_FEATURES, SIDE_STEP, opposite, wallSides, WALL, edgesMeet,
+  CENTRE_FEATURES, SIDE_STEP, opposite, wallSides, WALL, edgesMeet, TILES,
 } from '../tiles.js';
 import { PLAYER_COLORS } from '../theme.js';
 import { DECK_COUNTS } from './soffiando-deck.js';
@@ -259,6 +261,9 @@ const RING = [[-1, -1], [0, -1], [1, -1], [-1, 0], [1, 0], [-1, 1], [0, 1], [1, 
  * halves"), so a push can close a tower.
  */
 const isQuarter = (cell) => cell.type.feats.some((f) => f.quarter);
+
+/** A deck entry with a quarter of a big tower on either face. */
+const quarterKey = (key) => String(key).split('|').some((id) => TILES[id]?.feats.some((f) => f.quarter));
 
 /** Is world side set `a` the same two sides as `b`? */
 const sameSides = (a, b) => a.length === b.length && a.every((s) => b.includes(s));
@@ -605,8 +610,21 @@ export class Soffiando extends Mode {
     this.astrayAt = null;
     this.movedNow.clear();
     if (this.laid >= STORM_LIMIT) {
-      this.game.say('The season turns, and the wind drops.');
-      this.game.finish();
+      // Not before both big towers are made (Timothy, 2026-10-28: "both need
+      // to be present by the end of the game"): the quarters still in the
+      // deck come up next, and the season ends once they are laid. Without
+      // this the backstop ended about one game in twelve with one of them
+      // still to make.
+      const g = this.game;
+      const quarters = g.deck.filter(quarterKey);
+      if (quarters.length && this.bigTowers().filter((t) => t.done).length < 2) {
+        if (!this.lastQuarters) g.say('The season is turning, but a big tower is still to be made: the last quarters come up first.');
+        this.lastQuarters = true;
+        g.deck = [...g.deck.filter((k) => !quarterKey(k)), ...quarters];
+        return;
+      }
+      g.say('The season turns, and the wind drops.');
+      g.finish();
     }
   }
 
@@ -2585,7 +2603,7 @@ Soffiando.spec = {
   tideStart: 5,
   opening: 'A first stone hangs in the cloud. Everything else is weather.',
   hint: 'A turn is three steps: lay a tile, claim on it or not, and BLOW. '
-    + 'Every tile has TWO FACES: F (or the little tile under your hand) turns it over, R turns it round. A district has a road of its shape on the back, a tower half a zephyr or a cannon, an Abbazia a windmill, a flying machine or a windvane. '
+    + 'Every tile has TWO FACES: F (or the little tile under your hand) turns it over, R turns it round. A district has a road of its shape on the back (some roads carry a zephyr or a cannon), a tower half a tower half of another colour, an Abbazia a windmill, a flying machine or a windvane. '
     + 'Your zephyr goes against any tile on any side (R turns it): that tile and every tile touching in front of it, up to the first gap, go one square, if there are no more of them than your PUSH POWER, which is 1 plus every Abbazia on the board. '
     + 'A zephyr tile your blow pushes then pushes the way it points, at its own push plus yours, and that chains on; a gust cannon fires what is in front of it until each tile hits something. Zephyr tiles do nothing when laid. '
     + 'Too heavy to move, or with a quarter of the big tower in it (they never move), a blow moves no tile but blows the followers it reaches a square downwind, never across a city wall. '

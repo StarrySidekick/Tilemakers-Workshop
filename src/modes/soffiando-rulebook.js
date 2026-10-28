@@ -76,7 +76,10 @@ const AREA = 'you can blow on an area even if you can\'t move any tiles, and it 
 const PROTECT = 'meeple can\'t be blow through walls but tiles with castle wall can still be moved by winds. castle walls protect meeple, towers/sfera protect tiles';
 const OPEN_CLOSED = 'don\'t know if it\'s  thing yet but open cities make 1 per tile, closed make 2 per.';
 const GARDENS = 'every garden district you have scores the city an extra 2p, closed or open.';
-// …and later the same day.
+// …and of 2026-10-28.
+const D28 = '2026-10-28';
+const TWO_COLOURS = 'tiles that have towers on them should have different colored towers on the other side';
+// …and later on 2026-10-27.
 const HALVES = 'let a blow move tower halves.';
 const INEVITABLE = 'also make it so you must place a sun or black hole attached correctly to another, so there completion is inevitable.';
 const EIGHT = 'there has to be eight tiles becuase there needs to be the choice of what to build and both need to be present by the end of the game, so yea back to eight tiles with both on each side sorry. if a sun is already made then you have to make a black hole, and vice versa';
@@ -113,10 +116,10 @@ export const RULES = [
     changed: D27,
     was: 'The game starts with one tile on the board, the Palazzo, in the middle of the map. Players take turns in order.' },
   { n: 3, id: 'game-deck', group: 'game',
-    text: 'The deck is 72 tiles, shuffled, each with two faces (rule 80) and named in the deck list: 37 with a district on one face and a road of the same shape on the other, 16 with a tower half on one face (four of each colour) and a zephyr or a cannon on the other, 8 with a quarter of the sun on one face and a quarter of the black hole on the other, and 11 with an Abbazia on one face and a windmill, a flying machine or a windvane on the other. Every other tile is an extra, one-faced and not dealt: the temples and temple districts among them, and for now the lone city walls.',
-    from: T(D27, DOUBLE, 'He chose the backs: opposites, a road onto a district of its shape, a zephyr onto a tower half, a windmill or a flying machine onto an Abbazia. Eight sun and black hole tiles, not four ("' + EIGHT + '"); the four places that took are a plain tower half of each colour, Claude\'s call. Which back goes on which tower half, and which district is the all-round one, are Claude\'s call, named to Timothy when it shipped. Still 72 ("' + SEVENTY_TWO + '").'),
-    settings: ['deck'], changed: D27,
-    was: 'The deck is 72 tiles, shuffled, each one named in the deck list: 12 districts, 16 tower halves (four of each colour), the sun and the black hole (four quarters each), 12 zephyrs and cannons, 3 windmills, 11 Abbazias, 2 flying machines, a windvane and 7 plain roads. Every other tile is an extra, not dealt: the temples and temple districts among them, and for now the lone city walls.' },
+    text: 'The deck is 72 tiles, shuffled, each with two faces (rule 80) and named in the deck list: 37 with a district on one face and a road of the same shape on the other, twelve of those roads carrying a zephyr or a gust cannon; 16 with a tower half on each face, of two different colours; 8 with a quarter of the sun on one face and a quarter of the black hole on the other; and 11 with an Abbazia on one face and a windmill, a flying machine or a windvane on the other. Every other tile is an extra, one-faced and not dealt: the zephyrs and cannons with no road, the temples and temple districts among them, and for now the lone city walls.',
+    from: T(D28, TWO_COLOURS, 'Asked where the zephyrs on the towers\' backs should go, he chose that they ride on roads. Which roads, the same shape on both faces of a tower tile, and which colours share a tile are Claude\'s calls, named to Timothy when they shipped. Before: "' + DOUBLE + '", with opposites, his choice, and eight sun and black hole tiles ("' + EIGHT + '"). Still 72 ("' + SEVENTY_TWO + '").'),
+    settings: ['deck'], changed: D28,
+    was: 'The deck is 72 tiles, shuffled, each with two faces (rule 80) and named in the deck list: 37 with a district on one face and a road of the same shape on the other, 16 with a tower half on one face (four of each colour) and a zephyr or a cannon on the other, 8 with a quarter of the sun on one face and a quarter of the black hole on the other, and 11 with an Abbazia on one face and a windmill, a flying machine or a windvane on the other. Every other tile is an extra, one-faced and not dealt: the temples and temple districts among them, and for now the lone city walls.' },
   { n: 4, id: 'game-map', group: 'game',
     text: 'The map is 17 squares a side, with the Plaza\'s square in the very middle.',
     from: T(D25, SEVENTEEN), changed: D27,
@@ -242,10 +245,10 @@ export const RULES = [
     changed: D27,
     was: 'In one storm each zephyr blows each of its ways at most once.' },
   { n: 28, id: 'storm-multi', group: 'storm',
-    text: 'A zephyr that points two, three or four ways pushes down every one of those lanes.',
+    text: 'A zephyr that points two, three or four ways pushes down every one of those lanes. (The crosswind, split wind, trident and compass rose: all extras since 2026-10-28, when the zephyrs moved onto roads.)',
     from: H('fourth'),
-    changed: D27,
-    was: 'A zephyr that points two, three or four ways blows down every one of those lanes.' },
+    changed: D28,
+    was: 'A zephyr that points two, three or four ways pushes down every one of those lanes.' },
   { n: 29, id: 'storm-double', group: 'storm',
     text: 'A zephyr\'s own push is 1, and a double zephyr\'s 2.',
     from: T(D27, CHAIN, '"A zephyr on a tile has one push power". The double zephyr has opened at two since the tenth pass.'),
@@ -403,8 +406,10 @@ export const RULES = [
 
   // --- The end of the season. ------------------------------------------------
   { n: 63, id: 'end-when', group: 'end',
-    text: 'The season ends when the deck runs out, when 96 tiles have been laid, or if the sky is ever empty.',
-    from: H('second', 'Counted in tiles laid, not rounds, because blown tiles come back.') },
+    text: 'The season ends when the deck runs out, when 96 tiles have been laid, or if the sky is ever empty. But not before both big towers are made: once 96 are laid, the quarters still in the deck come up next, and the season ends when they have been laid.',
+    from: H('second', 'Counted in tiles laid, not rounds, because blown tiles come back. Waiting for the big towers is Claude\'s call of 2026-10-28, named to Timothy when it shipped: the backstop ended one game in twelve with a big tower still to make, and "both need to be present by the end of the game".'),
+    changed: D28,
+    was: 'The season ends when the deck runs out, when 96 tiles have been laid, or if the sky is ever empty.' },
   { n: 64, id: 'end-archipelago', group: 'end',
     text: 'At the end, 10 points go to whoever has followers on the most separate islands; tied, to each of them.',
     from: H('eighth', 'Counted before the last scoring since the ninth pass.') },

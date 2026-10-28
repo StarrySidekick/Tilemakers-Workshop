@@ -105,6 +105,13 @@ you have to make a black hole, and vice versa", and walls on the quarters'
 field sides "so they can be placed sort of no matter what". That is the
 twenty-ninth pass, merged on his word ("merge").
 
+On 2026-10-28: "tiles that have towers on them should have different
+colored towers on the other side". Asked where the zephyrs on their backs go,
+he chose that they ride on roads. He also asked for "any insights you have
+one scoring an mechanics that may be falling by the wayside" and "a concise
+synopsis of the rules for soffiando here so i can see if anything is off".
+That is the thirtieth pass, waiting for his word to merge.
+
 **Fields: settled 2026-09-06, and Timothy was right.** They are fully built.
 `src/tiles.js` cuts the perimeter into eight half-edges with `halfPartner` as the
 joining rule; fields are ordinary components; `allFields`, `citiesFed` and

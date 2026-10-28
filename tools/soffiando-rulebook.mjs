@@ -15,7 +15,7 @@
 import { Game, MODES } from '../src/game.js';
 import { Board } from '../src/board.js';
 import { TILES, wallSides, DISTRICTS, edgesMeet } from '../src/tiles.js';
-import { blow as windBlow } from '../src/wind.js';
+import { blow as windBlow, isCannon as cannonTile } from '../src/wind.js';
 import { RULEBOOK } from '../src/modes/soffiando-rulebook.js';
 import { DECK_COUNTS } from '../src/modes/soffiando-deck.js';
 import { readFileSync } from 'node:fs';
@@ -139,10 +139,15 @@ prove('game-deck', (ok) => {
     return open.length === 2 ? (open[1] - open[0] === 2 ? 'I' : 'L') : `${open.length}`;
   };
   const district = (t) => t.feats.some((f) => f.district) && !mark('turbine')(t) && !has('sfera')(t);
-  const road = (t) => has('road')(t) && !has('city')(t) && !has('sfera')(t) && !t.marks.some((m) => m.kind !== 'village');
+  const road = (t) => has('road')(t) && !has('city')(t) && !has('sfera')(t) && !t.marks.some((m) => !['village', 'zephyr'].includes(m.kind));
   ok(count((a, b) => district(a) && road(b) && shape(a, 'c') === shape(b, 'r')) === 37, '37 districts, a road of the same shape on the back');
-  const half = (hue) => (t) => t.feats.some((f) => f.type === 'sfera' && !f.quarter && f.hue === hue);
-  ok(['green', 'blue', 'red', 'yellow'].every((h) => count((a, b) => half(h)(a) && mark('zephyr')(b)) === 4), 'four tower halves of each colour, a zephyr or a cannon on the back');
+  ok(count((a, b) => district(a) && road(b) && mark('zephyr')(b)) === 12, 'twelve of those roads carry a zephyr or a cannon');
+  const zephyrs = plain.flatMap(faces).filter(mark('zephyr'));
+  ok(zephyrs.every(has('road')) && zephyrs.some((t) => cannonTile({ type: t })) && zephyrs.some((t) => !cannonTile({ type: t })), 'and every zephyr and cannon dealt rides on a road');
+  const hueOf = (t) => t.feats.find((f) => f.type === 'sfera' && !f.quarter)?.hue;
+  const shapeOf = (t) => (has('road')(t) ? 'road' : t.feats.some((f) => f.district) ? 'district' : 'plain');
+  ok(count((a, b) => hueOf(a) && hueOf(b) && hueOf(a) !== hueOf(b) && shapeOf(a) === shapeOf(b)) === 16, '16 tower tiles, a half of another colour on the back, the same shape');
+  ok(['green', 'blue', 'red', 'yellow'].every((h) => plain.flatMap(faces).filter((t) => hueOf(t) === h).length === 8), 'every colour on eight faces');
   ok(count((a, b) => a.id === 'Kqs' && b.id === 'Kqh') === 8, 'eight tiles with the sun on one face and the black hole on the other');
   ok(count((a, b) => a.id === 'Kab' && (mark('turbine')(b) || mark('flier')(b) || b.id === 'Kw')) === 11, '11 Abbazias, a windmill, a flying machine or a windvane on the back');
   const lone = (t) => t.feats.some((f) => f.type === 'city' && !f.district);
@@ -151,8 +156,8 @@ prove('game-deck', (ok) => {
   ok(DECK_COUNTS.Kt === 0 && DECK_COUNTS.DEt === 0, 'they are extras');
   ok(!plain.some((k) => faces(k).some(lone)), 'no lone wall dealt');
   ok(Object.entries(DECK_COUNTS).some(([k, n]) => !n && !k.includes('|') && lone(TILES[k])), 'the lone walls are extras, one-faced');
-  const more = keys({ deck: { Kce: 2, 'DIg|U': 1 } });
-  ok(more.filter((k) => k === 'Kce').length === 2 && more.filter((k) => k === 'DIg|U').length === 1 && more.length === 72, 'a game\'s own deck list replaces counts by tile');
+  const more = keys({ deck: { Kce: 2, 'DIm|U': 0 } });
+  ok(more.filter((k) => k === 'Kce').length === 2 && !more.includes('DIm|U') && more.length === 72, 'a game\'s own deck list replaces counts by tile');
 });
 prove('game-map', (ok) => {
   const b = SPEC.bounds;
@@ -964,6 +969,7 @@ prove('flight-lift', (ok) => {
 prove('end-when', (ok) => {
   let g = fresh(74);
   lay(g, 0, 0, 'B');
+  g.deck = ['DIg|U'];                       // no big tower left in it
   g.m.laid = 96;
   g.phase = 'meeple'; g.skipMeeple();
   blow(g, 0, 0, 1);
@@ -976,6 +982,27 @@ prove('end-when', (ok) => {
   g.deck = []; g.tile = null;
   g.drawTile();
   ok(g.phase === 'over', 'when the deck runs out');
+  // At 96 with the black hole made and two quarters still in the deck.
+  g = fresh(77);
+  lay(g, 0, 0, 'Kqh', 0); lay(g, 1, 0, 'Kqh', 1); lay(g, 1, 1, 'Kqh', 2); lay(g, 0, 1, 'Kqh', 3);
+  g.board.rebuild();
+  g.m.joinSferas();                         // the black hole made, nothing round it
+  lay(g, 3, 0, 'Kqs', 1); lay(g, 3, 1, 'Kqs', 2);   // the sun begun: (2, 0) and (2, 1) to come
+  lay(g, 6, 6, 'B');
+  g.board.rebuild();
+  g.deck = ['Kqs|Kqh', 'DIg|U', 'Kqs|Kqh', 'DLg|V'];
+  g.tile = null;
+  g.m.laid = 96;
+  g.phase = 'meeple'; g.skipMeeple();
+  blow(g, 6, 6, 1);
+  ok(g.phase === 'place' && g.tile?.id === 'Kqs', 'but not with a big tower still to make: the quarters left come up next');
+  for (let i = 0; i < 4 && g.phase === 'place' && g.tile; i++) {
+    const s = g.board.legalPlacements(g.tile, g.placeOpts())[0];
+    if (!s) break;
+    g.rot = s.rot; g.placeAt(s.x, s.y);
+    endTurn(g);
+  }
+  ok(g.m.hues.sun === 1 && g.phase === 'over', 'and it ends once they are laid, both made');
 });
 prove('end-archipelago', (ok) => {
   let g = fresh(77);
