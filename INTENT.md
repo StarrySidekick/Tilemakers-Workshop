@@ -105,6 +105,88 @@ you have to make a black hole, and vice versa", and walls on the quarters'
 field sides "so they can be placed sort of no matter what". That is the
 twenty-ninth pass, merged on his word ("merge").
 
+On 2026-10-28: "tiles that have towers on them should have different
+colored towers on the other side". Asked where the zephyrs on their backs go,
+he chose that they ride on roads. He also asked for "any insights you have
+one scoring an mechanics that may be falling by the wayside" and "a concise
+synopsis of the rules for soffiando here so i can see if anything is off".
+That is the thirtieth pass.
+
+Later on 2026-10-28, a list: walls "should be able to take field, wall,
+road, or city, basically like abbazias"; "remove laying meeple flat";
+"abbazias can be claimed by flying machine or by just being blown into
+them as long as they are empty", and you never claim the one you lay ("when
+you do you hold it outright, and it scores 1 point for every tile
+surrounding it, and and extra point for every meeple"); no cutting with the
+zephyr, and "an anchor like a tower keep everything in your lane from
+moving, but only up until the tower, stuff past it still moves" (anchors:
+"complete towers, and big tower quarters"); windmills 3; eight followers
+again; windmills, windvanes and flying machines on road and district faces
+rather than the Abbazias' backs, which take "a smattering of features"; "lets
+get the ai to learn how to play better"; and "data as to what percentage of
+scored games goes to what kind of point". That is the thirty-first pass,
+built on the thirtieth.
+
+Then: "ok let's make cities not give points but closing, just like normal
+claiming rules and from towers", and "flying machines shouldn't be competing
+with district faces, they should be on all different kinds of tiles". That
+is the thirty-second pass.
+
+Then the idea behind cities: "when you stay in a city ... you're risking the
+chance to score continuously from towers, but at risk of losing points
+because you're still in the city and the city could get opened. So you're
+kind of testing fate, because you could just leave the city if you wanted
+to." And a new move: "instead of placing a meeple, you can move a meeple
+instead ... they can move one space for their turn. And if they move using a
+road, they can move all the way down the road." Also: no points for closing
+a road you do not own; "towers score cities 1 point per tile, whether it's
+closed or open"; and "we're revoking the rule that says that you can place
+meeple even on things already claimed by enemy meeple". Asked, he said the
+city bonuses "are only for completing the city and at the end when scored",
+nobody's feature may be joined (yours included), and a move never goes onto
+an Abbazia. That is the thirty-third pass.
+
+Then: "make abbazzias only get points for adjacent squares like cloisters";
+"make it so meeple can move past walls, that have to have a road meet the
+wall to be able to move through them. this means cities with no roads
+attached them cannot leave that city that way"; and he asked what farmers
+score and "is there any incentive still to make islands? Because that's a
+big part of this." Asked what he meant for farmers: "ok no more farmers
+actually. the green scoring from towers simply measures who has control of
+the landmass (who has the most meeple) a awards them with 5 points. this
+means you can get 5 points from even a tiny island". That is the
+thirty-fourth pass.
+
+Then: "the abbazias tiles should have abbazias on both sides", and "The AI
+seems to not be really choosing to play the city side of tiles. why? and
+what could we do about that". That is the thirty-fifth pass.
+
+Then a list: "followers no longer come back in general, even from roads";
+"specials can be on city faces too"; "meeple can be blown over walls now",
+and "Meeple that are blown into cities can enter them even if there are
+enemy meeple there"; a new "wooden block call the Calcolo, its a square
+stone that can be moved instead of blowing something that turn"; cities
+earn "an extra 1 point per garden district open or closed", "a bonus 5p if
+they have at least one of every district closed", trade districts "2p extra
+for each road attached to the city, closed"; a new district, the keep,
+replacing industrial ("a tower that grows upwards ... every stack of the
+tower makes the keep worth double that (1, 2, 4, 8, 16). the towers can
+collapse if blown"); the residential district "allows you to place meeple
+there on your turn if you own that city, even if you already have meeple
+there"; "Both sides of all the tiles should generally have like the same
+type of structure, just with some options changed"; and the cannon "may be
+usless now". Asked: districts pay 1 open and 2 closed; one Calcolo for the
+table, anywhere; four keep pieces each, any keep; remove the cannon. That is
+the thirty-sixth pass.
+
+Then, of the Calcolo: "The idea with the stone is that you can use it to
+move meeple on purpose, because it stops landmasses from moving, but not
+meeple ... If we could potentially retrain the AI to know how to use it,
+that'd be great. And then once we're done, please merge everything. I give
+you permission." The bot aims the stone now (MODES.md, the end of the
+thirty-sixth pass), and the thirtieth to thirty-sixth passes are merged on
+his word.
+
 **Fields: settled 2026-09-06, and Timothy was right.** They are fully built.
 `src/tiles.js` cuts the perimeter into eight half-edges with `halfPartner` as the
 joining rule; fields are ordinary components; `allFields`, `citiesFed` and

@@ -17,8 +17,8 @@ const MAX_STEPS = 4000;
 const STREAM = [
   [/city of/i, 'blue cities'],
   [/^Road of/, 'yellow roads'],
-  [/^Farm of/, 'green farms'],
-  [/tiles? around it/, 'red temples'],
+  [/^(The mainland|An island)/, 'green land'],
+  [/^The Abbazia at/, 'red abbazias'],
   [/windmill/, 'windmills'],
   [/turbine turns/, 'turbine gusts'],
   [/islands? at the end/, 'archipelago'],

@@ -237,6 +237,8 @@ export class Renderer {
 
     if (this.pixel) this.drawGates(game);
     if (game.board.wraps) this.drawSeam(game, fog);
+    // Soffiando's Calcolo: a stone on a square of open sky, no tile's.
+    if (game.m.calcolo && this.onScreen(game.m.calcolo.x, game.m.calcolo.y)) this.drawCalcolo(game.m.calcolo);
 
     if (game.phase === 'lift') this.drawCellTargets(game.m.allLiftable ? game.m.allLiftable() : liftableCells(game.board), THEME.violet, '107,90,140');
     if (game.phase === 'balena') this.drawCellTargets(game.m.balenaTargets(), THEME.teal, '95,191,174');
@@ -251,19 +253,24 @@ export class Renderer {
     if (game.phase === 'blow') {
       const h = this.hover, train = h && game.m.trainAt(h.x, h.y);
       if (train) {
+        // What an anchor holds still, and what the push moves (or, too
+        // heavy, whose followers it blows).
+        if (train.held?.length) this.drawCellTargets(train.held, THEME.teal, '95,191,174');
         if (train.heavy) this.drawCellTargets(train.cells, THEME.violet, '107,90,140');
         else this.drawCellTargets(train.cells, THEME.gold, '212,175,95');
       }
     }
     if (game.phase === 'flight') this.drawCellTargets(game.m.flightLifts(), THEME.teal, '95,191,174');
-    if (game.phase === 'flat') this.drawCellTargets(game.m.flatTargets(), THEME.gold, '212,175,95');
-    if (game.phase === 'stroll') this.drawCellTargets(game.m.stroll?.targets || [], MOVE_OK.line, MOVE_OK.rgb);
+    if (game.phase === 'stride') this.drawCellTargets(game.m.strideFrom || [], THEME.teal, '95,191,174');
+    if (game.phase === 'keep') this.drawCellTargets(game.m.keepTargets(), THEME.gold, '212,175,95');
     if (game.phase === 'recall') this.drawCellTargets(game.myMeeples(), MOVE_COSTLY.line, MOVE_COSTLY.rgb);
     if (game.phase === 'walk') this.drawCellTargets(game.pendingWalk?.targets || [], MOVE_OK.line, MOVE_OK.rgb);
     if (game.phase === 'place') this.drawPlacementHints(game);
 
     this.drawMeeples(game);
-    if (game.phase === 'meeple' && !this.hideMeepleTargets) this.drawMeepleTargets(game);
+    // With the claim panel aiming at the tile just laid, the board still shows
+    // the targets anywhere else (a flying machine's, along its flight).
+    if (game.phase === 'meeple') this.drawMeepleTargets(game, this.hideMeepleTargets ? game.lastPlaced : null);
     // With the claim panel doing the aiming, the board still says WHICH tile
     // is being claimed on — otherwise the two read as unrelated things.
     if (game.phase === 'meeple' && this.hideMeepleTargets && game.lastPlaced) {
@@ -280,7 +287,7 @@ export class Renderer {
         this.ctx.restore();
       }
     }
-    else this.meepleSpots = [];
+    if (game.phase !== 'meeple') this.meepleSpots = [];
 
     if (game.walker) this.drawPawns(game);
     else { this.pawnSpots = []; this.moveSpots = []; }
@@ -871,6 +878,60 @@ export class Renderer {
       if (this.pixel) this.drawPixelBalena(sx, sy, z);
       else this.drawBalena(sx, sy, z);
     }
+
+    // A keep's pieces (Soffiando): a stone course each, stacked in the tile's
+    // top corner, and the multiple they make its district worth.
+    if (overlay.keep) this.drawKeepStack(sx, sy, z, overlay.keep);
+  }
+
+  /** The Calcolo: a square block of stone, bevelled, with a chisel line across it. */
+  drawCalcolo({ x, y }) {
+    const ctx = this.ctx;
+    const [sx, sy] = this.toScreen(x, y);
+    const z = this.cam.zoom, m = z * 0.14, w = z - 2 * m, b = z * 0.06;
+    ctx.save();
+    ctx.fillStyle = 'rgba(30,26,20,0.28)';
+    ctx.fillRect(sx + m + b, sy + m + b * 1.5, w, w);
+    ctx.fillStyle = '#9d968a';
+    ctx.fillRect(sx + m, sy + m, w, w);
+    ctx.fillStyle = '#c9c2b4';
+    ctx.fillRect(sx + m, sy + m, w, b);
+    ctx.fillRect(sx + m, sy + m, b, w);
+    ctx.fillStyle = '#6f685d';
+    ctx.fillRect(sx + m, sy + m + w - b, w, b);
+    ctx.fillRect(sx + m + w - b, sy + m, b, w);
+    ctx.strokeStyle = '#3b332b';
+    ctx.lineWidth = Math.max(1, z * 0.02);
+    ctx.strokeRect(sx + m, sy + m, w, w);
+    ctx.beginPath();
+    ctx.moveTo(sx + m + w * 0.25, sy + m + w * 0.62);
+    ctx.lineTo(sx + m + w * 0.75, sy + m + w * 0.38);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  drawKeepStack(sx, sy, z, n) {
+    const ctx = this.ctx;
+    const w = z * 0.2, h = z * 0.075, x = sx + z * 0.74, base = sy + z * 0.36;
+    ctx.save();
+    for (let i = 0; i < n; i++) {
+      const y = base - (i + 1) * h;
+      ctx.fillStyle = '#d9d2c4';
+      ctx.fillRect(x, y, w, h);
+      ctx.lineWidth = Math.max(1, z * 0.012);
+      ctx.strokeStyle = '#3b332b';
+      ctx.strokeRect(x, y, w, h);
+    }
+    ctx.font = `bold ${Math.round(z * 0.13)}px sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    ctx.lineWidth = Math.max(2, z * 0.03);
+    ctx.strokeStyle = '#3b332b';
+    ctx.fillStyle = '#fff8e8';
+    const label = `x${2 ** n}`;
+    ctx.strokeText(label, x + w / 2, base + z * 0.01);
+    ctx.fillText(label, x + w / 2, base + z * 0.01);
+    ctx.restore();
   }
 
   /**
@@ -1455,16 +1516,17 @@ export class Renderer {
    * the board, drawn in the flight's own colour so you can tell the two kinds
    * of claim apart before you commit one.
    */
-  drawMeepleTargets(game) {
+  drawMeepleTargets(game, skip = null) {
     const ctx = this.ctx;
     this.meepleSpots = [];
     const pulse = 1 + Math.sin(performance.now() / 400) * 0.08;
 
     for (const o of game.meepleOptions()) {
+      if (skip && o.x === skip.x && o.y === skip.y) continue;   // the claim panel's
       const cell = game.board.get(o.x, o.y);
       if (!cell || !this.onScreen(o.x, o.y)) continue;
-      const color = o.flying ? THEME.teal : PLAYER_COLORS[game.current];
-      const spot = rotPoint(cell.type.spots[o.i], cell.rot);
+      const color = o.flying || o.moving ? THEME.teal : PLAYER_COLORS[game.current];
+      const spot = rotPoint(cell.type.spots[o.i] || [0.5, 0.5], cell.rot);
       const [sx, sy] = this.toScreen(cell.x + spot[0], cell.y + spot[1]);
       const r = this.cam.zoom * 0.19 * pulse;
       ctx.beginPath();
@@ -1476,7 +1538,7 @@ export class Renderer {
       ctx.stroke();
       drawMeeple(ctx, sx, sy, this.cam.zoom * 0.26, PLAYER_COLORS[game.current],
         { farmer: o.f?.type === 'field' });
-      this.meepleSpots.push({ i: o.i, x: o.x, y: o.y, sx, sy, r: this.cam.zoom * 0.24, type: o.f.type });
+      this.meepleSpots.push({ i: o.i, x: o.x, y: o.y, sx, sy, r: this.cam.zoom * 0.24, type: o.f?.type || o.what || 'tile' });
     }
   }
 

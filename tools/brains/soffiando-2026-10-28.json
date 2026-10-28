@@ -1,0 +1,44 @@
+{
+  "mode": "soffiando",
+  "rounds": 20,
+  "games": 32,
+  "trials": 60,
+  "accepted": 6,
+  "validation": {
+    "rate": 0.546875,
+    "margin": -1.34375,
+    "top": 205,
+    "mean": 108.59375,
+    "spheres": 6.34375,
+    "streams": {
+      "turbine gusts": 5,
+      "windmills": 1,
+      "green land": 43,
+      "other": -11,
+      "blue cities": 39,
+      "yellow roads": 15,
+      "red abbazias": 13
+    },
+    "games": 32
+  },
+  "weights": {
+    "ahead": 17.136,
+    "land": 0.448,
+    "city": 1,
+    "road": 0.672,
+    "sphere": 0.834,
+    "closeTower": 8.892,
+    "quarter": 1.633,
+    "parish": 0.6,
+    "stride": 0.93,
+    "keep": 1,
+    "calcolo": 2,
+    "calcoloGuard": 0,
+    "calcoloAim": 1,
+    "turbineMine": 6.114,
+    "turbineTheirs": -2.901,
+    "blowLook": 15,
+    "whale": 0
+  },
+  "note": "2026-10-28, after the bot learned to aim the Calcolo: twenty more rounds took two challengers (ahead 50, parish 0.96), which won only 43.8% of 32 unseen games against these weights, so these stand. calcolo, calcoloGuard and calcoloAim were set by a measured sweep against the same bot never setting the stone down (aim alone: 67.5% of 60 games)."
+}

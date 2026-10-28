@@ -505,21 +505,18 @@ for (const [what, mode, mech, kind] of [
         g.m.cancelLift();
       } else if (g.phase === 'blow') {
         // Every turn ends with a blow: against a tile it can move, if any.
+        // Only from open sky (no cutting): each way has its own targets.
         let at = null;
-        for (const t of g.m.blowTargets()) {
-          for (let d = 0; d < 4 && !at; d++) if (!g.m.trainAt(t.x, t.y, d).heavy) at = { ...t, d };
-          if (at) break;
+        for (let d = 0; d < 4 && !at; d++) {
+          const t = g.m.blowTargets(d).find((q) => g.m.trainAt(q.x, q.y, d) && !g.m.trainAt(q.x, q.y, d).heavy);
+          if (t) at = { ...t, d };
         }
-        at = at || { ...g.m.blowTargets()[0], d: 1 };
+        for (let d = 0; d < 4 && !at; d++) if (g.m.blowTargets(d).length) at = { ...g.m.blowTargets(d)[0], d };
         g.m.blowDir = at.d;
         g.cellClick(at.x, at.y);
       } else if (g.phase === 'astray') {
         const t = g.m.astrayAt.targets[0];
         g.cellClick(t.x, t.y);
-      } else if (g.phase === 'stroll') {
-        // A sphere paid one of our followers and offered it a walk; decline.
-        // Walks only became reachable once the host stopped overwriting them.
-        g.m.skipStroll();
       } else break;
       if (gusts && moved) break;
       // Let the render loop breathe now and then — the effects are made
@@ -565,7 +562,7 @@ for (const [what, mode, mech, kind] of [
       const g = window.LAB.game, r = window.LAB.renderer;
       let q = null;
       for (let i = 0; i < 4 && !q; i++) {
-        q = g.m.blowTargets().find((t) => !g.m.trainAt(t.x, t.y).heavy) || null;
+        q = g.m.blowTargets().find((t) => g.m.trainAt(t.x, t.y) && !g.m.trainAt(t.x, t.y).heavy) || null;
         if (!q) g.rotate(1);
       }
       q = q || g.m.blowTargets()[0];
@@ -614,6 +611,10 @@ for (const [what, mode, mech, kind] of [
   await page.selectOption('#mode', 'soffiando');
   await page.click('#newGame');
   await page.waitForTimeout(150);
+  // A tile both faces of which fit beside the Plaza: a straight road, and
+  // the same road with a zephyr across it.
+  await page.evaluate(() => { const g = window.LAB.game; g.deck.push(g.tileKey); g.deck.push('U|Kzr'); g.tile = null; g.drawTile(); });
+  await page.waitForTimeout(150);
   const problems = [];
   const hand = () => page.evaluate(() => ({ id: window.LAB.game.tile?.id, key: window.LAB.game.tileKey, back: !document.getElementById('previewBack').hidden, name: document.getElementById('tileName').textContent }));
   const before = await hand();
@@ -645,6 +646,165 @@ for (const [what, mode, mech, kind] of [
   if (errors.length) problems.push(errors[0].split('\n')[0]);
   if (problems.length) { failures++; console.log(`  ✗ soffiando faces: ${problems.join(' · ')}`); }
   else console.log('  ✓ soffiando faces     the back shown, turned over by a tap and by F, laid two-faced, listed both ways');
+}
+
+// A flying machine's flight onto an empty Abbazia (2026-10-28), clicked on
+// the board while the claim panel aims at the machine's own tile: the board
+// has to keep showing the targets anywhere else (it hid them all until then).
+{
+  errors.length = 0;
+  await page.selectOption('#mode', 'soffiando');
+  await page.click('#newGame');
+  await page.waitForTimeout(200);
+  await page.evaluate(async () => {
+    const g = window.LAB.game;
+    const { TILES } = await import('/src/tiles.js');
+    for (const c of [...g.board.cells.values()]) g.board.remove(c.x, c.y);
+    for (const x of [-1, -2, -3]) g.board.place(x, 0, TILES.B, 0);
+    const fl = g.board.place(0, 0, TILES.Kfl, 0);
+    g.board.place(0, -1, TILES.U, 0); g.board.place(0, -2, TILES.Kab, 0);
+    g.board.rebuild();
+    g.current = 0; g.tile = null;
+    g.m.flight = g.m.flightPath(fl);
+    g.lastPlaced = fl; g.phase = 'meeple';
+    window.LAB.renderer.glideTo?.(0, -1);
+  });
+  await page.waitForTimeout(800);
+  const problems = [];
+  const t = await page.evaluate(() => {
+    const r = window.LAB.renderer;
+    const s = r.meepleSpots.find((q) => q.x === 0 && q.y === -2);
+    if (!s) return null;
+    const rect = r.canvas.getBoundingClientRect();
+    return { x: rect.left + s.sx, y: rect.top + s.sy };
+  });
+  if (!t) problems.push('no target on the Abbazia along the flight');
+  else {
+    await page.mouse.click(t.x, t.y);
+    await page.waitForTimeout(200);
+    const held = await page.evaluate(() => window.LAB.game.board.get(0, -2)?.meeple?.player);
+    if (held !== 0) problems.push('the click did not put a follower on the Abbazia');
+  }
+  if (errors.length) problems.push(errors[0].split('\n')[0]);
+  if (problems.length) { failures++; console.log(`  ✗ soffiando abbazia: ${problems.join(' · ')}`); }
+  else console.log('  ✓ soffiando abbazia   a flight lands a follower on an empty Abbazia, by a click on the board');
+}
+
+// Moving a follower instead of claiming (2026-10-28), played as a person
+// does: the button, a click on the follower, a click on where it goes.
+{
+  errors.length = 0;
+  await page.selectOption('#mode', 'soffiando');
+  await page.click('#newGame');
+  await page.waitForTimeout(200);
+  await page.evaluate(async () => {
+    const g = window.LAB.game;
+    const { TILES } = await import('/src/tiles.js');
+    for (const c of [...g.board.cells.values()]) g.board.remove(c.x, c.y);
+    g.board.place(0, 0, TILES.DEg, 2); g.board.place(0, 1, TILES.DEr, 0);   // a closed city
+    g.board.place(-1, 0, TILES.Kt, 0);                                    // a temple beside it, past a wall
+    g.board.place(0, -1, TILES.U, 0);                                     // a road into its north wall: a gate
+    const laid = g.board.place(3, 3, TILES.B, 0);
+    g.board.rebuild();
+    g.current = 0; g.tile = null;
+    g.board.addMeeple(0, 0, 0, 0); g.players[0].meeples--;
+    g.lastPlaced = laid; g.phase = 'meeple';
+    window.LAB.renderer.glideTo?.(0, 0);
+  });
+  await page.waitForTimeout(800);
+  const problems = [];
+  const btn = page.locator('#actions button', { hasText: 'Move a follower' });
+  if (!(await btn.count())) problems.push('no Move a follower button in the follower step');
+  else {
+    await btn.first().click();
+    await page.waitForTimeout(150);
+    const cell = await page.evaluate(() => {
+      const r = window.LAB.renderer;
+      const [sx, sy] = r.toScreen(0.5, 0.5);
+      const rect = r.canvas.getBoundingClientRect();
+      return { phase: window.LAB.game.phase, x: rect.left + sx, y: rect.top + sy };
+    });
+    if (cell.phase !== 'stride') problems.push(`the button did not start a move (phase "${cell.phase}")`);
+    await page.mouse.click(cell.x, cell.y);
+    await page.waitForTimeout(300);
+    const t = await page.evaluate(() => {
+      const r = window.LAB.renderer;
+      if (r.meepleSpots.some((q) => q.x === -1 && q.y === 0)) return 'wall';
+      const s = r.meepleSpots.find((q) => q.x === 0 && q.y === -1 && q.type === 'road');
+      if (!s) return null;
+      const rect = r.canvas.getBoundingClientRect();
+      return { x: rect.left + s.sx, y: rect.top + s.sy };
+    });
+    if (t === 'wall') problems.push('a target through a wall no road meets');
+    else if (!t) problems.push('no target on the road through the gate');
+    else {
+      await page.mouse.click(t.x, t.y);
+      await page.waitForTimeout(200);
+      const after = await page.evaluate(() => {
+        const g = window.LAB.game;
+        return { there: g.board.get(0, -1)?.meeple?.player, left: !g.board.get(0, 0)?.meeple, phase: g.phase, supply: g.players[0].meeples };
+      });
+      if (after.there !== 0 || !after.left) problems.push('the follower did not move');
+      if (after.supply !== 7) problems.push(`the move spent a follower (${after.supply} in hand)`);
+      if (after.phase !== 'blow') problems.push(`no blow after the move (phase "${after.phase}")`);
+    }
+  }
+  if (errors.length) problems.push(errors[0].split('\n')[0]);
+  if (problems.length) { failures++; console.log(`  ✗ soffiando move: ${problems.join(' · ')}`); }
+  else console.log('  ✓ soffiando move      a follower walked out of a closed city through its gate, by the button and two clicks, then the blow');
+}
+
+// A keep built up and the Calcolo set down (2026-10-28), by the buttons and
+// clicks on the board, the stone on a square of open sky.
+{
+  errors.length = 0;
+  await page.selectOption('#mode', 'soffiando');
+  await page.click('#newGame');
+  await page.waitForTimeout(200);
+  await page.evaluate(async () => {
+    const g = window.LAB.game;
+    const { TILES } = await import('/src/tiles.js');
+    for (const c of [...g.board.cells.values()]) g.board.remove(c.x, c.y);
+    g.board.place(0, 0, TILES.DEk, 2); g.board.place(0, 1, TILES.DEr, 0);   // a keep in a closed city
+    const laid = g.board.place(3, 3, TILES.B, 0);
+    g.board.rebuild();
+    g.current = 0; g.tile = null;
+    g.lastPlaced = laid; g.phase = 'meeple';
+    window.LAB.renderer.glideTo?.(1, 1);
+  });
+  await page.waitForTimeout(800);
+  const problems = [];
+  const at = (x, y) => page.evaluate(([x, y]) => {
+    const r = window.LAB.renderer;
+    const [sx, sy] = r.toScreen(x + 0.5, y + 0.5);
+    const rect = r.canvas.getBoundingClientRect();
+    return { x: rect.left + sx, y: rect.top + sy };
+  }, [x, y]);
+  const keepBtn = page.locator('#actions button', { hasText: 'keep' });
+  if (!(await keepBtn.count())) problems.push('no keep button in the follower step');
+  else {
+    await keepBtn.first().click();
+    const k = await at(0, 0);
+    await page.mouse.click(k.x, k.y);
+    await page.waitForTimeout(200);
+    const after = await page.evaluate(() => ({ keep: window.LAB.game.board.get(0, 0).keep, phase: window.LAB.game.phase, left: window.LAB.game.players[0].keeps }));
+    if (after.keep !== 1 || after.left !== 3) problems.push(`the click did not build the keep (${JSON.stringify(after)})`);
+    if (after.phase !== 'blow') problems.push(`no blow after the keep (phase "${after.phase}")`);
+    const stoneBtn = page.locator('#actions button', { hasText: 'Calcolo' });
+    if (!(await stoneBtn.count())) problems.push('no Calcolo button at the blow');
+    else {
+      await stoneBtn.first().click();
+      const c = await at(-2, 3);
+      await page.mouse.click(c.x, c.y);
+      await page.waitForTimeout(200);
+      const st = await page.evaluate(() => ({ stone: window.LAB.game.m.calcolo, current: window.LAB.game.current }));
+      if (st.stone?.x !== -2 || st.stone?.y !== 3) problems.push(`the click did not set the Calcolo down (${JSON.stringify(st.stone)})`);
+      if (st.current !== 1) problems.push('the turn did not pass');
+    }
+  }
+  if (errors.length) problems.push(errors[0].split('\n')[0]);
+  if (problems.length) { failures++; console.log(`  ✗ soffiando keep, Calcolo: ${problems.join(' · ')}`); }
+  else console.log('  ✓ soffiando keep, Calcolo   a keep built up and the stone set down on open sky, by buttons and clicks');
 }
 
 // The endgame tally: many features settle in one frame, and they have to be

@@ -1274,6 +1274,347 @@ kingmakes badly, and you'd blame the mechanic instead of the count.
 > player.
 >
 > Rules 3, 5, 6, 7, 31, 44, 74, 75, 76 and 78 changed; 80 and 81 are new.
+>
+> **Thirtieth pass: two colours to a tower tile, zephyrs on the roads.**
+>
+> Timothy, 2026-10-28: "tiles that have towers on them should have
+> different colored towers on the other side". Asked where the zephyrs on
+> their backs should go, he chose that they ride on roads.
+>
+> - **Tower tiles** (rule 3): sixteen, a half on each face, two colours, the
+>   same shape both sides (plain, road, district); every colour on eight
+>   faces, every pair of colours on some tile. Laying one is choosing which
+>   colour to build, and every tower tile goes down as a tower.
+> - **Zephyrs ride on roads** (rules 3, 28): twelve of the 24 straights and
+>   bends on a district's back carry a zephyr, a double zephyr or a cannon,
+>   blowing across the road (the cannon bend, `Kgb`, came out of the
+>   extras). The zephyrs with no road, among them every one that points more
+>   than one way, are extras.
+> - **The backstop waits for the big towers** (rule 63): it ended one game
+>   in twelve with a big tower half made and its quarters still in the deck.
+>   Now, at 96 laid, the quarters left come up next and the season ends
+>   once they are down.
+>
+> Bots, two players, 24 games:
+>
+> | | last pass | this pass |
+> |---|---|---|
+> | score a player | 95 | 115 |
+> | ordinary towers closed | 0.5 | 4.7 |
+> | sun and black hole | 2.0 (23 games of 24) | 2.0 (every game) |
+> | tower halves laid | 5.8 | 21.8 |
+> | districts laid | 5.1 | 11.0 |
+> | chain pushes | 73 | 44 |
+> | claims | 20.1 | 24.6 |
+> | islands at the end | 15.4 | 17.5 |
+>
+> Where the points come from: closing what nobody holds 45% (53% last
+> pass); red 18%, green 13%, yellow 12%, blue 5%, the archipelago 5%,
+> windmills 2%. Three players (12 games): closers 38%, red 27%.
+>
+> **What is hardly used**, a game:
+> - **A closer paid again for the same road or city: 5.4 times, 29
+>   points**, about a quarter of all closer pay. Closed things are blown
+>   open about 50 times a game (`reopen`), and closing one again pays again;
+>   a tower closes once (rule 44), a road or city does not.
+> - **Joining a road or city somebody holds: 0.8** of 24.6 claims.
+> - **Followers blown by a heavy blow: 1.1**; 10% of blows are too heavy.
+> - **A city blown open costing its holder (rule 53): never** in 24 games.
+> - **Windvane swings: 1.3; windmills: 2% of points**, 3.8 laid.
+> - **The flying machine: 0.6 claims along a flight** of 3.4 laid.
+> - **No tower has ever been closed by a push.**
+> - The bots never lay a follower flat (rule 16) or lift one with a flying
+>   machine (rule 62): they have no code for either, so that says nothing
+>   about the rules.
+> - Lost with the field zephyrs: chains that branch (a crosswind or compass
+>   rose pushing down several lanes); chain pushes fell from 73 to 44.
+>
+> Rules 3, 28 and 63 changed.
+>
+> **Thirty-first pass: walls take anything, held Abbazias, no cutting,
+> anchors, and a bot that learned.**
+>
+> Timothy, later on 2026-10-28, a list; asked four things, he chose the
+> windmills, flying machines and windvanes on road and district faces, "a
+> smattering of features" on the Abbazias' backs, "complete towers, and big
+> tower quarters" as anchors, and how a held Abbazia pays.
+>
+> - **Walls take anything** (rules 6, 68), as an Abbazia's edge does, and cap
+>   it: a city that runs into a wall is closed there (`edgesMeet`,
+>   Board.link). **Lying flat is gone** (rule 16 retired; 8, 13). **Eight
+>   followers** (rule 1). **Windmills pay 3** (rules 24, 59).
+> - **Held Abbazias** (rules 10, 39, 48, 61): never claimed by laying one; a
+>   follower flown onto an empty one (`flightTargets`, a claim with no
+>   feature, which the host now takes) or blown onto it holds it, and red pays
+>   the holder a point a tile round it and a point a follower round it
+>   (`abbaziaPoints`). One nobody holds pays the neighbourhood as before.
+> - **No cutting** (rule 70): your zephyr blows from open sky, never from
+>   between two tiles (`openBehind`). **Anchors** (rules 74, 75): a big tower
+>   quarter or a closed tower's half holds its lane still up to it, and what
+>   is past it is pushed (`pushOnce`, `laneOf`); an anchor no longer makes a
+>   push too heavy.
+> - **The deck** (rule 3): windmills (four on roads, two windmill districts),
+>   flying machines (three, at dead ends) and windvanes (two, on crossings)
+>   on the road faces of district tiles; the Abbazias backed by roads and
+>   districts of every shape.
+> - **The bot**: knows a flight onto an Abbazia (`botTileClaim`) and a heavy
+>   blow that lands its follower on one (`landingOf`), blows only from open
+>   sky, and was RETRAINED by self-play (tools/train.mjs, 16 rounds): the new
+>   weights beat the old in 75% of 60 games on unseen seeds, by 27 points.
+>   Farms fell from 4 to 1.2. A second session found nothing better (47%).
+> - The page: the board showed no follower targets at all while the claim
+>   panel aimed at the tile just laid, so a flying machine's targets along its
+>   flight could not be clicked; it shows them now.
+>
+> Where the points come from, the trained bots, two players, 30 games (score
+> 206 a player): **closing a city nobody holds 48%**, blue 27%, closing a
+> road 15%, red 13% (2% of it held Abbazias), windmills 5%, yellow 3%, the
+> archipelago 2%, green 1%, and **cities blown open cost their holders
+> 14%**. By what paid it: closing, on the spot, 62%; towers 19%; the sun 16%;
+> the end 11%; windmills 5%. Three players (16 games, 111 a player) and four
+> (12 games, 94) the same within a few points.
+>
+> **A third of the closer pay is paid again for something already paid** (6
+> times a game, 79 points): closed things are blown open 60 to 67 times a
+> game, and closing one again pays again. The trained bot lays the district
+> face (44 a game; 5 the pass before) and the zephyr road almost never (2.7
+> a game), so chains fell to 12 pushes and islands at the end to 5. Held
+> Abbazias: 0.8 a game by a blow, 0.1 by a flight. Blows held by an anchor:
+> 16 a game.
+>
+> Rules 1, 3, 6, 8, 10, 13, 24, 39, 48, 59, 61, 68, 70, 74 and 75 changed; 16
+> retired.
+>
+> **Thirty-second pass: a city pays nobody for closing; flying machines on
+> every kind of tile.**
+>
+> Timothy, 2026-10-28: "ok let's make cities not give points but closing,
+> just like normal claiming rules and from towers", read as not BY closing:
+> a city closed with nobody in it pays nobody, and a held one is paid by blue
+> or the sun, as any claim is (rules 46, 79; `CLOSER_PAID`). Roads, which he
+> did not name, still pay their closer. And "flying machines shouldn't be
+> competing with district faces, they should be on all different kinds of
+> tiles": new tiles with a machine in a field (`Kff`), on a road (`Kfr`), on
+> a bend (`Kfb`) and in a garden or trade district end (`Kfg`, `Kft`); two
+> district ends carry one on both faces, three Abbazias on their backs, and
+> none is the back of a plain district (rule 3).
+>
+> The bot was trained again for the new scoring (20 rounds): the one
+> challenger it took lost on unseen seeds (37.5% of 32), so the weights of
+> the thirty-first pass stand.
+>
+> Trained bots, two players, 30 games (126 a player, 206 the pass before):
+> blue 53%, red 27% (3% of it held Abbazias), closing a road 25%, windmills
+> 10%, yellow 6%, the archipelago 3%, green 1%; **cities blown open cost
+> their holders 24%**. By what paid it: the sun 31%, the end 29%, towers 29%,
+> closing a road 25%, windmills 10%. Three players (16 games, 67 a player):
+> blue 52%, red 33%, roads closed 27%, and blown-open cities **-32%**.
+> Flying machines laid 2.6 a game (0.6 before), 0.7 claims along a flight and
+> 0.2 Abbazias reached by one; Abbazias claimed by a blow 0.7. A closer paid
+> again for the same road: 2.8 times, 8 points.
+>
+> Rules 3, 46 and 79 changed.
+>
+> **Thirty-third pass: move a follower; cities keep theirs; closing pays
+> nobody; nobody's feature is joined.**
+>
+> Timothy, 2026-10-28, on what a city is for: "when you stay in a city ...
+> you're risking the chance to score continuously from towers, but at risk of
+> losing points because you're still in the city and the city could get
+> opened. So you're kind of testing fate, because you could just leave the
+> city if you wanted to." The rules emptied every feature a tower paid
+> (rule 13), so nobody could stay; a city now keeps its followers and blue
+> pays them every time it fires. Roads and farms still empty: no wind can
+> open those, so staying in them would be income with no risk.
+>
+> The way out is the new move (rule 82): "instead of placing a meeple, you
+> can move a meeple instead ... they can move one space for their turn. And
+> if they move using a road, they can move all the way down the road." A
+> square, or down a road on the tile it stands on (gaps crossed as a walk
+> crosses them), never onto a figure or an Abbazia (asked: "only blown or
+> flown"). It keeps what it held, takes what nobody holds, or stands holding
+> nothing. Walls do not stop it, or a closed city could never be left. Two
+> clicks, as the flying machine does (`striding`, `flightTargets`), and a
+> follower picked up and not put down goes back (`settleStride`).
+>
+> Also: "you can't get points from a road that you don't own when you close
+> it" (rule 79 retired, `CLOSER_PAID` gone); "towers score cities 1 point per
+> tile, whether it's closed or open", the bonuses "only for completing the
+> city and at the end when scored" (rule 52 retired, rules 51 and 65); and
+> "we're revoking the rule that says that you can place meeple even on things
+> already claimed by enemy meeple", asked: nobody's at all, yourself included
+> (`freeToTake`, which claims, flights and moves all ask).
+>
+> The bot prices a move against its best claim by the board each leaves
+> (`botStride`, `holding`). Trained again (20 rounds): the one challenger it
+> took won 40.6% of 32 unseen games, so the weights stand, with `stride` at 1.
+>
+> **What it did to the points.** Bots, two players, 30 games, 126 a player:
+> **red's Abbazia neighbourhoods 57%**, yellow 19%, windmills 10%, green 7%,
+> the archipelago 4%, **blue 4%**, held Abbazias 1%, cities blown open -1%.
+> Paid by the end 36%, the sun 32%, towers 23%, windmills 10%. Three players
+> (16 games, 57 a player): red's neighbourhoods 49%, yellow 23%, windmills
+> 11%, blue 7%, blown open -4%. The bots move 27 times a game at two players
+> (16 off a road, 8.5 off a field, 1.5 out of an open city, **0.4 out of a
+> closed one**) and 22 at three. With the move switched off in the bot (20
+> games), red's neighbourhoods were 42% and blue 7%: followers staying on the
+> board feed the neighbourhood majorities, and the move walks them there.
+> The gamble the pass was for, staying in a closed city or walking out,
+> hardly happens: a city pays 1 a district, so the bots hold few.
+>
+> Rules 8, 10, 13, 46, 51, 61 and 65 changed; 82 is new; 52 and 79 retired.
+>
+> **Thirty-fourth pass: green is the land, Abbazias are cloisters, and walls
+> keep followers in.**
+>
+> Timothy, 2026-10-28: "make abbazzias only get points for adjacent squares
+> like cloisters". Red now pays only the follower standing on an Abbazia, a
+> point for every tile in the eight squares round it; one nobody holds pays
+> nobody. That took away the neighbourhood majority that was 57% of all
+> points in the pass before.
+>
+> "make it so meeple can move past walls, that have to have a road meet the
+> wall to be able to move through them. this means cities with no roads
+> attached them cannot leave that city that way": a move's square never
+> crosses a city wall, on either tile, unless a road meets the wall there
+> (`gateOpen`; a gate, rule 68).
+>
+> He asked what farmers score, and "is there any incentive still to make
+> islands? Because that's a big part of this." Asked which reading he meant:
+> "ok no more farmers actually. the green scoring from towers simply
+> measures who has control of the landmass (who has the most meeple) a
+> awards them with 5 points. this means you can get 5 points from even a
+> tiny island." Green pays every piece of country, the mainland and each
+> island, 5 to whoever has the most followers on it, holding anything or
+> nothing, ties each in full, not doubled (`scoreLand`, `landHolders`). A
+> field is held by nobody: no claim, flight, move or blown landing takes one
+> (`freeToTake`, wind.js `landingFeature`).
+>
+> **Islands, before and after.** Before this pass, 55% of every point was
+> already paid on an island (everything there pays double): 74% of yellow,
+> 56% of red's neighbourhoods. After it, two players: 52% (green 66% of it
+> on islands, yellow 60%); three players: 43%.
+>
+> **What it did to the points.** Bots, two players, 30 games, 93 a player
+> (126 before): **green 38%**, yellow 32%, windmills 13%, **blue 11%**, the
+> archipelago 6%, held Abbazias 5%, cities blown open -5%. Three players (16
+> games, 51 a player): green 40%, yellow 29%, blue 17%, windmills 13%, red
+> 6%, the archipelago 5%, cities blown open -10%. The bots move 11 times a
+> game (27 before), nearly all off roads, and walk out of a closed city 0.03
+> times a game. They lay an Abbazia face up 6.7 times a game (10.3 before):
+> unheld, one pays nothing now, so its back is often the better face, and
+> push power climbs more slowly.
+>
+> Trained again (20 rounds): two challengers taken, and the result beat the
+> set before in 73% of 32 unseen games and 78% of 60, by 29 points (ahead 2
+> to 5.9, land 0.57, road 1.57, its own windmills 10 to 6.1). With it, two
+> players (30 games, 111 a player): yellow 36%, green 31% (75% of it on
+> islands), windmills 16%, blue 11%, the archipelago 4%, held Abbazias 4%,
+> cities blown open -3%; 54% of all points paid on islands, 11.4 islands
+> standing at the end. Three players (16 games, 69 a player): yellow 35%,
+> green 27%, windmills 16%, blue 14%, the archipelago 6%, red 5%; 32% on
+> islands.
+>
+> Rules 10, 13, 39, 41, 44, 47, 48, 61 and 82 changed.
+>
+> **Thirty-fifth pass: an Abbazia on both faces, and why the bot lays roads.**
+>
+> Timothy, 2026-10-28: "the abbazias tiles should have abbazias on both
+> sides" (rule 3). Their backs had been two roads, three flying machines and
+> six districts; flying machines are now only on the two district ends.
+>
+> He asked why the bot does not play the city side of a tile. Measured: of
+> a district/road tile, both faces fit 99% of the time, and the bot laid the
+> district 16% of the time, by its own pricing about 10 points worse
+> (median). It is right: priced as high as a road (the `city` weight raised
+> to the road's), it laid districts 40% of the time and scored less, 99 a
+> player against 106. An open city pays a point a district and a road a
+> point a tile, but a road's follower comes home when it is paid and a
+> city's stays, walled in and open to the wind's penalty; a city's bonuses
+> wait for it to close, and a closed city takes no one; and the road faces
+> carry the zephyrs, windmills and windvanes (a windmill road won 94% of the
+> time). Twelve games each, two players, one rule changed:
+>
+> | change | district laid | blue | a player |
+> |---|---|---|---|
+> | none | 16% | 9% | 106 |
+> | the kinds bonus for open cities too | 26% | 14% | 113 |
+> | the bot pricing a district as a road | 40% | 24% | 99 |
+> | 2 a garden for open cities too | 41% | 33% | 113 |
+> | 2 a district for open cities | 54% | 45% | 115 |
+> | every bonus for open cities too | 61% | 52% | 127 |
+>
+> **Thirty-sixth pass: nobody comes home, the keep, the residential district,
+> the Calcolo, and a deck of one structure a tile.**
+>
+> Timothy, 2026-10-28, a list. "Followers no longer come back in general,
+> even from roads" (rule 13; the walk, rule 14, retired with nothing left to
+> start it). "Meeple can be blown over walls now, to allow for placement
+> into/out of cities and abbazias", and "Meeple that are blown into cities
+> can enter them even if there are enemy meeple there" (rules 22, 39; wind.js
+> `blowFollower` lost its wall checks). Cities: "an extra 1 point per garden
+> district open or closed", "a bonus 5p if they have at least one of every
+> district closed", trade "2p extra for each road attached to the city,
+> closed", and asked, 1 a district open and 2 closed (rule 51, `cityPoints`,
+> `roadsAt`: a road attached is one meeting the city at a gate). The KEEP
+> replaces the industrial district, "a tower that grows upwards": four pieces
+> each (asked), put on any keep instead of claiming or moving, each doubling
+> it, all lost when the wind moves its tile (rules 83, 84). The RESIDENTIAL
+> district "allows you to place meeple there on your turn if you own that
+> city, even if you already have meeple there" (rule 85, `homeTargets`). The
+> CALCOLO, "a square stone that can be moved instead of blowing", one for the
+> table, anywhere (asked): nothing is laid, pushed or moved on into its
+> square (rules 86, 87, `shut`, `stoneAt`). "Both sides of all the tiles
+> should generally have like the same type of structure": 19 district|district
+> and 18 road|road tiles, "specials can be on city faces too" (zephyr
+> districts `DIzg`, `DIzr`, `DLzk`, `DLzm`), and the cannon removed, asked
+> (rule 30 retired).
+>
+> Bots, two players, 30 games, 116 a player: **green 34%, blue 30%**, yellow
+> 23%, windmills 8%, held Abbazias 6%, the archipelago 6%, cities blown open
+> -8%. Three players (16 games, 76 a player): green 33%, blue 32%, yellow
+> 22%. Districts laid: 31.5 a game. 54% of points paid on islands at two
+> players, 48% at three. The bots build 7.4 keep pieces a game and lose 6.5 of
+> them to the wind; they move a follower 7.7 times a game, claim into their
+> own residential district 0.4 times, and never set the Calcolo down: its bot
+> rule (only when every blow costs it) is too cautious, and is a placeholder.
+>
+> Retrained after it (twenty rounds, six challengers taken): the new weights
+> won 55% of 32 unseen games and 62.5% of 60 more, about 60% of the 92, and
+> shipped. The bots now look much further ahead (`ahead` 5.9 to 17) and
+> price roads lower (1.57 to 0.67). With them, two players (30 games, 110 a
+> player): green 36%, blue 35%, yellow 21%, held Abbazias 9%, windmills 7%,
+> the archipelago 5%, cities blown open -13%; 59% paid on islands; 7.5 keep
+> pieces built a game and 6.2 lost. Three players (16 games, 67 a player):
+> green 35%, blue 29%, yellow 24%. Claims run past sixteen a game (33 at two
+> players) because a follower still comes home four ways the list did not
+> touch: its tile falls (rule 34), the black hole swallows it, the wind
+> carries it into open sky, or its player lifts it along a flight (rule 62).
+>
+> Then Timothy on the Calcolo: "The idea with the stone is that you can use
+> it to move meeple on purpose, because it stops landmasses from moving, but
+> not meeple. It can also be used to counter other things. If we could
+> potentially retrain the AI to know how to use it, that'd be great." The
+> rules already did that (rule 87: a push the stone stops blows its
+> followers instead); the bot never did, because it only set the stone down
+> when every blow cost it something, and a harmless blow was nearly always
+> there. It now prices the stone two ways (`bestStone`): the AIM, each lane
+> with followers on it tried with the stone past it, which is what a blow
+> down it next turn would move; and the GUARD, the next player's likeliest
+> blow stopped. Against the same bot never setting it down (60 games each):
+> the guard trusted in full won 40%, at 0.3 52%; the aim alone won 67.5%, by
+> 8 points. So the guard is off (`calcoloGuard` 0): the blow it foresees is
+> foreseen before the next player lays a tile and claims, and is too often
+> not the blow they make. Twenty rounds of training after it found nothing
+> better (its best won 43.8% of 32 unseen games), so the measured weights
+> stand.
+>
+> What it does to the game, two players, 30 games (104 a player): the stone
+> goes down 18 times a game, stopped blows rise from 4 to 11 a game, and
+> Abbazias claimed by a blown follower from 1.4 to 2.9. Blue 35%, green 28%,
+> yellow 25%, held Abbazias 11%. And ISLANDS FALL: 34% of points paid on
+> islands, from 59%, because every stone set down is a blow not made. That
+> is for Timothy to weigh, since islands are "a big part of this".
 
 
 **Question it answers:** is a small board you keep *editing* better than a big

@@ -836,10 +836,15 @@ export class Game {
     const spend = fig && this.player[fig.supply] > 0 ? fig : null;
     const phantom = this.usingPhantom;
 
-    this.board.addMeeple(spot.x, spot.y, featIdx, this.current, {
-      big: spend?.id === 'big',
-      kind: phantom ? 'phantom' : (spend?.id || null),
-    });
+    // A claim with no feature is one standing on the tile itself (Soffiando's
+    // Abbazia, flown out to): there is no feature for the board to count it in.
+    if (featIdx == null) cell.meeple = { player: this.current, feat: null, big: false, kind: null };
+    else {
+      this.board.addMeeple(spot.x, spot.y, featIdx, this.current, {
+        big: spend?.id === 'big',
+        kind: phantom ? 'phantom' : (spend?.id || null),
+      });
+    }
     // The phantom comes out of its own supply of one and leaves the ordinary
     // followers untouched; everything else costs a follower.
     if (phantom) this.player.phantoms--;
@@ -849,11 +854,13 @@ export class Game {
 
     if (spend?.id === 'shepherd') this.drawFlock(cell);
 
-    const what = cell.type.feats[featIdx].type;
+    const what = featIdx == null ? (spot.what || 'tile') : cell.type.feats[featIdx].type;
     const who = phantom ? 'their phantom' : (spend ? `their ${spend.name}` : null);
     this.say(spot.flying
       ? `${this.player.name} flies a follower out to the ${what} at (${spot.x}, ${spot.y}).`
-      : `${this.player.name} claimed the ${what}${who ? ` with ${who}` : ''}.`);
+      : spot.moving
+        ? `${this.player.name}'s follower moves to the ${what} at (${spot.x}, ${spot.y}).`
+        : `${this.player.name} claimed the ${what}${who ? ` with ${who}` : ''}.`);
     this.emit('meeple', { feat: featIdx, player: this.current, at: { x: spot.x + 0.5, y: spot.y + 0.5 } });
 
     // The phantom follows your ordinary follower in the same turn, onto a

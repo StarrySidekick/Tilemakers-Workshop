@@ -133,8 +133,7 @@ export class Bot {
     // Some modes offer a move that replaces the turn rather than decorating it
     // — Soffiando sends the Balena instead of putting a follower down. Only the
     // mode can price that, so it gets asked before we start pricing squares.
-    if ((g.phase === 'market' || g.phase === 'place' || g.phase === 'meeple'
-      || g.phase === 'stroll')
+    if ((g.phase === 'market' || g.phase === 'place' || g.phase === 'meeple')
       && this.level.verbs && g.m.botAction?.(this.seat)) return;
     switch (g.phase) {
       case 'market': return this.draft();
@@ -475,6 +474,15 @@ export class Bot {
     // An option knows its own square: most are on the tile just laid, but a
     // mode can offer one anywhere on the board.
     for (const o of options) {
+      // A claim with no feature stands on the tile itself (Soffiando's
+      // Abbazia): only the mode can price that.
+      if (o.i == null) {
+        const gain = g.m.botTileClaim?.(o, this.seat);
+        if (gain == null) continue;
+        const value = base + gain - cost + this.jitter() * 0.4;
+        if (!best || value > best.value) best = { ...o, value, gain: value + cost - base };
+        continue;
+      }
       const d = g.board.featureOf(o.x, o.y, o.i);
       if (!d) continue;
       // A follower laid in a field is gone for the rest of the game, so it has

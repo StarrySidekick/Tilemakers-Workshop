@@ -80,9 +80,13 @@ const city = (sides, shield = false) => ({ type: 'city', sides, shield });
  */
 const district = (sides, kind) => ({ type: 'city', sides, shield: false, district: kind });
 
-/** The five kinds of district, and the letter each one's tile id ends in. */
+/**
+ * The five kinds of district, and the letter each one's tile id ends in. The
+ * KEEP took the industrial district's place on 2026-10-28 (Soffiando: "new
+ * district: keep. it replaces industrial district").
+ */
 export const DISTRICTS = {
-  garden: 'g', temple: 't', residential: 'r', industrial: 'i', trade: 'm',
+  garden: 'g', temple: 't', residential: 'r', keep: 'k', trade: 'm',
 };
 
 /**
@@ -212,12 +216,15 @@ export const DOCK = '~';
  * back to back. Never an open city or a sfera half.
  */
 export const WALL = '#';
-const TO_WALL = new Set([WALL, 'f', 'r']);
-
-/** Do two edges meet? Same letter, one of them takes anything, or a wall and what stands against it. */
+/**
+ * Do two edges meet? Same letter, or one of them takes anything: a cap, a
+ * dock, or a city wall, which takes a field, a road, another wall or a city
+ * like an Abbazia's edge does (Timothy, 2026-10-28: "wall should be able to
+ * take field, wall, road, or city, basically like abbazias"). Until then a
+ * wall refused an open city.
+ */
 export const edgesMeet = (a, b) => seamJoins(a, b) || a === CAP || b === CAP
-  || a === DOCK || b === DOCK
-  || (a === WALL && TO_WALL.has(b)) || (b === WALL && TO_WALL.has(a));
+  || a === DOCK || b === DOCK || a === WALL || b === WALL;
 
 /**
  * Two edges JOIN across a seam: the same letter, or two quarters of a big
@@ -451,7 +458,7 @@ export const TILE_TYPES = [
   // makes a city something you want the weather to keep visiting rather than
   // something you want it to leave alone.
   { id: 'Ktb', n: 3, group: 'cloud', name: 'Tower turbine',  feats: [city([N])],    marks: [mark('turbine', 0)], fields: [[2, 3, 4, 5, 6, 7]] },
-  { id: 'Ktc', n: 2, group: 'cloud', name: 'Turbine industrial district', feats: [district([N, W], 'industrial')], marks: [mark('turbine', 0)], fields: [[2, 3, 4, 5]] },
+  { id: 'Ktc', n: 2, group: 'cloud', name: 'Turbine keep district', feats: [district([N, W], 'keep')], marks: [mark('turbine', 0)], fields: [[2, 3, 4, 5]] },
   // …and on a road, which is the same bargain on the other kind of feature: a
   // mill wants the weather to keep arriving, and a road is the thing the
   // weather most reliably arrives at.
@@ -481,7 +488,7 @@ export const TILE_TYPES = [
   { id: 'Kro', n: 1, group: 'cloud', name: 'Red tower',         feats: [sfera(N, 'red')], fields: [[2, 3, 4, 5, 6, 7]] },
   { id: 'Krr', n: 1, group: 'cloud', name: 'Red tower road',    feats: [sfera(N, 'red'), road([E, W])], fields: [[2, 7], [3, 4, 5, 6]] },
   { id: 'Krc', n: 1, group: 'cloud', name: 'Red tower wall',    feats: [sfera(N, 'red'), city([S])], fields: [[2, 3], [6, 7]] },
-  { id: 'Krx', n: 1, group: 'cloud', name: 'Red tower industrial district',    feats: [sfera(N, 'red'), district([E, W], 'industrial')], fields: [[4, 5]] },
+  { id: 'Krx', n: 1, group: 'cloud', name: 'Red tower keep district',    feats: [sfera(N, 'red'), district([E, W], 'keep')], fields: [[4, 5]] },
 
   { id: 'Kyo', n: 1, group: 'cloud', name: 'Yellow tower',      feats: [sfera(N, 'yellow')], fields: [[2, 3, 4, 5, 6, 7]] },
   { id: 'Kyr', n: 1, group: 'cloud', name: 'Yellow tower road', feats: [sfera(N, 'yellow'), road([E, W])], fields: [[2, 7], [3, 4, 5, 6]] },
@@ -520,6 +527,14 @@ export const TILE_TYPES = [
     ];
   }),
 
+  // Districts with a zephyr across them (Soffiando, 2026-10-28: "specials can
+  // be on city faces too"): a through-piece with the wind blowing across it,
+  // and a corner with the wind blowing out of its open side.
+  { id: 'DIzg', n: 0, group: 'cloud', name: 'Garden district, through, with a zephyr', feats: [district([E, W], 'garden')], marks: [zephyr([N])], fields: [[0, 1], [4, 5]] },
+  { id: 'DIzr', n: 0, group: 'cloud', name: 'Residential district, through, with a zephyr', feats: [district([E, W], 'residential')], marks: [zephyr([N])], fields: [[0, 1], [4, 5]] },
+  { id: 'DLzk', n: 0, group: 'cloud', name: 'Keep district, corner, with a zephyr', feats: [district([N, W], 'keep')], marks: [zephyr([S])], fields: [[2, 3, 4, 5]] },
+  { id: 'DLzm', n: 0, group: 'cloud', name: 'Trade district, corner, with a zephyr', feats: [district([N, W], 'trade')], marks: [zephyr([S])], fields: [[2, 3, 4, 5]] },
+
   // The windvane: four ways in, only two of them joined, and the wind decides
   // which two. Every edge matches, so it always fits — what changes is what
   // runs THROUGH it. Its city twin, the vestibule, is out: it was a four-sided
@@ -537,6 +552,15 @@ export const TILE_TYPES = [
   // A flying machine and its strip. Placing one lets a follower fly out along
   // the way it points, riding any zephyr it crosses.
   { id: 'Kfl', n: 5, group: 'cloud', name: 'Flying machine', feats: [road([S])], marks: [mark('flier', null, N)], fields: [[0, 1, 2, 3, 4, 5, 6, 7]] },
+  // …and the same machine on other kinds of tile (Soffiando, 2026-10-28:
+  // "flying machines shouldn't be competing with district faces, they should
+  // be on all different kinds of tiles"): in open field, standing on a straight
+  // road or a bend, and in a district end, flying out over its wall.
+  { id: 'Kff', n: 0, group: 'cloud', name: 'Flying machine in a field', feats: [], marks: [mark('flier', null, N)], fields: [[0, 1, 2, 3, 4, 5, 6, 7]] },
+  { id: 'Kfr', n: 0, group: 'cloud', name: 'Flying machine on a road', feats: [road([E, W])], marks: [mark('flier', null, N)], fields: [[7, 0, 1, 2], [3, 4, 5, 6]] },
+  { id: 'Kfb', n: 0, group: 'cloud', name: 'Flying machine on a bend', feats: [road([W, S])], marks: [mark('flier', null, N)], fields: [[5, 6], [0, 1, 2, 3, 4, 7]] },
+  { id: 'Kfg', n: 0, group: 'cloud', name: 'Garden district end, with a flying machine', feats: [district([N], 'garden')], marks: [mark('flier', null, S)], fields: [] },
+  { id: 'Kft', n: 0, group: 'cloud', name: 'Trade district end, with a flying machine', feats: [district([N], 'trade')], marks: [mark('flier', null, S)], fields: [] },
 
   // Not dealt: Soffiando swaps these in for the base 3-way junctions. They END
   // the three roads that run into them, the way the base set's do, and they
