@@ -11,8 +11,9 @@
 // faces. A district backs onto a road of its shape (twelve of those roads
 // carry a zephyr or a cannon), a tower half onto a tower half of another
 // colour (2026-10-28: "tiles that have towers on them should have different
-// colored towers on the other side"), an Abbazia onto a smattering of roads
-// and districts, and the sun's quarters onto the black hole's. Windmills,
+// colored towers on the other side"), an Abbazia onto an Abbazia ("the
+// abbazias tiles should have abbazias on both sides"), and the sun's
+// quarters onto the black hole's. Windmills,
 // flying machines and windvanes ride on roads ("windmills should just be on
 // different kinds of tiles"). You turn the
 // tile over as well as round (the host's `flipTile`, F); one whose front
@@ -2899,7 +2900,7 @@ Soffiando.spec = {
   tideStart: 5,
   opening: 'A first stone hangs in the cloud. Everything else is weather.',
   hint: 'A turn is three steps: lay a tile, claim on it or not, and BLOW. '
-    + 'Every tile has TWO FACES: F (or the little tile under your hand) turns it over, R turns it round. A district has a road of its shape on the back (some roads carry a zephyr, a cannon, a windmill, a flying machine or a windvane), a tower half a tower half of another colour, an Abbazia a road or a district. '
+    + 'Every tile has TWO FACES: F (or the little tile under your hand) turns it over, R turns it round. A district has a road of its shape on the back (some roads carry a zephyr, a cannon, a windmill, a flying machine or a windvane), a tower half a tower half of another colour, and an Abbazia is an Abbazia on both faces. '
     + 'Your zephyr goes in open sky against any tile on any side, never between two tiles (R turns it): that tile and every tile touching in front of it, up to the first gap, go one square, if there are no more of them than your PUSH POWER, which is 1 plus every Abbazia on the board. An ANCHOR (a quarter of a big tower, or a half of a closed tower) holds the lane still up to it, and what is past it is pushed. '
     + 'A zephyr tile your blow pushes then pushes the way it points, at its own push plus yours, and that chains on; a gust cannon fires what is in front of it until each tile hits something. Zephyr tiles do nothing when laid. '
     + 'Too heavy to move, a blow moves no tile but blows the followers it reaches a square downwind, never across a city wall; one blown onto an empty Abbazia holds it. '

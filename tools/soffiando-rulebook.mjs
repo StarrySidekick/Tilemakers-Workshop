@@ -149,8 +149,7 @@ prove('game-deck', (ok) => {
   ok(dr((a, b) => b.id === 'Kw') === 2, 'two a windvane on a crossing');
   const flier = mark('flier');
   const machines = plain.filter((k) => faces(k).some(flier));
-  ok(machines.length === 5 && plain.flatMap(faces).filter(flier).length === 7, `flying machines: seven faces on five tiles (${machines.length})`);
-  ok(new Set(plain.flatMap(faces).filter(flier).map((t) => (t.feats.some((f) => f.district) ? 'district' : t.feats.some((f) => f.type === 'road') ? `road ${shape(t, 'r')}` : 'field'))).size >= 4, 'on all different kinds of tile');
+  ok(machines.length === 2 && plain.flatMap(faces).filter(flier).length === 4 && machines.every((k) => faces(k).every(flier)), `flying machines: two district ends, one on both faces (${machines.length})`);
   ok(!plain.some((k) => { const [a, b] = faces(k); return (district(a) && !flier(a) && flier(b)) || (district(b) && !flier(b) && flier(a)); }), 'never the other side of a plain district');
   const zephyrs = plain.flatMap(faces).filter(mark('zephyr'));
   ok(zephyrs.every(has('road')) && zephyrs.some((t) => cannonTile({ type: t })) && zephyrs.some((t) => !cannonTile({ type: t })), 'and every zephyr and cannon dealt rides on a road');
@@ -159,8 +158,7 @@ prove('game-deck', (ok) => {
   ok(count((a, b) => hueOf(a) && hueOf(b) && hueOf(a) !== hueOf(b) && shapeOf(a) === shapeOf(b)) === 16, '16 tower tiles, a half of another colour on the back, the same shape');
   ok(['green', 'blue', 'red', 'yellow'].every((h) => plain.flatMap(faces).filter((t) => hueOf(t) === h).length === 8), 'every colour on eight faces');
   ok(count((a, b) => a.id === 'Kqs' && b.id === 'Kqh') === 8, 'eight tiles with the sun on one face and the black hole on the other');
-  ok(count((a, b) => a.id === 'Kab' && (road(b) || district(b) || mark('flier')(b))) === 11, '11 Abbazias, a road, a district or a flying machine on the back');
-  ok(!count((a, b) => a.id === 'Kab' && (mark('turbine')(b) || mark('zephyr')(b) || b.id === 'Kw')), 'and never a windmill, windvane or zephyr');
+  ok(count((a, b) => a.id === 'Kab' && b.id === 'Kab') === 11 && count((a, b) => a.id === 'Kab' || b.id === 'Kab') === 11, '11 tiles with an Abbazia on both faces, and no Abbazia anywhere else');
   const lone = (t) => t.feats.some((f) => f.type === 'city' && !f.district);
   const temple = (t) => has('temple')(t) || t.feats.some((f) => f.district === 'temple');
   ok(!plain.some((k) => faces(k).some(temple)), 'no temple and no temple district dealt');

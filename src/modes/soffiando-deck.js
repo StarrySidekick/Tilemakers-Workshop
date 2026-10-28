@@ -98,11 +98,12 @@ export const DECK_GROUPS = [
     ] },
   { name: 'The big towers', note: 'Eight tiles, a quarter of the sun on one face and a quarter of the black hole on the other, walled on their outer sides. A game makes one of each: the first quarter laid decides which comes first, the rest must join its 2x2, and then the other is made. The sun fires every colour; the black hole swallows the ring around it.',
     tiles: [['Kqs|Kqh', 8]] },
-  { name: 'Abbazias', note: 'An Abbazia on one face (each one on the board adds 1 to everybody\'s push power; held by a follower flown or blown onto it), and a smattering of country on the other: roads and districts of every shape.',
-    tiles: [
-      ['Kab|X', 1], ['Kab|Gw', 1], ['Kab|Kfr', 1], ['Kab|Kfb', 1], ['Kab|Kff', 1],
-      ['Kab|DXg', 1], ['Kab|DXi', 1], ['Kab|DTr', 1], ['Kab|DTi', 1], ['Kab|DIg', 1], ['Kab|DLm', 1],
-    ] },
+  // An Abbazia on both faces (Timothy, 2026-10-28: "the abbazias tiles should
+  // have abbazias on both sides"). Until then their backs were a smattering of
+  // country: Kab|X, Kab|Gw, three flying machines (Kab|Kfr, Kab|Kfb, Kab|Kff)
+  // and six districts (Kab|DXg, DXi, DTr, DTi, DIg, DLm).
+  { name: 'Abbazias', note: 'An Abbazia on both faces. Each one on the board adds 1 to everybody\'s push power, and one is held by a follower flown or blown onto it.',
+    tiles: [['Kab|Kab', 11]] },
   { name: 'Extras', note: 'One-faced, and not dealt: the zephyrs and cannons with no road (the plain zephyr, crosswind, split wind, trident, compass rose, double zephyr, gust cannon and double cannon), the temple districts and the temples.',
     tiles: [
       ['Kz', 0], ['Kzx', 0], ['Kzy', 0], ['Kzw', 0], ['Kzq', 0], ['Kzz', 0], ['Kg', 0], ['Kgg', 0],
