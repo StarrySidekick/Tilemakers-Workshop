@@ -1543,6 +1543,41 @@ kingmakes badly, and you'd blame the mechanic instead of the count.
 > | 2 a garden for open cities too | 41% | 33% | 113 |
 > | 2 a district for open cities | 54% | 45% | 115 |
 > | every bonus for open cities too | 61% | 52% | 127 |
+>
+> **Thirty-sixth pass: nobody comes home, the keep, the residential district,
+> the Calcolo, and a deck of one structure a tile.**
+>
+> Timothy, 2026-10-28, a list. "Followers no longer come back in general,
+> even from roads" (rule 13; the walk, rule 14, retired with nothing left to
+> start it). "Meeple can be blown over walls now, to allow for placement
+> into/out of cities and abbazias", and "Meeple that are blown into cities
+> can enter them even if there are enemy meeple there" (rules 22, 39; wind.js
+> `blowFollower` lost its wall checks). Cities: "an extra 1 point per garden
+> district open or closed", "a bonus 5p if they have at least one of every
+> district closed", trade "2p extra for each road attached to the city,
+> closed", and asked, 1 a district open and 2 closed (rule 51, `cityPoints`,
+> `roadsAt`: a road attached is one meeting the city at a gate). The KEEP
+> replaces the industrial district, "a tower that grows upwards": four pieces
+> each (asked), put on any keep instead of claiming or moving, each doubling
+> it, all lost when the wind moves its tile (rules 83, 84). The RESIDENTIAL
+> district "allows you to place meeple there on your turn if you own that
+> city, even if you already have meeple there" (rule 85, `homeTargets`). The
+> CALCOLO, "a square stone that can be moved instead of blowing", one for the
+> table, anywhere (asked): nothing is laid, pushed or moved on into its
+> square (rules 86, 87, `shut`, `stoneAt`). "Both sides of all the tiles
+> should generally have like the same type of structure": 19 district|district
+> and 18 road|road tiles, "specials can be on city faces too" (zephyr
+> districts `DIzg`, `DIzr`, `DLzk`, `DLzm`), and the cannon removed, asked
+> (rule 30 retired).
+>
+> Bots, two players, 30 games, 116 a player: **green 34%, blue 30%**, yellow
+> 23%, windmills 8%, held Abbazias 6%, the archipelago 6%, cities blown open
+> -8%. Three players (16 games, 76 a player): green 33%, blue 32%, yellow
+> 22%. Districts laid: 31.5 a game. 54% of points paid on islands at two
+> players, 48% at three. The bots build 7.4 keep pieces a game and lose 6.5 of
+> them to the wind; they move a follower 7.7 times a game, claim into their
+> own residential district 0.4 times, and never set the Calcolo down: its bot
+> rule (only when every blow costs it) is too cautious, and is a placeholder.
 
 
 **Question it answers:** is a small board you keep *editing* better than a big
