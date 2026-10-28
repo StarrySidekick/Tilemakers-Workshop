@@ -155,7 +155,12 @@ big part of this." Asked what he meant for farmers: "ok no more farmers
 actually. the green scoring from towers simply measures who has control of
 the landmass (who has the most meeple) a awards them with 5 points. this
 means you can get 5 points from even a tiny island". That is the
-thirty-fourth pass; all five wait for his word to merge.
+thirty-fourth pass.
+
+Then: "the abbazias tiles should have abbazias on both sides", and "The AI
+seems to not be really choosing to play the city side of tiles. why? and
+what could we do about that". That is the thirty-fifth pass; all six wait
+for his word to merge.
 
 **Fields: settled 2026-09-06, and Timothy was right.** They are fully built.
 `src/tiles.js` cuts the perimeter into eight half-edges with `halfPartner` as the

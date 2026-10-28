@@ -1516,6 +1516,33 @@ kingmakes badly, and you'd blame the mechanic instead of the count.
 > islands.
 >
 > Rules 10, 13, 39, 41, 44, 47, 48, 61 and 82 changed.
+>
+> **Thirty-fifth pass: an Abbazia on both faces, and why the bot lays roads.**
+>
+> Timothy, 2026-10-28: "the abbazias tiles should have abbazias on both
+> sides" (rule 3). Their backs had been two roads, three flying machines and
+> six districts; flying machines are now only on the two district ends.
+>
+> He asked why the bot does not play the city side of a tile. Measured: of
+> a district/road tile, both faces fit 99% of the time, and the bot laid the
+> district 16% of the time, by its own pricing about 10 points worse
+> (median). It is right: priced as high as a road (the `city` weight raised
+> to the road's), it laid districts 40% of the time and scored less, 99 a
+> player against 106. An open city pays a point a district and a road a
+> point a tile, but a road's follower comes home when it is paid and a
+> city's stays, walled in and open to the wind's penalty; a city's bonuses
+> wait for it to close, and a closed city takes no one; and the road faces
+> carry the zephyrs, windmills and windvanes (a windmill road won 94% of the
+> time). Twelve games each, two players, one rule changed:
+>
+> | change | district laid | blue | a player |
+> |---|---|---|---|
+> | none | 16% | 9% | 106 |
+> | the kinds bonus for open cities too | 26% | 14% | 113 |
+> | the bot pricing a district as a road | 40% | 24% | 99 |
+> | 2 a garden for open cities too | 41% | 33% | 113 |
+> | 2 a district for open cities | 54% | 45% | 115 |
+> | every bonus for open cities too | 61% | 52% | 127 |
 
 
 **Question it answers:** is a small board you keep *editing* better than a big
