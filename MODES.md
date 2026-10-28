@@ -1578,6 +1578,18 @@ kingmakes badly, and you'd blame the mechanic instead of the count.
 > them to the wind; they move a follower 7.7 times a game, claim into their
 > own residential district 0.4 times, and never set the Calcolo down: its bot
 > rule (only when every blow costs it) is too cautious, and is a placeholder.
+>
+> Retrained after it (twenty rounds, six challengers taken): the new weights
+> won 55% of 32 unseen games and 62.5% of 60 more, about 60% of the 92, and
+> shipped. The bots now look much further ahead (`ahead` 5.9 to 17) and
+> price roads lower (1.57 to 0.67). With them, two players (30 games, 110 a
+> player): green 36%, blue 35%, yellow 21%, held Abbazias 9%, windmills 7%,
+> the archipelago 5%, cities blown open -13%; 59% paid on islands; 7.5 keep
+> pieces built a game and 6.2 lost. Three players (16 games, 67 a player):
+> green 35%, blue 29%, yellow 24%. Claims run past sixteen a game (33 at two
+> players) because a follower still comes home four ways the list did not
+> touch: its tile falls (rule 34), the black hole swallows it, the wind
+> carries it into open sky, or its player lifts it along a flight (rule 62).
 
 
 **Question it answers:** is a small board you keep *editing* better than a big

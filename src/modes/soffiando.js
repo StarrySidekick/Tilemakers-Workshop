@@ -196,22 +196,30 @@ const TURBINE = 3;           // to the feature's holder, per push that reaches i
  * points. It looks further ahead (ahead 2 to 5.9), cares less for each piece
  * of country than the raw 5 says (land 0.57), more for roads (1.57), and
  * less for its own windmills (10 to 6.1).
+ *
+ * AND AGAIN after the thirty-sixth pass (nobody comes home, the keep, the
+ * residential district, the Calcolo, districts on both faces): twenty rounds
+ * took six challengers. The result won 55% of 32 unseen games (by -1) and
+ * 62.5% of 60 more (by 4), about 60% of the 92: a smaller step than the last
+ * two. It looks much further ahead (ahead 5.9 to 17: with no follower ever
+ * coming back, a claim is for the whole game), prices roads lower (0.67),
+ * and sets the Calcolo down more readily (calcolo 0.36).
  */
 export const SOFFIANDO_WEIGHTS = {
-  ahead: 5.854,      // firings a claim is priced over — and claim eagerness
-  land: 0.567,       // …scaled per colour, because the four colours pay
+  ahead: 17.136,     // firings a claim is priced over — and claim eagerness
+  land: 0.448,       // …scaled per colour, because the four colours pay
   city: 1,           //    over different numbers of tiles and the bot has no
-  road: 1.57,        //    way of knowing which of them is actually winnable
+  road: 0.672,       //    way of knowing which of them is actually winnable
   sphere: 0.834,     // closing a tower, net of what it hands the table
-  closeTower: 8,     // …and closing one at all (measured: 8 against 2, even over 24 games; 8 closes more, as people do)
-  quarter: 1.5,      // a quarter of a big tower laid against another, per quarter it joins
+  closeTower: 8.892,  // …and closing one at all (measured: 8 against 2, even over 24 games; 8 closes more, as people do)
+  quarter: 1.633,    // a quarter of a big tower laid against another, per quarter it joins
   parish: 0.6,       // a tile round an Abbazia, to whoever holds its neighbourhood
-  stride: 1,         // what moving a follower has to be worth over the best claim
+  stride: 0.93,      // what moving a follower has to be worth over the best claim
   keep: 1,           // …and building a keep up
-  calcolo: 1,        // how much every blow has to cost before the Calcolo is set down instead
+  calcolo: 0.356,    // how much every blow has to cost before the Calcolo is set down instead
   turbineMine: 6.114, // a windmill in a feature we hold
-  turbineTheirs: -3.4, // …or one somebody else does
-  blowLook: 12,      // blows tried for real each turn, of the best guessed
+  turbineTheirs: -2.901, // …or one somebody else does
+  blowLook: 15,      // blows tried for real each turn, of the best guessed
   whale: 0,          // points of shelter before the Balena is worth a turn
 };
 
