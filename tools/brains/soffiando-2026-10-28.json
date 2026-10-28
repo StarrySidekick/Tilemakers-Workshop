@@ -32,10 +32,13 @@
     "parish": 0.6,
     "stride": 0.93,
     "keep": 1,
-    "calcolo": 0.356,
+    "calcolo": 2,
+    "calcoloGuard": 0,
+    "calcoloAim": 1,
     "turbineMine": 6.114,
     "turbineTheirs": -2.901,
-    "blowLook": 15.461,
+    "blowLook": 15,
     "whale": 0
-  }
+  },
+  "note": "2026-10-28, after the bot learned to aim the Calcolo: twenty more rounds took two challengers (ahead 50, parish 0.96), which won only 43.8% of 32 unseen games against these weights, so these stand. calcolo, calcoloGuard and calcoloAim were set by a measured sweep against the same bot never setting the stone down (aim alone: 67.5% of 60 games)."
 }

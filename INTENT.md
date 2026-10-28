@@ -177,7 +177,15 @@ there"; "Both sides of all the tiles should generally have like the same
 type of structure, just with some options changed"; and the cannon "may be
 usless now". Asked: districts pay 1 open and 2 closed; one Calcolo for the
 table, anywhere; four keep pieces each, any keep; remove the cannon. That is
-the thirty-sixth pass; all seven wait for his word to merge.
+the thirty-sixth pass.
+
+Then, of the Calcolo: "The idea with the stone is that you can use it to
+move meeple on purpose, because it stops landmasses from moving, but not
+meeple ... If we could potentially retrain the AI to know how to use it,
+that'd be great. And then once we're done, please merge everything. I give
+you permission." The bot aims the stone now (MODES.md, the end of the
+thirty-sixth pass), and the thirtieth to thirty-sixth passes are merged on
+his word.
 
 **Fields: settled 2026-09-06, and Timothy was right.** They are fully built.
 `src/tiles.js` cuts the perimeter into eight half-edges with `halfPartner` as the

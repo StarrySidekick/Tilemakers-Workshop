@@ -1590,6 +1590,31 @@ kingmakes badly, and you'd blame the mechanic instead of the count.
 > players) because a follower still comes home four ways the list did not
 > touch: its tile falls (rule 34), the black hole swallows it, the wind
 > carries it into open sky, or its player lifts it along a flight (rule 62).
+>
+> Then Timothy on the Calcolo: "The idea with the stone is that you can use
+> it to move meeple on purpose, because it stops landmasses from moving, but
+> not meeple. It can also be used to counter other things. If we could
+> potentially retrain the AI to know how to use it, that'd be great." The
+> rules already did that (rule 87: a push the stone stops blows its
+> followers instead); the bot never did, because it only set the stone down
+> when every blow cost it something, and a harmless blow was nearly always
+> there. It now prices the stone two ways (`bestStone`): the AIM, each lane
+> with followers on it tried with the stone past it, which is what a blow
+> down it next turn would move; and the GUARD, the next player's likeliest
+> blow stopped. Against the same bot never setting it down (60 games each):
+> the guard trusted in full won 40%, at 0.3 52%; the aim alone won 67.5%, by
+> 8 points. So the guard is off (`calcoloGuard` 0): the blow it foresees is
+> foreseen before the next player lays a tile and claims, and is too often
+> not the blow they make. Twenty rounds of training after it found nothing
+> better (its best won 43.8% of 32 unseen games), so the measured weights
+> stand.
+>
+> What it does to the game, two players, 30 games (104 a player): the stone
+> goes down 18 times a game, stopped blows rise from 4 to 11 a game, and
+> Abbazias claimed by a blown follower from 1.4 to 2.9. Blue 35%, green 28%,
+> yellow 25%, held Abbazias 11%. And ISLANDS FALL: 34% of points paid on
+> islands, from 59%, because every stone set down is a blow not made. That
+> is for Timothy to weigh, since islands are "a big part of this".
 
 
 **Question it answers:** is a small board you keep *editing* better than a big
