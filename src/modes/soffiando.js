@@ -179,20 +179,26 @@ const TURBINE = 3;           // to the feature's holder, per push that reaches i
  * the mode: FARMS ARE NO LONGER THE GAME (4 to 1.2; green fires only when a
  * green tower or the sun closes, and a farmer is a follower gone for good),
  * roads are worth a little more, and a tower closed is worth a little less
- * net of what it hands the table. The farm weight became `land` when farms
- * went (2026-10-28, green pays for holding a piece of country), untrained at 1.
+ * net of what it hands the table.
+ *
+ * AND AGAIN, after farms went and green paid for holding a piece of country
+ * (the thirty-fourth pass): twenty rounds took two challengers, and the
+ * result beat the set before in 73% of 32 unseen games and 78% of 60, by 29
+ * points. It looks further ahead (ahead 2 to 5.9), cares less for each piece
+ * of country than the raw 5 says (land 0.57), more for roads (1.57), and
+ * less for its own windmills (10 to 6.1).
  */
 export const SOFFIANDO_WEIGHTS = {
-  ahead: 2,          // firings a claim is priced over — and claim eagerness
-  land: 1,          // …scaled per colour, because the four colours pay
+  ahead: 5.854,      // firings a claim is priced over — and claim eagerness
+  land: 0.567,       // …scaled per colour, because the four colours pay
   city: 1,           //    over different numbers of tiles and the bot has no
-  road: 1.314,       //    way of knowing which of them is actually winnable
+  road: 1.57,        //    way of knowing which of them is actually winnable
   sphere: 0.834,     // closing a tower, net of what it hands the table
   closeTower: 8,     // …and closing one at all (measured: 8 against 2, even over 24 games; 8 closes more, as people do)
   quarter: 1.5,      // a quarter of a big tower laid against another, per quarter it joins
   parish: 0.6,       // a tile round an Abbazia, to whoever holds its neighbourhood
   stride: 1,         // what moving a follower has to be worth over the best claim
-  turbineMine: 10,   // a windmill in a feature we hold
+  turbineMine: 6.114, // a windmill in a feature we hold
   turbineTheirs: -3.4, // …or one somebody else does
   blowLook: 12,      // blows tried for real each turn, of the best guessed
   whale: 0,          // points of shelter before the Balena is worth a turn
