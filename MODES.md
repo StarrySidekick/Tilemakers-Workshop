@@ -1505,6 +1505,16 @@ kingmakes badly, and you'd blame the mechanic instead of the count.
 > unheld, one pays nothing now, so its back is often the better face, and
 > push power climbs more slowly.
 >
+> Trained again (20 rounds): two challengers taken, and the result beat the
+> set before in 73% of 32 unseen games and 78% of 60, by 29 points (ahead 2
+> to 5.9, land 0.57, road 1.57, its own windmills 10 to 6.1). With it, two
+> players (30 games, 111 a player): yellow 36%, green 31% (75% of it on
+> islands), windmills 16%, blue 11%, the archipelago 4%, held Abbazias 4%,
+> cities blown open -3%; 54% of all points paid on islands, 11.4 islands
+> standing at the end. Three players (16 games, 69 a player): yellow 35%,
+> green 27%, windmills 16%, blue 14%, the archipelago 6%, red 5%; 32% on
+> islands.
+>
 > Rules 10, 13, 39, 41, 44, 47, 48, 61 and 82 changed.
 
 
