@@ -206,7 +206,7 @@ function report(r) {
   const total = rows.reduce((n, [, v]) => n + v, 0) || 1;
   console.log('  where its points came from, per game:');
   for (const [k, v] of rows) {
-    console.log(`    ${k.padEnd(14)} ${String(v).padStart(4)}  ${'█'.repeat(Math.round(28 * v / total))}`);
+    console.log(`    ${k.padEnd(14)} ${String(v).padStart(4)}  ${'█'.repeat(Math.max(0, Math.round(28 * v / total)))}`);
   }
 }
 

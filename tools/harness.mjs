@@ -135,14 +135,6 @@ function step(game, rng) {
       if (!game.cellClick(t.x, t.y)) game.m.skipStroll();
       return;
     }
-    // …and retiring one into a city it is standing in.
-    case 'flat': {
-      const spots = game.m.flatTargets();
-      if (!spots.length) return void game.m.cancelFlat();
-      const t = pick(spots);
-      if (!game.cellClick(t.x, t.y)) game.m.cancelFlat();
-      return;
-    }
     // Soffiando's flying machine, fetching a follower back off its own lane.
     case 'flight': {
       const spots = game.m.flightLifts();
@@ -162,7 +154,10 @@ function step(game, rng) {
     // …and the blow every turn ends with (2026-10-27): turned at random,
     // against any tile at all.
     case 'blow': {
+      // From open sky only (2026-10-28: no cutting), so a way with somewhere
+      // to blow from.
       for (let i = Math.floor(rng() * 4); i > 0; i--) game.rotate(1);
+      for (let i = 0; i < 4 && !game.m.blowTargets().length; i++) game.rotate(1);
       const t = pick(game.m.blowTargets());
       game.cellClick(t.x, t.y);
       return;
@@ -179,7 +174,6 @@ function step(game, rng) {
     case 'meeple': {
       // A mode may offer something INSTEAD of a follower; Soffiando's whale is
       // the only one, and it never gets exercised unless something picks it.
-      if (game.m.canLieDown?.() && rng() < 0.3) return void game.m.beginFlat();
       if (game.m.canLift?.() && rng() < 0.25) return void game.m.beginLift();
       if (game.m.canSwim?.() && rng() < 0.15) return void game.m.beginSwim();
       if (game.canPlaceBuilding?.() && rng() < 0.5) game.placeBuilding();
@@ -1085,8 +1079,8 @@ function checkSoffiando() {
     if (h.players[0].score !== 0) {
       return fail('closing somebody else\'s city pays you nothing', `paid ${h.players[0].score}`);
     }
-    if (h.players[1].score !== 2) {
-      return fail('a windmill pays 2 to whoever holds its city', `paid ${h.players[1].score}`);
+    if (h.players[1].score !== 3) {
+      return fail('a windmill pays 3 to whoever holds its city (2 until 2026-10-28)', `paid ${h.players[1].score}`);
     }
     if (!b.get(0, 0).meeple) return fail('a follower stays in the city it finished', 'it went home');
 
@@ -1464,8 +1458,8 @@ function checkSoffiando() {
     b.addMeeple(0, 0, 0, 0);
     b.rebuild();
     h.m.settle(1);
-    if (h.players[0].score !== 2) {
-      return fail('a windmill on a finished road pays its holder', `paid ${h.players[0].score}`);
+    if (h.players[0].score !== 3) {
+      return fail('a windmill on a finished road pays its holder 3', `paid ${h.players[0].score}`);
     }
   }
 
@@ -1478,8 +1472,8 @@ function checkSoffiando() {
     b.addMeeple(0, 0, 0, 0);
     b.rebuild();
     h.m.payTurbines([mill]);
-    if (h.players[0].score !== 2) {
-      return fail('a road turbine pays 2 to the road\'s holder', `paid ${h.players[0].score}`);
+    if (h.players[0].score !== 3) {
+      return fail('a road turbine pays 3 to the road\'s holder', `paid ${h.players[0].score}`);
     }
   }
 
@@ -1545,10 +1539,10 @@ function checkSoffiando() {
     if (k.players[1].score !== 0) return fail('a road somebody holds pays its closer nothing', `paid ${k.players[1].score}`);
   }
 
-  // FIVE FOLLOWERS each (2026-10-27).
+  // EIGHT FOLLOWERS each (2026-10-28; five the day before).
   {
     const h = new Game({ mode: 'soffiando', players: 3, seed: 7 });
-    if (h.players.some((p) => p.meeples !== 5)) return fail('every player has five followers', h.players.map((p) => p.meeples).join(' '));
+    if (h.players.some((p) => p.meeples !== 8)) return fail('every player has eight followers', h.players.map((p) => p.meeples).join(' '));
   }
 
   // An island you are already standing on is one you may build onto — being
@@ -1579,28 +1573,6 @@ function checkSoffiando() {
       return fail('you may not put a follower on an island only a rival stands on', 'it was allowed');
     }
     h.current = 0;
-  }
-
-  // A follower LYING FLAT keeps its city at the lower rate and never comes
-  // home — which is the trade, because a standing one in a finished city does.
-  {
-    const h = fresh(47);
-    const b = h.board;
-    lay(b, 0, 0, 'DEr');                      // a residential end, open north…
-    lay(b, 0, -1, 'Kce', 2);                  // …walled, so the city is finished
-    b.addMeeple(0, 0, 0, 0);
-    b.rebuild();
-    h.phase = 'meeple';
-    h.current = 0;
-    if (!h.m.canLieDown()) return fail('a follower in a city may lie flat', 'it was not offered');
-    h.m.beginFlat();
-    h.m.flatAt(0, 0);
-    h.m.fire('blue');
-    h.m.sweep();
-    if (h.players[0].score !== 1) {
-      return fail('a flat follower holds its city at the open rate', `paid ${h.players[0].score} for one district`);
-    }
-    if (!b.get(0, 0).meeple) return fail('a flat follower stays put', 'it went home');
   }
 
   // THE WALK. A follower whose feature just finished may go out along a road
@@ -1733,9 +1705,10 @@ function checkSoffiando() {
     h.skipMeeple();
     if (h.phase !== 'blow' || h.current !== 0) return fail('the turn waits for its blow', `phase ${h.phase}, player ${h.current}`);
     h.m.blowDir = 1;
-    if (!h.cellClick(1, 0)) return fail('a blow goes against a tile', 'the click was refused');
-    if (!b.get(0, 0) || b.get(1, 0) || !b.get(2, 0) || !b.get(3, 0)) {
-      return fail('a blow moves the tiles in front of it a square, and nothing behind it', JSON.stringify([...b.cells.keys()]));
+    if (h.cellClick(1, 0) || h.phase !== 'blow') return fail('a blow never goes from between two tiles (2026-10-28)', 'the cut was allowed');
+    if (!h.cellClick(0, 0)) return fail('a blow goes against a tile from open sky', 'the click was refused');
+    if (b.get(0, 0) || !b.get(1, 0) || !b.get(2, 0) || !b.get(3, 0)) {
+      return fail('a blow moves the tiles in front of it a square', JSON.stringify([...b.cells.keys()]));
     }
     if (h.current !== 1) return fail('the blow ends the turn', `still player ${h.current}`);
   }
@@ -1785,11 +1758,11 @@ function checkSoffiando() {
   {
     const h = fresh(62);
     const b = h.board;
-    lay(b, 0, 0, 'B'); lay(b, 1, 0, 'U');            // a road running north and south…
+    lay(b, 1, 0, 'U');                               // a road running north and south…
     lay(b, 2, 1, 'B');                               // …about to be pushed onto a field
     b.rebuild();
     h.current = 0;
-    blowAt(h, 1, 0, 1);
+    blowAt(h, 1, 0, 1);                              // from the open sky west of it
     if (h.phase !== 'astray' || !h.m.astrayAt || h.m.astrayAt.targets.length !== 3) {
       return fail('a pushed tile that no longer fits waits for its player to choose a way', `phase ${h.phase}, ${JSON.stringify(h.m.astrayAt?.targets)}`);
     }
@@ -1820,7 +1793,7 @@ function checkSoffiando() {
   {
     const ids = (o) => new Game({ mode: 'soffiando', players: 2, seed: 5, options: o }).m.deck();
     const lone = (k) => k.split('|').some((id) => TILES[id].feats.some((f) => f.type === 'city' && !f.district));
-    const plain = ids({}), walled = ids({ deck: { Kce: 3, 'Kab|Kfl': 0 } });
+    const plain = ids({}), walled = ids({ deck: { Kce: 3, 'Kab|U': 0, 'Kab|V': 0, 'Kab|Kde': 0 } });
     if (!plain.every((k) => k.split('|').length === 2 && k.split('|').every((id) => TILES[id]))) return fail('every tile dealt has two faces', plain.filter((k) => !k.includes('|')).join(' '));
     if (plain.length !== 72) return fail('the deck is 72 tiles', `${plain.length}`);
     if (plain.some(lone)) return fail('no lone wall is dealt by default', plain.filter(lone).join(' '));
@@ -1837,7 +1810,7 @@ function checkSoffiando() {
     }
   }
 
-  // The whale. No push moves its tile, so a push with it in front is too heavy.
+  // The whale. No push moves its tile: it is an anchor (2026-10-28).
   {
     const h = fresh(15);
     const b = h.board;
@@ -1848,13 +1821,14 @@ function checkSoffiando() {
     h.m.balena = { x: 0, y: -1 };
     h.m.settleBalena();
     blowAt(h, 0, -1, 0);
-    if (b.get(0, -1)?.type.id !== 'U' || b.get(0, -2)?.type.id !== 'U' || b.get(0, -3)) {
-      return fail('no push moves the whale\'s tile', JSON.stringify([...b.cells.keys()]));
+    // An anchor (2026-10-28): its tile stays, what is past it is pushed.
+    if (b.get(0, -1)?.type.id !== 'U' || b.get(0, -2) || b.get(0, -3)?.type.id !== 'U') {
+      return fail('no push moves the whale\'s tile, and it holds the lane only up to it', JSON.stringify([...b.cells.keys()]));
     }
     h.m.balena = { x: 0, y: 0 };
     const reach = h.m.balenaTargets();
-    if (!reach.some((t) => t.x === 0 && t.y === -2)) {
-      return fail('the whale swims anywhere', 'it could not reach two away');
+    if (!reach.some((t) => t.x === 0 && t.y === -3)) {
+      return fail('the whale swims anywhere', 'it could not reach three away');
     }
   }
 

@@ -57,15 +57,17 @@ const settleLoose = (g) => g.m.resolveAstray();
 const power = (g, n) => { for (let i = 0; i < n; i++) lay(g, -7 + i, -7, 'Kab'); g.board.rebuild(); };
 /**
  * A pocket a road is blown into where it fits nothing and every way is
- * blocked: a blow east against the road at (x + 1, y), a tile behind it at
- * (x, y) and a field under its square (so it cannot go back), and at its
- * landing a field under, a road over and a district east.
+ * blocked: a zephyr at (x, y) pointing north and the road at (x + 1, y), a
+ * push of 2, and a blow east against the zephyr from open sky (rule 70: no
+ * cutting). Both go a square: the zephyr ends right behind the road, so it
+ * cannot go back; at the road's landing, a field under, a road over and a
+ * district east.
  */
 function pocket(g, x, y) {
-  lay(g, x, y, 'Kz', 1); lay(g, x + 1, y, 'U');
+  lay(g, x, y, 'Kz', 0); lay(g, x + 1, y, 'U');
   lay(g, x + 1, y + 1, 'B');
   lay(g, x + 2, y + 1, 'B'); lay(g, x + 2, y - 1, 'U'); lay(g, x + 3, y, 'DIg', 1);
-  g.board.rebuild();
+  power(g, 1);
 }
 /** Every line the game says while `fn` runs. */
 function said(g, fn) {
@@ -104,7 +106,7 @@ prove('game-players', (ok) => {
   ok(SPEC.minPlayers === 1 && SPEC.maxPlayers === 4, 'one to four players');
   for (let n = 1; n <= 4; n++) {
     const g = new Game({ mode: 'soffiando', players: n, seed: 2 });
-    ok(g.players.length === n && g.players.every((p) => p.meeples === 5), `five followers each at ${n}`);
+    ok(g.players.length === n && g.players.every((p) => p.meeples === 8), `eight followers each at ${n}`);
   }
 });
 prove('game-start', (ok) => {
@@ -138,10 +140,13 @@ prove('game-deck', (ok) => {
     const open = t.edges.map((e, i) => (e === letter ? i : -1)).filter((i) => i >= 0);
     return open.length === 2 ? (open[1] - open[0] === 2 ? 'I' : 'L') : `${open.length}`;
   };
-  const district = (t) => t.feats.some((f) => f.district) && !mark('turbine')(t) && !has('sfera')(t);
-  const road = (t) => has('road')(t) && !has('city')(t) && !has('sfera')(t) && !t.marks.some((m) => !['village', 'zephyr'].includes(m.kind));
-  ok(count((a, b) => district(a) && road(b) && shape(a, 'c') === shape(b, 'r')) === 37, '37 districts, a road of the same shape on the back');
-  ok(count((a, b) => district(a) && road(b) && mark('zephyr')(b)) === 12, 'twelve of those roads carry a zephyr or a cannon');
+  const district = (t) => t.feats.some((f) => f.district) && !has('sfera')(t);
+  const road = (t) => has('road')(t) && !has('city')(t) && !has('sfera')(t);
+  const dr = (pred) => count((a, b) => district(a) && road(b) && pred(a, b));
+  ok(dr((a, b) => shape(a, 'c') === shape(b, 'r')) === 37, '37 districts, a road of the same shape on the back');
+  ok(dr((a, b) => mark('zephyr')(b)) === 12, 'twelve of those roads carry a zephyr or a cannon');
+  ok(dr((a, b) => mark('turbine')(b)) === 4 && dr((a) => mark('turbine')(a)) === 2, 'four carry a windmill, and two of the districts are windmill districts');
+  ok(dr((a, b) => mark('flier')(b)) === 3 && dr((a, b) => b.id === 'Kw') === 2, 'three a flying machine at a dead end, two a windvane on a crossing');
   const zephyrs = plain.flatMap(faces).filter(mark('zephyr'));
   ok(zephyrs.every(has('road')) && zephyrs.some((t) => cannonTile({ type: t })) && zephyrs.some((t) => !cannonTile({ type: t })), 'and every zephyr and cannon dealt rides on a road');
   const hueOf = (t) => t.feats.find((f) => f.type === 'sfera' && !f.quarter)?.hue;
@@ -149,15 +154,16 @@ prove('game-deck', (ok) => {
   ok(count((a, b) => hueOf(a) && hueOf(b) && hueOf(a) !== hueOf(b) && shapeOf(a) === shapeOf(b)) === 16, '16 tower tiles, a half of another colour on the back, the same shape');
   ok(['green', 'blue', 'red', 'yellow'].every((h) => plain.flatMap(faces).filter((t) => hueOf(t) === h).length === 8), 'every colour on eight faces');
   ok(count((a, b) => a.id === 'Kqs' && b.id === 'Kqh') === 8, 'eight tiles with the sun on one face and the black hole on the other');
-  ok(count((a, b) => a.id === 'Kab' && (mark('turbine')(b) || mark('flier')(b) || b.id === 'Kw')) === 11, '11 Abbazias, a windmill, a flying machine or a windvane on the back');
+  ok(count((a, b) => a.id === 'Kab' && (road(b) || district(b))) === 11, '11 Abbazias, a road or a district on the back');
+  ok(!count((a, b) => a.id === 'Kab' && (mark('turbine')(b) || mark('flier')(b) || mark('zephyr')(b) || b.id === 'Kw')), 'and never a windmill, flying machine, windvane or zephyr');
   const lone = (t) => t.feats.some((f) => f.type === 'city' && !f.district);
   const temple = (t) => has('temple')(t) || t.feats.some((f) => f.district === 'temple');
   ok(!plain.some((k) => faces(k).some(temple)), 'no temple and no temple district dealt');
   ok(DECK_COUNTS.Kt === 0 && DECK_COUNTS.DEt === 0, 'they are extras');
   ok(!plain.some((k) => faces(k).some(lone)), 'no lone wall dealt');
   ok(Object.entries(DECK_COUNTS).some(([k, n]) => !n && !k.includes('|') && lone(TILES[k])), 'the lone walls are extras, one-faced');
-  const more = keys({ deck: { Kce: 2, 'DIm|U': 0 } });
-  ok(more.filter((k) => k === 'Kce').length === 2 && !more.includes('DIm|U') && more.length === 72, 'a game\'s own deck list replaces counts by tile');
+  const more = keys({ deck: { Kce: 1, 'DIm|U': 0 } });
+  ok(more.filter((k) => k === 'Kce').length === 1 && !more.includes('DIm|U') && more.length === 72, 'a game\'s own deck list replaces counts by tile');
 });
 prove('game-map', (ok) => {
   const b = SPEC.bounds;
@@ -266,7 +272,7 @@ prove('turn-fit', (ok) => {
   ok(b.canPlace(6, 0, TILES.DXr, 0) && !b.canPlace(6, 0, TILES.B, 0), 'city to city');
   lay(g, 0, 5, 'DEg', 0);                  // walls east, south and west
   ok(b.canPlace(1, 5, TILES.B, 0) && b.canPlace(1, 5, TILES.U, 1) && b.canPlace(1, 5, TILES.DEt, 1), 'a wall to a field, a road or another wall');
-  ok(!b.canPlace(1, 5, TILES.DXr, 0) && !b.canPlace(1, 5, TILES.Kso, 3), 'never an open city or a tower half');
+  ok(b.canPlace(1, 5, TILES.DXr, 0) && b.canPlace(1, 5, TILES.Kso, 3), 'and an open city or a tower half: a wall takes anything');
   g.phase = 'place'; g.tile = TILES.U; g.rot = 0;
   g.rotate(1);
   ok(g.rot === 1, 'you may turn it');
@@ -299,9 +305,7 @@ prove('turn-step', (ok) => {
   put(g, 3, 0, 'city', 0);
   ok(layHand(g, 'U', 0, 2) && g.phase === 'meeple', 'after laying, the follower step');
   ok(g.meepleOptions().length > 0, 'a claim on offer');
-  ok(g.m.canLieDown() && g.m.beginFlat() && g.cellClick(3, 0), 'lying flat first');
-  ok(g.phase === 'meeple' && g.meepleOptions().length > 0, 'still your follower step after');
-  ok(!g.m.canLieDown(), 'once a turn');
+  ok(!('beginFlat' in g.m) && !g.m.actions().some((a) => /flat/i.test(a.label)), 'and no lying a follower flat');
   const o = g.meepleOptions()[0];
   g.placeMeeple(o.i, o);
   ok(g.phase === 'blow' && g.current === 0, 'then the blow');
@@ -316,8 +320,8 @@ prove('turn-step', (ok) => {
 prove('turn-catch', (ok) => {
   const g = fresh(11);
   pocket(g, 0, 0);
-  blow(g, 1, 0, 1);
-  ok(!at(g, 2, 0) && !at(g, 1, 0) && g.m.fallen === 1, 'the tile falls');
+  blow(g, 0, 0, 1);
+  ok(!at(g, 2, 0) && at(g, 1, 0)?.type.id === 'Kz' && g.m.fallen === 1, 'the tile falls');
   ok(g.current === 0 && g.phase === 'place' && g.tile?.id === 'U', 'and you lay one more tile this turn: the one that fell, off the top of the deck');
   const left = g.tilesLeft;
   lay(g, 6, 6, 'B');
@@ -402,12 +406,7 @@ prove('followers-home', (ok) => {
   put(g, 0, 0, 'field', 0); put(g, 1, 0, 'field', 0); put(g, 2, 0, 'field', 1);
   g.m.fire('green'); g.m.sweep();
   ok(g.players[0].score === 1 && g.players[1].score === 0, 'paid by majority');
-  ok(![0, 1, 2].some((x) => at(g, x, 0).meeple) && g.players[0].meeples === 5 && g.players[1].meeples === 5, 'everyone in it goes home, paid or not');
-  lay(g, 5, 5, 'DXg');
-  g.board.rebuild();
-  put(g, 5, 5, 'city', 0, true);
-  g.m.fire('blue'); g.m.sweep();
-  ok(at(g, 5, 5).meeple?.flat, 'except one lying flat');
+  ok(![0, 1, 2].some((x) => at(g, x, 0).meeple) && g.players[0].meeples === 8 && g.players[1].meeples === 8, 'everyone in it goes home, paid or not');
 });
 prove('followers-walk', (ok) => {
   const build = () => {
@@ -450,27 +449,6 @@ prove('followers-hop', (ok) => {
   ok(g.m.strollTargets({ x: 0, y: 0, i: fi(at(g, 0, 0), 'field') }).some((t) => t.y === 4 && t.f.type === 'temple'), 'a walker crosses it');
   ok(g.board.featureOf(0, 0, 0) !== g.board.featureOf(0, 3, 0), 'two roads still');
 });
-prove('followers-flat', (ok) => {
-  const g = fresh(21);
-  lay(g, 0, 0, 'DEg', 2); lay(g, 0, 1, 'DEr', 0);   // two districts, walled all round
-  lay(g, 5, 5, 'U');
-  g.board.rebuild();
-  put(g, 0, 0, 'city', 0);
-  put(g, 5, 5, 'road', 0);
-  g.phase = 'meeple';
-  ok(g.m.flatTargets().length === 1 && g.m.flatTargets()[0].y === 0, 'only one standing in a city');
-  g.m.beginFlat(); g.cellClick(0, 0);
-  g.m.fire('blue'); g.m.sweep();
-  ok(at(g, 0, 0).meeple?.flat, 'it never comes home');
-  ok(g.players[0].score === 5, `no walled double while only flat followers hold it (paid ${g.players[0].score})`);
-  const h = fresh(22);
-  lay(h, 0, 0, 'DEg', 2); lay(h, 0, 1, 'DEr', 0);
-  h.board.rebuild();
-  put(h, 0, 0, 'city', 0);
-  h.m.fire('blue');
-  ok(h.players[0].score === 8, `standing, the same city pays the double (${h.players[0].score})`);
-});
-
 // --- The wind. ------------------------------------------------------------------
 prove('wind-blows', (ok) => {
   const g = fresh(23);
@@ -530,9 +508,9 @@ prove('wind-turbine', (ok) => {
   g.board.rebuild();
   put(g, 1, -1, 'road', 0);
   blow(g, 1, 0, 1);                         // three tiles: too heavy, nothing moves
-  ok(g.players[0].score === 2 && g.players[1].score === 0, `2 to its holder for a push that reaches it, moving it or not (${g.players[0].score})`);
+  ok(g.players[0].score === 3 && g.players[1].score === 0, `3 to its holder for a push that reaches it, moving it or not (${g.players[0].score})`);
   blow(g, 1, 0, 1);
-  ok(g.players[0].score === 4, 'and again');
+  ok(g.players[0].score === 6, 'and again');
   const h = fresh(133);
   lay(h, 1, 0, 'Ktr', 1); lay(h, 2, 0, 'B'); lay(h, 3, 0, 'B');
   h.board.rebuild();
@@ -597,7 +575,7 @@ prove('storm-cannon', (ok) => {
 prove('fall-mismatch', (ok) => {
   // A road pushed onto a field moves on, the way its player picks.
   let g = fresh(41);
-  lay(g, 0, 0, 'B'); lay(g, 1, 0, 'U');      // a road running north and south
+  lay(g, 1, 0, 'U');                         // a road running north and south
   lay(g, 2, 1, 'B');                         // a field under where it is pushed
   lay(g, 3, 1, 'B');                         // …and under the square east of that
   lay(g, 2, -1, 'B');                        // a tile over it: north is no way
@@ -613,29 +591,29 @@ prove('fall-mismatch', (ok) => {
   ok(g.current === 1, 'and then the turn goes on');
   // One way: it just goes.
   g = fresh(42);
-  lay(g, 0, 0, 'B'); lay(g, 1, 0, 'U'); lay(g, 2, 1, 'B'); lay(g, 2, -1, 'B'); lay(g, 3, 0, 'B');
+  lay(g, 1, 0, 'U'); lay(g, 2, 1, 'B'); lay(g, 2, -1, 'B'); lay(g, 3, 0, 'B');
   g.board.rebuild();
   ok(blow(g, 1, 0, 1) && at(g, 1, 0)?.type.id === 'U' && !at(g, 2, 0) && g.current === 1, 'with one way it just goes, without asking');
   // No way: it falls, back on top of the deck.
   g = fresh(43);
   pocket(g, 0, 0);
-  blow(g, 1, 0, 1);
+  blow(g, 0, 0, 1);
   ok(!at(g, 2, 0) && g.m.fallen === 1 && g.phase === 'place' && g.tile?.id === 'U', 'every way blocked: it falls, onto the top of the deck (and on your turn back into your hand, rule 9)');
 });
 prove('fall-alone', (ok) => {
   const g = fresh(42);
-  lay(g, 0, 0, 'B'); lay(g, 1, 0, 'B');
-  for (const y of [1, 2]) lay(g, 0, y, 'B');
+  for (const y of [0, 1, 2]) lay(g, 0, y, 'B');
+  lay(g, 1, 0, 'B');
   g.board.rebuild();
-  blow(g, 1, 0, 1);
-  ok(at(g, 2, 0) && g.board.degree(2, 0) === 0, 'touching nothing, it hangs there');
+  blow(g, 1, 0, 0);                         // north, from the open sky south of it
+  ok(at(g, 1, -1) && g.board.degree(1, -1) === 0, 'touching nothing, it hangs there');
 });
 prove('fall-followers', (ok) => {
   const g = fresh(44);
   pocket(g, 0, 0);
   put(g, 1, 0, 'road', 0);
-  blow(g, 1, 0, 1);
-  ok(!at(g, 2, 0) && g.players[0].meeples === 5, 'a follower on a tile that falls goes home');
+  blow(g, 0, 0, 1);
+  ok(!at(g, 2, 0) && g.players[0].meeples === 8, 'a follower on a tile that falls goes home');
 });
 
 // --- Followers in the wind. -----------------------------------------------------
@@ -654,20 +632,21 @@ prove('blown-lane', (ok) => {
   ok(at(h, 0, 0) && at(h, 1, 0)?.meeple?.player === 0 && !at(h, 0, 0).meeple, 'one blown goes a square downwind, onto the tile there');
 });
 prove('blown-fly-on', (ok) => {
-  // A follower standing on a quarter of the big tower, holding nothing (as
-  // one blown there does): no push moves its tile, so it is blown instead.
+  // A push too heavy because its front tile would go into the big tower's
+  // kept 2x2 (rule 74): the follower on that tile is blown over the open
+  // square to the next tile on.
   const g = fresh(47);
-  lay(g, 0, 0, 'Kqs', 0); lay(g, 4, 0, 'B');  // the sun begun, and a tile four squares on
+  lay(g, 0, 0, 'U', 1); lay(g, 2, 0, 'Kqs', 1);   // the sun begun: (1, 0) is kept
   g.board.rebuild();
-  at(g, 0, 0).meeple = { player: 0, feat: null };
+  put(g, 0, 0, 'road', 0);
   blow(g, 0, 0, 1);
-  ok(at(g, 4, 0)?.meeple?.player === 0, 'off the end, it flies on to the next tile');
+  ok(at(g, 0, 0)?.type.id === 'U' && at(g, 2, 0)?.meeple?.player === 0, 'off the end, it flies on to the next tile');
   const h = fresh(48);
-  lay(h, 5, 0, 'Kqs', 0); lay(h, -3, 0, 'B');
+  lay(h, 8, 0, 'U', 1); lay(h, -7, 0, 'Kqs', 1);  // kept (-8, 0), across the seam
   h.board.rebuild();
-  at(h, 5, 0).meeple = { player: 0, feat: null };
-  blow(h, 5, 0, 1);
-  ok(at(h, -3, 0)?.meeple?.player === 0, 'round the map if it has to');
+  put(h, 8, 0, 'road', 0);
+  blow(h, 8, 0, 1);
+  ok(at(h, -7, 0)?.meeple?.player === 0, 'round the map if it has to');
 });
 prove('blown-occupied', (ok) => {
   const g = fresh(49);
@@ -690,7 +669,7 @@ prove('blown-feature', (ok) => {
   const m1 = at(g, 1, 0).meeple, m2 = at(g, 1, 3).meeple, m3 = at(g, 1, 6).meeple;
   ok(m1 && at(g, 1, 0).type.feats[m1.feat].type === 'road', 'a road for a road');
   ok(m3 && m3.feat != null && at(g, 1, 6).type.feats[m3.feat].type !== 'road', 'or whatever the tile has');
-  ok(m2 && m2.feat === null, 'on an Abbazia, nothing');
+  ok(m2 && m2.feat === null && g.m.abbaziaHolders(at(g, 1, 3)).join() === '0', 'on an empty Abbazia, it holds the Abbazia');
 });
 
 // --- Mainland and islands. ------------------------------------------------------
@@ -795,6 +774,14 @@ prove('colour-red', (ok) => {
   put(h, 1, 0, 'monastery', 0); put(h, -1, 0, 'monastery', 1);
   h.m.fire('red');
   ok(h.players[0].score === 2 && h.players[1].score === 2, 'tied, each in full');
+  const k = fresh(58);
+  lay(k, 0, 0, 'Kab');
+  for (const [x, y] of [[1, 0], [-1, 0], [0, 1], [1, 1], [0, -1]]) lay(k, x, y, 'B');
+  k.board.rebuild();
+  put(k, 1, 0, 'monastery', 0); put(k, -1, 0, 'monastery', 0); put(k, 0, 1, 'monastery', 0);
+  at(k, 0, 0).meeple = { player: 1, feat: null };   // flown or blown onto it
+  k.m.fire('red');
+  ok(k.players[1].score === 8 && k.players[0].score === 0, `held: its holder alone, a point a tile round it and a point a follower there (${k.players[1].score}, ${k.players[0].score})`);
   ok(!new Game({ mode: 'soffiando', players: 2, seed: 9 }).m.claimAllowed({ x: 0, y: 0, i: 0, f: { type: 'temple' } }) || !TILES.Kab.feats.length, 'and nobody claims an Abbazia');
 });
 prove('colour-yellow', (ok) => {
@@ -886,6 +873,11 @@ prove('city-gate', (ok) => {
   lay(g, 4, 4, 'DEg', 3); lay(g, 5, 4, 'DEr', 1);   // two walls back to back
   b.rebuild();
   ok(b.featureOf(4, 4, 0) !== b.featureOf(5, 4, 0), 'two walls back to back are two cities');
+  lay(g, -6, 6, 'DEg', 0);                  // walls east, south and west
+  ok(b.canPlace(-5, 6, TILES.DEr, 3) && b.canPlace(-5, 6, TILES.Kso, 3), 'a wall takes anything, a city and a tower too, like an Abbazia');
+  lay(g, -5, 6, 'DEr', 3);                  // a district opening west, into the wall
+  b.rebuild();
+  ok(b.featureOf(-5, 6, 0).open === 0, 'a city that runs into a wall is closed on that side');
 });
 prove('city-reopen', (ok) => {
   const g = fresh(61);
@@ -916,7 +908,7 @@ prove('windmill-finish', (ok) => {
   put(g, 0, 0, 'road', 0);
   layHand(g, 'Kta', 0, 1, 2);               // a second temple closes the road
   g.skipMeeple();
-  ok(g.players[0].score === 2, `the holder is paid 2 (${g.players[0].score})`);
+  ok(g.players[0].score === 3, `the holder is paid 3 (${g.players[0].score})`);
 });
 prove('flight-path', (ok) => {
   const g = fresh(70);
@@ -946,7 +938,16 @@ prove('flight-claim', (ok) => {
   ok(t.some((o) => o.x === 0 && o.y === -1 && o.f.type === 'road'), 'a feature somebody holds');
   ok(t.some((o) => o.y === -4), 'on an island');
   ok(!t.some((o) => o.y === -2), 'not a tile with a figure');
-  ok(!t.some((o) => o.y === -4 && o.f.type === 'city'), 'never a wall');
+  ok(!t.some((o) => o.y === -4 && o.f?.type === 'city'), 'never a wall');
+  const h = fresh(73);
+  for (const x of [-1, -2, -3, -4]) lay(h, x, 0, 'B');
+  lay(h, 0, 0, 'Kfl'); lay(h, 0, -1, 'U'); lay(h, 0, -2, 'Kab');
+  h.board.rebuild();
+  h.m.flight = h.m.flightPath(at(h, 0, 0));
+  h.lastPlaced = at(h, 0, 0); h.phase = 'meeple';
+  const a = h.meepleOptions().find((o) => o.flying && o.x === 0 && o.y === -2);
+  ok(a && a.i == null, 'or an empty Abbazia along it');
+  ok(h.placeMeeple(null, { x: 0, y: -2 }) && at(h, 0, -2).meeple?.player === 0 && h.m.abbaziaHolders(at(h, 0, -2)).join() === '0', 'which the follower then holds');
 });
 prove('flight-lift', (ok) => {
   const g = fresh(73);
@@ -958,7 +959,7 @@ prove('flight-lift', (ok) => {
   g.m.flight = g.m.flightPath(at(g, 0, 0));
   g.lastPlaced = at(g, 0, 0); g.phase = 'meeple';
   ok(g.m.canLift() && g.m.beginLift() && g.cellClick(0, -2), 'lift one of yours');
-  ok(!at(g, 0, -2).meeple && g.players[0].meeples === 5, 'it goes home');
+  ok(!at(g, 0, -2).meeple && g.players[0].meeples === 8, 'it goes home');
   const t = g.meepleOptions().filter((o) => o.flying);
   ok(t.length && t.every((o) => o.y < -2), 'and may be put down further along');
   g.skipMeeple();
@@ -1067,8 +1068,12 @@ prove('stick-push', (ok) => {
   g.rotate(1);
   ok(g.m.blowDir === (d + 1) % 4, 'R turns it');
   g.m.blowDir = 1;
-  ok(g.m.trainAt(1, 0).heavy, 'three tiles in front: too heavy for a push of 1');
-  ok(g.cellClick(3, 0) && at(g, 2, 0) && !at(g, 3, 0) && at(g, 4, 0), 'the tile against it goes a square; behind it, nothing');
+  ok(!g.m.trainAt(2, 0) && !g.cellClick(2, 0) && g.phase === 'blow', 'never from between two tiles');
+  ok(g.m.trainAt(0, 0)?.heavy && !g.m.blowTargets().some((t) => t.x === 1 || t.x === 2 || t.x === 3), 'only from open sky: four tiles in front, too heavy for a push of 1');
+  g = fresh(185);
+  lay(g, 0, 0, 'B'); lay(g, 2, 0, 'B');
+  g.board.rebuild();
+  ok(blow(g, 2, 0, 1) && at(g, 3, 0) && !at(g, 2, 0) && at(g, 0, 0), 'the tile against it goes a square; nothing behind the zephyr moves');
   ok(g.current === 1, 'and your turn ends');
   g = fresh(86);
   lay(g, 7, 0, 'B'); lay(g, 8, 0, 'B'); lay(g, 0, 0, 'B');
@@ -1088,7 +1093,7 @@ prove('blow-power', (ok) => {
 });
 prove('blow-chain', (ok) => {
   const g = fresh(88);
-  lay(g, 0, 0, 'B'); lay(g, 1, 0, 'Kz', 1); lay(g, 3, 0, 'B'); lay(g, 4, 0, 'B');
+  lay(g, 1, 0, 'Kz', 1); lay(g, 3, 0, 'B'); lay(g, 4, 0, 'B');
   g.board.rebuild();
   blow(g, 1, 0, 1);                         // a push of 1 moves the zephyr; it pushes with 1 and 1
   ok(at(g, 2, 0)?.type.id === 'Kz' && !at(g, 3, 0) && at(g, 4, 0) && at(g, 5, 0), 'the zephyr it pushes pushes in its turn, with its own push and yours');
@@ -1139,6 +1144,21 @@ prove('blow-towers', (ok) => {
   power(h, 3);
   blow(h, -1, 0, 1);
   ok(at(h, -1, 0)?.type.id === 'B' && at(h, 0, 0)?.type.id === 'Kqs', 'and a push with one in front moves nothing');
+  // An anchor holds the lane up to it; what is past it is pushed.
+  const k = fresh(95);
+  lay(k, 0, 0, 'B'); lay(k, 1, 0, 'Kqs', 3); lay(k, 2, 0, 'B'); lay(k, 3, 0, 'B');
+  power(k, 1);
+  ok(k.m.trainAt(0, 0, 1)?.held.length === 2 && k.m.trainAt(0, 0, 1)?.cells.length === 2, '(the lane: two held, two to push)');
+  blow(k, 0, 0, 1);
+  ok(at(k, 0, 0)?.type.id === 'B' && at(k, 1, 0)?.type.id === 'Kqs' && !at(k, 2, 0) && at(k, 3, 0) && at(k, 4, 0), 'an anchor holds the lane up to it, and what is past it is pushed');
+  // A closed tower anchors; an open half does not.
+  const t = fresh(96);
+  lay(t, 0, 0, 'B'); lay(t, 1, 0, 'Kso', 1); lay(t, 2, 0, 'Kso', 3); lay(t, 3, 0, 'B');
+  t.board.rebuild();
+  power(t, 1);
+  ok(t.m.holds(at(t, 1, 0)) && t.m.holds(at(t, 2, 0)), '(two green halves facing: a closed tower)');
+  blow(t, 0, 0, 1);
+  ok(at(t, 1, 0)?.type.id === 'Kso' && at(t, 2, 0)?.type.id === 'Kso' && !at(t, 3, 0) && at(t, 4, 0), 'so does a tower that has closed, and only what is past it moves');
 });
 prove('tower-big', (ok) => {
   const g = fresh(94);

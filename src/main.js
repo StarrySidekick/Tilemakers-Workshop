@@ -1133,7 +1133,7 @@ function renderClaim() {
     claimCtx.strokeStyle = colour;
     claimCtx.stroke();
     drawMeeple(claimCtx, spot.sx, spot.sy, spot.r * 1.5, colour,
-      { farmer: spot.f.type === 'field' });
+      { farmer: spot.f?.type === 'field' });
   }
 
   // A number on each spot, because the keyboard should reach them too.
@@ -1199,7 +1199,7 @@ $('claimTile').addEventListener('pointermove', (e) => {
     return;
   }
   const hit = claimHit(e);
-  $('claimTile').title = hit ? `Claim the ${hit.f.type}` : '';
+  $('claimTile').title = hit ? `Claim the ${hit.f?.type || hit.what || 'tile'}` : '';
   $('claimTile').style.cursor = hit ? 'pointer' : 'default';
 });
 

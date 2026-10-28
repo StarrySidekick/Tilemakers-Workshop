@@ -358,18 +358,17 @@ export class Board {
         if (theirs != null && here) this.data.get(this.find(id)).open -= 1;
         continue;
       }
-      // A CITY WALL ends a road that runs into it, at a gate in its middle,
-      // the way a cap does, and farmland simply stops against it. Only a road
-      // has a slot there to close: a field reaches no side, and a wall
-      // against a wall is two cities back to back.
+      // A CITY WALL caps what runs into it, the way an Abbazia does: a road
+      // ends at a gate in its middle, a city ends against it (2026-10-28;
+      // until then a wall took no city), and farmland simply stops. A field
+      // reaches no side, and a wall against a wall is two cities back to back,
+      // so neither has a slot to close.
       if (theirEdge === WALL) {
-        if (mine != null && here && cell.type.feats[mine].type === 'road') {
-          this.data.get(this.find(`${k}#${mine}`)).open -= 1;
-        }
+        if (mine != null && here) this.data.get(this.find(`${k}#${mine}`)).open -= 1;
         continue;
       }
       if (myEdge === WALL) {
-        if (theirs != null && here && nb.type.feats[theirs].type === 'road') this.data.get(this.find(id)).open -= 1;
+        if (theirs != null && here) this.data.get(this.find(id)).open -= 1;
         continue;
       }
 

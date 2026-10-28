@@ -110,7 +110,22 @@ colored towers on the other side". Asked where the zephyrs on their backs go,
 he chose that they ride on roads. He also asked for "any insights you have
 one scoring an mechanics that may be falling by the wayside" and "a concise
 synopsis of the rules for soffiando here so i can see if anything is off".
-That is the thirtieth pass, waiting for his word to merge.
+That is the thirtieth pass.
+
+Later on 2026-10-28, a list: walls "should be able to take field, wall,
+road, or city, basically like abbazias"; "remove laying meeple flat";
+"abbazias can be claimed by flying machine or by just being blown into
+them as long as they are empty", and you never claim the one you lay ("when
+you do you hold it outright, and it scores 1 point for every tile
+surrounding it, and and extra point for every meeple"); no cutting with the
+zephyr, and "an anchor like a tower keep everything in your lane from
+moving, but only up until the tower, stuff past it still moves" (anchors:
+"complete towers, and big tower quarters"); windmills 3; eight followers
+again; windmills, windvanes and flying machines on road and district faces
+rather than the Abbazias' backs, which take "a smattering of features"; "lets
+get the ai to learn how to play better"; and "data as to what percentage of
+scored games goes to what kind of point". That is the thirty-first pass,
+built on the thirtieth, both waiting for his word to merge.
 
 **Fields: settled 2026-09-06, and Timothy was right.** They are fully built.
 `src/tiles.js` cuts the perimeter into eight half-edges with `halfPartner` as the

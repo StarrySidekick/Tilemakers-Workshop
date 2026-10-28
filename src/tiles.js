@@ -212,12 +212,15 @@ export const DOCK = '~';
  * back to back. Never an open city or a sfera half.
  */
 export const WALL = '#';
-const TO_WALL = new Set([WALL, 'f', 'r']);
-
-/** Do two edges meet? Same letter, one of them takes anything, or a wall and what stands against it. */
+/**
+ * Do two edges meet? Same letter, or one of them takes anything: a cap, a
+ * dock, or a city wall, which takes a field, a road, another wall or a city
+ * like an Abbazia's edge does (Timothy, 2026-10-28: "wall should be able to
+ * take field, wall, road, or city, basically like abbazias"). Until then a
+ * wall refused an open city.
+ */
 export const edgesMeet = (a, b) => seamJoins(a, b) || a === CAP || b === CAP
-  || a === DOCK || b === DOCK
-  || (a === WALL && TO_WALL.has(b)) || (b === WALL && TO_WALL.has(a));
+  || a === DOCK || b === DOCK || a === WALL || b === WALL;
 
 /**
  * Two edges JOIN across a seam: the same letter, or two quarters of a big

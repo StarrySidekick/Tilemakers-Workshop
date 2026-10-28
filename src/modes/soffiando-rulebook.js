@@ -79,6 +79,17 @@ const GARDENS = 'every garden district you have scores the city an extra 2p, clo
 // …and of 2026-10-28.
 const D28 = '2026-10-28';
 const TWO_COLOURS = 'tiles that have towers on them should have different colored towers on the other side';
+// …and later that day.
+const WALLS_ANY = 'wall should be able to take field, wall, road, or city, basically like abbazias';
+const NO_FLAT = 'remove laying meeple flat';
+const ABB_CLAIM = 'abbazias can be claimed by flying machine or by just being blown into them as long as they are empty';
+const ABB_SCORE = 'you can\'t place a meeple on an abbazia that you place, you have to blow or flying machine into them from elsewhere. when you do you hold it outright, and it scores 1 point for every tile surrounding it, and and extra point for every meeple (besides the one that claimed it)';
+const NO_CUT = 'you can\'t "cut" with the zephyr, as in you can\'t only push from an open space, no from inbetween two tiles that are next to each other. you can however blow and have an anchor like a tower keep everything in your lane from moving,  but only up until the tower, stuff past it still moves.';
+const ANCHORS = 'complete towers, and big tower quarters';
+const MILLS3 = 'windmills should reward 3 points when blown or in a feature';
+const EIGHT_MEEPLE = 'let\'s go back to having 8 meeple';
+const MILLS_ON = 'windmills should just be on different kinds of tiles, not be specifically and side option on abbazia tiles, same goes for wind waves and flying machines';
+const SMATTERING = 'we can just add a smattering of features';
 // …and later on 2026-10-27.
 const HALVES = 'let a blow move tower halves.';
 const INEVITABLE = 'also make it so you must place a sun or black hole attached correctly to another, so there completion is inevitable.';
@@ -107,19 +118,20 @@ export const GROUPS = [
 export const RULES = [
   // --- The game. --------------------------------------------------------------
   { n: 1, id: 'game-players', group: 'game',
-    text: 'Soffiando is for one to four players, and each has five followers.',
-    from: T(D27, FIVE), changed: D27,
-    was: 'Soffiando is for one to four players, and each has eight followers.' },
+    text: 'Soffiando is for one to four players, and each has eight followers.',
+    from: T(D28, EIGHT_MEEPLE, 'Five from the day before ("' + FIVE + '").'),
+    changed: D28,
+    was: 'Soffiando is for one to four players, and each has five followers.' },
   { n: 2, id: 'game-start', group: 'game',
     text: 'The game starts with one tile on the board, the Plaza, in the middle of the map: a paved square with a road out of each side. It does nothing else. Players take turns in order.',
     from: T(D27, PLAZA, 'Four roads, each ending at the square, is Claude\'s reading of "more like a plaza". It was the Palazzo, the seat of the kingdom, which towed the islands (rule 42).'),
     changed: D27,
     was: 'The game starts with one tile on the board, the Palazzo, in the middle of the map. Players take turns in order.' },
   { n: 3, id: 'game-deck', group: 'game',
-    text: 'The deck is 72 tiles, shuffled, each with two faces (rule 80) and named in the deck list: 37 with a district on one face and a road of the same shape on the other, twelve of those roads carrying a zephyr or a gust cannon; 16 with a tower half on each face, of two different colours; 8 with a quarter of the sun on one face and a quarter of the black hole on the other; and 11 with an Abbazia on one face and a windmill, a flying machine or a windvane on the other. Every other tile is an extra, one-faced and not dealt: the zephyrs and cannons with no road, the temples and temple districts among them, and for now the lone city walls.',
-    from: T(D28, TWO_COLOURS, 'Asked where the zephyrs on the towers\' backs should go, he chose that they ride on roads. Which roads, the same shape on both faces of a tower tile, and which colours share a tile are Claude\'s calls, named to Timothy when they shipped. Before: "' + DOUBLE + '", with opposites, his choice, and eight sun and black hole tiles ("' + EIGHT + '"). Still 72 ("' + SEVENTY_TWO + '").'),
+    text: 'The deck is 72 tiles, shuffled, each with two faces (rule 80) and named in the deck list: 37 with a district on one face and a road of the same shape on the other, some of those roads carrying a zephyr or a gust cannon (twelve), a windmill (four), a flying machine (three) or a windvane (two), and two of the districts windmill districts; 16 with a tower half on each face, of two different colours; 8 with a quarter of the sun on one face and a quarter of the black hole on the other; and 11 with an Abbazia on one face and a road or a district on the other. Every other tile is an extra, one-faced and not dealt: the zephyrs and cannons with no road, the temples and temple districts among them, and for now the lone city walls.',
+    from: T(D28, MILLS_ON, 'Asked where, he chose road and district faces; for the Abbazias\' backs, "' + SMATTERING + '". Which roads and districts are Claude\'s calls, named to Timothy when they shipped, as are which colours share a tower tile and which roads carry a zephyr ("' + TWO_COLOURS + '"; the zephyrs ride on roads, his choice). Still 72 ("' + SEVENTY_TWO + '").'),
     settings: ['deck'], changed: D28,
-    was: 'The deck is 72 tiles, shuffled, each with two faces (rule 80) and named in the deck list: 37 with a district on one face and a road of the same shape on the other, 16 with a tower half on one face (four of each colour) and a zephyr or a cannon on the other, 8 with a quarter of the sun on one face and a quarter of the black hole on the other, and 11 with an Abbazia on one face and a windmill, a flying machine or a windvane on the other. Every other tile is an extra, one-faced and not dealt: the temples and temple districts among them, and for now the lone city walls.' },
+    was: 'The deck is 72 tiles, shuffled, each with two faces (rule 80) and named in the deck list: 37 with a district on one face and a road of the same shape on the other, twelve of those roads carrying a zephyr or a gust cannon; 16 with a tower half on each face, of two different colours; 8 with a quarter of the sun on one face and a quarter of the black hole on the other; and 11 with an Abbazia on one face and a windmill, a flying machine or a windvane on the other. Every other tile is an extra, one-faced and not dealt: the zephyrs and cannons with no road, the temples and temple districts among them, and for now the lone city walls.' },
   { n: 4, id: 'game-map', group: 'game',
     text: 'The map is 17 squares a side, with the Plaza\'s square in the very middle.',
     from: T(D25, SEVENTEEN), changed: D27,
@@ -140,18 +152,20 @@ export const RULES = [
     from: T(D27, DOUBLE, 'Drawn one face up and turned over for you when only the other fits is Claude\'s reading, so a tile is never set aside that could have been laid.'),
     added: D27 },
   { n: 6, id: 'turn-fit', group: 'turn',
-    text: 'It must touch the country, and every edge it touches must match: road to road, city to city, field to field, a tower half to a tower half of its own colour (rule 43), and a city wall to a field, a road or another wall (rule 68). An Abbazia\'s edges match anything, and so do the two outer edges of a quarter of the big tower, which goes only where rule 81 puts it. You may turn it first.',
-    from: CARC('With the towers, the Abbazia and the city wall added.'), changed: D27,
-    was: 'It must touch the country, and every edge it touches must match: road to road, city to city, field to field, a tower half to a tower half of its own colour (rule 43), a quarter of a big tower to the quarter that completes it (rule 76), and a city wall to a field, a road or another wall (rule 68). An Abbazia\'s edges match anything. You may turn it first.' },
+    text: 'It must touch the country, and every edge it touches must match: road to road, city to city, field to field, and a tower half to a tower half of its own colour (rule 43). A city wall\'s edge takes anything (rule 68), and so does an Abbazia\'s, and the two outer edges of a quarter of the big tower, which goes only where rule 81 puts it. You may turn it first.',
+    from: CARC('With the towers, the Abbazia and the city wall added.'),
+    changed: D28,
+    was: 'It must touch the country, and every edge it touches must match: road to road, city to city, field to field, a tower half to a tower half of its own colour (rule 43), and a city wall to a field, a road or another wall (rule 68). An Abbazia\'s edges match anything, and so do the two outer edges of a quarter of the big tower, which goes only where rule 81 puts it. You may turn it first.' },
   { n: 7, id: 'turn-reach', group: 'turn',
     text: 'It must touch the mainland (rule 40), or an island you already have a follower standing on. A quarter of the big tower goes into its 2x2 wherever that is (rule 81).',
     from: H('eighth', 'No building on islands at all at first; on an island you stand on since the fifteenth pass, and YOUR follower since the twenty-first. Timothy liked the island puzzle in his review of 2026-10-22 (INTENT.md). The big tower\'s exception is from 2026-10-27, so that it always closes.'),
     changed: D27,
     was: 'It must touch the mainland (rule 40), or an island you already have a follower standing on.' },
   { n: 8, id: 'turn-step', group: 'turn',
-    text: 'Then your follower step: claim a feature on the tile you laid (rule 10), or not. On a turn you laid a flying machine you may use its flight instead (rules 61 and 62). Before any of that, once a turn, you may lay one of your followers flat (rule 16). Then you blow (rule 70), and your turn ends.',
-    from: T(D27, EVERY_TURN, 'The blow last, after the follower step, is Claude\'s reading of the order he listed them in.'), changed: D27,
-    was: 'Then your follower step: claim a feature on the tile you laid (rule 10), push with your stick (rule 70), or neither. On a turn you laid a flying machine you may use its flight instead (rules 61 and 62). Before any of that, once a turn, you may lay one of your followers flat (rule 16).' },
+    text: 'Then your follower step: claim a feature on the tile you laid (rule 10), or not. On a turn you laid a flying machine you may use its flight instead (rules 61 and 62). Then you blow (rule 70), and your turn ends.',
+    from: T(D27, EVERY_TURN, 'The blow last, after the follower step, is Claude\'s reading of the order he listed them in. Lying a follower flat went on 2026-10-28 ("' + NO_FLAT + '").'),
+    changed: D28,
+    was: 'Then your follower step: claim a feature on the tile you laid (rule 10), or not. On a turn you laid a flying machine you may use its flight instead (rules 61 and 62). Before any of that, once a turn, you may lay one of your followers flat (rule 16). Then you blow (rule 70), and your turn ends.' },
   { n: 9, id: 'turn-catch', group: 'turn',
     text: 'If tiles fall back onto the deck on your turn (rule 31), you lay one more tile that turn: the top of the deck, which is the last tile that fell, and have a follower step for it, but you do not blow again. Once a turn, however many fall.',
     from: H('sixteenth', 'Catch and throw. Not blowing twice is Claude\'s call of 2026-10-27: one blow a turn, as he said.'), changed: D27,
@@ -159,10 +173,10 @@ export const RULES = [
 
   // --- Followers. ------------------------------------------------------------
   { n: 10, id: 'followers-claim', group: 'followers',
-    text: 'To claim, put a follower on a road, a field or a district of the tile you just laid. A road or city that is still open you may join however many followers are in it already, yours too; a field only if nobody has a follower in it. Never on a road or city that is closed, a tower, an Abbazia or a wall.',
-    from: T(D27, JOIN, '"Finished" read as one still open, since closed ones are out; "other meeple" as anybody\'s, yours too. Abbazias: "you not longer claim them". The wall is from 2026-10-24.'),
-    changed: D27,
-    was: 'To claim, put a follower on a road, a field, a temple or a district of the tile you just laid, if nobody has a follower anywhere in that feature. Never on a sfera half, and never on a wall.' },
+    text: 'To claim, put a follower on a road, a field or a district of the tile you just laid. A road or city that is still open you may join however many followers are in it already, yours too; a field only if nobody has a follower in it. Never on a road or city that is closed, a tower, a wall, or an Abbazia you have just laid: an Abbazia is held by a follower flown onto it (rule 61) or blown onto it (rule 39).',
+    from: T(D28, ABB_SCORE, 'Joining: "' + JOIN + '" (2026-10-27).'),
+    changed: D28,
+    was: 'To claim, put a follower on a road, a field or a district of the tile you just laid. A road or city that is still open you may join however many followers are in it already, yours too; a field only if nobody has a follower in it. Never on a road or city that is closed, a tower, an Abbazia or a wall.' },
   { n: 11, id: 'followers-island', group: 'followers',
     text: 'You may only claim on an island if you already have a follower standing on it.',
     from: H('eighth', 'As rule 7. Timothy liked that reaching an island is a puzzle (review of 2026-10-22, INTENT.md).') },
@@ -170,10 +184,10 @@ export const RULES = [
     text: 'A tile holds one figure at most.',
     from: H(null) },
   { n: 13, id: 'followers-home', group: 'followers',
-    text: 'When a tower pays a feature (rule 44), every follower in it goes home, paid or not, except one lying flat.',
+    text: 'When a tower pays a feature (rule 44), every follower in it goes home, paid or not.',
     from: H('thirteenth', 'Scoring a feature empties it, finished or not, so a follower put down early does not collect from every tower for the rest of the game.'),
-    changed: D27,
-    was: 'When a sphere pays a feature (rule 44), every follower in it goes home, paid or not, except one lying flat.' },
+    changed: D28,
+    was: 'When a tower pays a feature (rule 44), every follower in it goes home, paid or not, except one lying flat.' },
   { n: 14, id: 'followers-walk', group: 'followers',
     text: 'One of yours that a tower sends home during your turn may walk instead: along a road on the tile it stood on, and any road that one hops to (rule 15), into a district or temple nobody holds on a tile along the way, but not back into what it just left. With nowhere to go it may stand on the road itself, if nobody is on it. It may not walk a road someone else has a follower on.',
     from: H('twelfth', 'Made reachable in the twenty-first pass; until then the host overwrote the walk the moment it was offered.'),
@@ -182,16 +196,13 @@ export const RULES = [
   { n: 15, id: 'followers-hop', group: 'followers',
     text: 'A road that runs off a tile into open sky, and lines up with a road on the next tile along however far away, is one a walker can step across. The two halves still score as two roads.',
     from: H('twelfth', 'There was a sky bridge across a one-square gap at first, and the halves scored as one road; the step, over any distance, is the half that was kept.') },
-  { n: 16, id: 'followers-flat', group: 'followers',
-    text: 'Once a turn you may lay one of your followers standing in a city flat. It never comes home again, even when the city is paid, and a city held only by followers lying flat never pays the walled double (rule 52).',
-    from: H('twelfth', 'Until 2026-10-24 a flat follower held its city at "the lower rate", a point a tile; with districts that became no walled double.') },
 
   // --- Your zephyr. ------------------------------------------------------------
   { n: 70, id: 'stick-push', group: 'stick',
-    text: 'Every turn, after your follower step, you blow with your own zephyr: put it against any tile, on any side, and that tile and every tile touching in front of it, up to the first gap, go one square, round the seam of the map too (rule 67), if there are no more of them than your push power (rule 72). Everything behind it stays where it is.',
-    from: T(D27, EVERY_TURN, 'It was a stick from 2026-10-26 ("' + STICK + '"), pushed instead of claiming and at most three tiles; his zephyr now ("your cloud pusher zeyphr thing"), every turn, with a push power.'),
-    added: D26, changed: D27,
-    was: 'Every player has a stick. Instead of claiming, once a turn, you may put it against any tile, on any side, and push: that tile and every tile touching in front of it, up to the first gap, go one square, round the seam of the map too (rule 67), as long as that is three tiles or fewer. Everything behind the stick stays where it is, and your turn ends.' },
+    text: 'Every turn, after your follower step, you blow with your own zephyr: put it in open sky against any tile, on any side, never between two tiles, and that tile and every tile touching in front of it, up to the first gap, go one square, round the seam of the map too (rule 67), if there are no more of them than your push power (rule 72). Everything behind it stays where it is, and an anchor in front holds part of the lane still (rule 75).',
+    from: T(D28, NO_CUT, 'It was a stick from 2026-10-26 ("' + STICK + '"), then his zephyr every turn ("' + EVERY_TURN + '").'),
+    added: D26, changed: D28,
+    was: 'Every turn, after your follower step, you blow with your own zephyr: put it against any tile, on any side, and that tile and every tile touching in front of it, up to the first gap, go one square, round the seam of the map too (rule 67), if there are no more of them than your push power (rule 72). Everything behind it stays where it is.' },
   { n: 72, id: 'blow-power', group: 'stick',
     text: 'Your push power is 1, and 1 more for every Abbazia on the board. It is the same for every player.',
     from: T(D27, POWER, 'And "' + ONE + '". Read as every Abbazia on the board, whoever laid it, since nobody claims one.'),
@@ -201,15 +212,15 @@ export const RULES = [
     from: T(D27, CHAIN),
     added: D27 },
   { n: 74, id: 'blow-heavy', group: 'stick',
-    text: 'A push with more tiles in front of it than its power, a quarter of the big tower among them (rule 75), or the big tower\'s kept 2x2 where the front tile would go (rule 81), moves no tile. Instead every follower on the tiles it reaches, as many as its power, is blown one square downwind (rule 35).',
-    from: T(D27, AREA, 'Which followers ("an area") is Claude\'s reading: those on the tiles the push reaches, as many as its power.'),
-    added: D27, changed: D27,
-    was: 'A push with more tiles in front of it than its power, or a tower among them (rule 75), moves no tile. Instead every follower on the tiles it reaches, as many as its power, is blown one square downwind (rule 35).' },
+    text: 'A push with more tiles to move than its power, or the big tower\'s kept 2x2 where the front one would go (rule 81), moves no tile. Instead every follower on the tiles it would move, as many as its power, is blown one square downwind (rule 35).',
+    from: T(D27, AREA, 'Which followers ("an area") is Claude\'s reading: those on the tiles the push would move, as many as its power. An anchor no longer makes a push too heavy (2026-10-28, rule 75).'),
+    added: D27, changed: D28,
+    was: 'A push with more tiles in front of it than its power, a quarter of the big tower among them (rule 75), or the big tower\'s kept 2x2 where the front tile would go (rule 81), moves no tile. Instead every follower on the tiles it reaches, as many as its power, is blown one square downwind (rule 35).' },
   { n: 75, id: 'blow-towers', group: 'stick',
-    text: 'A quarter of the big tower is never moved by a push. A tower half is pushed like any other tile, so a push can close a tower (rule 44).',
-    from: T(D27, HALVES, 'It was "' + PROTECT + '"; now only the big tower\'s quarters, which is what lets its 2x2 always close.'),
-    added: D27, changed: D27,
-    was: 'A tile with a tower on it, a half or a quarter of a big one, is never moved by a push.' },
+    text: 'An anchor is a quarter of a big tower, or a half of a tower that has closed. No push moves one, and it holds still everything in its lane from the zephyr up to it; the tiles past it are pushed, counted against the push\'s power. An open tower half is pushed like any other tile, so a push can close a tower (rule 44).',
+    from: T(D28, NO_CUT, 'Which tiles anchor: "' + ANCHORS + '". Before, an anchor made the whole push too heavy, and from 2026-10-27 ("' + HALVES + '") only the big tower\'s quarters held.'),
+    added: D27, changed: D28,
+    was: 'A quarter of the big tower is never moved by a push. A tower half is pushed like any other tile, so a push can close a tower (rule 44).' },
 
   // --- The wind. -------------------------------------------------------------
   { n: 17, id: 'wind-blows', group: 'wind',
@@ -233,10 +244,10 @@ export const RULES = [
     changed: D27,
     was: 'A windvane the wind reaches turns so the road running through it lies along the wind.' },
   { n: 24, id: 'wind-turbine', group: 'wind',
-    text: 'Every push that reaches a windmill, moving it or not, pays 2 to whoever holds the feature it stands in once the push has passed (a holder it blew off the mill is not paid).',
-    from: H('fifth'),
-    changed: D27,
-    was: 'Every gust that reaches a windmill pays 2 to whoever holds the feature it stands in once the gust has passed (a holder it blew off the mill is not paid).' },
+    text: 'Every push that reaches a windmill, moving it or not, pays 3 to whoever holds the feature it stands in once the push has passed (a holder it blew off the mill is not paid).',
+    from: T(D28, MILLS3, 'It was 2.'),
+    changed: D28,
+    was: 'Every push that reaches a windmill, moving it or not, pays 2 to whoever holds the feature it stands in once the push has passed (a holder it blew off the mill is not paid).' },
 
   // --- Zephyrs in a chain. ---------------------------------------------------
   { n: 27, id: 'storm-once', group: 'storm',
@@ -295,8 +306,10 @@ export const RULES = [
     changed: D27,
     was: 'A follower that would land on a tile with a figure on it stays where it was; if that tile has gone too, it goes home.' },
   { n: 39, id: 'blown-feature', group: 'blown',
-    text: 'Where it lands, it holds the same kind of feature if the tile has one, or else whatever it can; on a tile with nothing to hold, like an Abbazia, it stands holding nothing.',
-    from: H('third') },
+    text: 'Where it lands, it holds the same kind of feature if the tile has one, or else whatever it can. Landing on an empty Abbazia, it holds the Abbazia (rule 48); on any other tile with nothing to hold, it stands holding nothing.',
+    from: T(D28, ABB_CLAIM, 'Before, a follower on an Abbazia held nothing (the third pass).'),
+    changed: D28,
+    was: 'Where it lands, it holds the same kind of feature if the tile has one, or else whatever it can; on a tile with nothing to hold, like an Abbazia, it stands holding nothing.' },
 
   // --- Mainland and islands. -------------------------------------------------
   { n: 40, id: 'land-mainland', group: 'land',
@@ -353,10 +366,10 @@ export const RULES = [
     text: 'Green pays each farm a point for every two tiles of field, rounded down.',
     from: H('tenth') },
   { n: 48, id: 'colour-red', group: 'colours',
-    text: 'Red pays each Abbazia a point for every tile in the eight squares round it, to whoever has the most followers on those eight and on the Abbazia; tied, each in full. Nobody comes home for it.',
-    from: T(D27, CLOISTERS, 'The temples it paid are Abbazias, which nobody claims; asked what red should score, he chose the Abbazias\' neighbourhoods. A temple paid its keeper a point for every tile round it.'),
-    changed: D27,
-    was: 'Red pays each temple\'s keeper a point for every tile in the eight squares around it. An Abbazia with a follower on it counts as a temple.' },
+    text: 'Red pays each Abbazia. One a follower holds (rules 39 and 61) pays that follower\'s player a point for every tile in the eight squares round it, and a point more for every follower on those eight, anybody\'s. One nobody holds pays a point for every tile round it to whoever has the most followers on those eight squares; tied, each in full. Nobody comes home for it.',
+    from: T(D28, ABB_SCORE, '"Every meeple" read as every follower round it, anybody\'s; an Abbazia nobody holds paying the neighbourhood as before is Claude\'s call, named to Timothy when it shipped.'),
+    changed: D28,
+    was: 'Red pays each Abbazia a point for every tile in the eight squares round it, to whoever has the most followers on those eight and on the Abbazia; tied, each in full. Nobody comes home for it.' },
   { n: 49, id: 'colour-yellow', group: 'colours',
     text: 'Yellow pays each road a point a tile, plus 1 for each city it runs into that is still open and 2 for each that is closed. A road runs into a city on a tile that carries both, or through a gate in its wall (rule 68).',
     from: T(D25, GATES, 'A road "running straight from the middle of the castle wall" read as one that arrives at the city behind the wall, so yellow pays for that city. The rest is from the twelfth pass.'),
@@ -380,9 +393,10 @@ export const RULES = [
     changed: D27,
     was: 'A city closed all round by walls pays double.' },
   { n: 68, id: 'city-gate', group: 'cities',
-    text: 'A district\'s walls stand on the edge of its tile. Farmland may lie against a wall, and stops there; a road may run into one, and ends there, at a gate in the middle of the wall; and two walls may stand back to back.',
-    from: T(D25, GATES, 'A road into a wall is closed at that end, as a road into an Abbazia is. No field runs under a wall any more: until this a district tile carried a strip of farmland on its walled sides that joined the farms on either side of a city through it.'),
-    added: D25 },
+    text: 'A district\'s walls stand on the edge of its tile, and like an Abbazia\'s edges they take anything: farmland stops against a wall; a road runs into one and ends there, at a gate in its middle; a city runs into one and is closed on that side; and two walls may stand back to back.',
+    from: T(D28, WALLS_ANY, 'Before, a wall took a field, a road or another wall (2026-10-26, "' + GATES + '").'),
+    added: D25, changed: D28,
+    was: 'A district\'s walls stand on the edge of its tile. Farmland may lie against a wall, and stops there; a road may run into one, and ends there, at a gate in the middle of the wall; and two walls may stand back to back.' },
   { n: 53, id: 'city-reopen', group: 'cities',
     text: 'If the wind opens a city that was closed, whoever holds it loses a point a district.',
     from: H('twelfth', 'A point a tile until districts, 2026-10-24.') },
@@ -392,14 +406,18 @@ export const RULES = [
 
   // --- Windmills and flying machines. -----------------------------------------
   { n: 59, id: 'windmill-finish', group: 'tiles',
-    text: 'When a road or city with windmills in it closes, each windmill pays 2 to whoever holds it.',
-    from: H('twelfth', 'Paid to the holder, not to whoever laid the last tile.') },
+    text: 'When a road or city with windmills in it closes, each windmill pays 3 to whoever holds it.',
+    from: T(D28, MILLS3, 'It was 2.'),
+    changed: D28,
+    was: 'When a road or city with windmills in it closes, each windmill pays 2 to whoever holds it.' },
   { n: 60, id: 'flight-path', group: 'tiles',
     text: 'A flying machine, on the turn it is laid, flies its way across the board, over open sky too, and turns with any zephyr it crosses; one pointing back at it ends the flight.',
     from: H('second', 'Across open sky since the seventh pass.') },
   { n: 61, id: 'flight-claim', group: 'tiles',
-    text: 'On that follower step you may put a follower on any feature of any tile along the flight, held or not and on an island or not, if the tile has no figure on it. Never on a wall.',
-    from: H('second', 'The one way to choose to be somewhere.') },
+    text: 'On that follower step you may put a follower on any feature of any tile along the flight, held or not and on an island or not, if the tile has no figure on it, or on an empty Abbazia along it, which it then holds (rule 48). Never on a wall.',
+    from: T(D28, ABB_CLAIM),
+    changed: D28,
+    was: 'On that follower step you may put a follower on any feature of any tile along the flight, held or not and on an island or not, if the tile has no figure on it. Never on a wall.' },
   { n: 62, id: 'flight-lift', group: 'tiles',
     text: 'Or you may lift one of yours off a tile along the flight (it goes home), and then put one down further along, or not.',
     from: H('tenth') },
@@ -426,6 +444,7 @@ export const RULES = [
 
 /** Rule numbers taken out, never used again. */
 export const RETIRED = [
+  16,   // followers-flat, 2026-10-28: "Once a turn you may lay one of your followers standing in a city flat. It never comes home again, even when the city is paid, and a city held only by followers lying flat never pays the walled double (rule 52)." Timothy: "remove laying meeple flat".
   18,   // wind-loose-end, 2026-10-27: "It does nothing to the country it passes through. It moves the loose end: where the line of tiles in its lane stops, the last tiles before the gap come away, as many as the wind's power, and each goes that many squares on." The blow pushes what is in front of it (rule 70).
   19,   // wind-every-run, 2026-10-27: the wind took the loose end of every run down its lane, across the gaps. A push stops at the first gap.
   21,   // wind-whole-island, 2026-10-27: an island the wind reached moved whole. Timothy: "the rule about island being moved all as one piece is no longer a thing".

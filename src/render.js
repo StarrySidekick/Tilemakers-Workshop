@@ -251,19 +251,23 @@ export class Renderer {
     if (game.phase === 'blow') {
       const h = this.hover, train = h && game.m.trainAt(h.x, h.y);
       if (train) {
+        // What an anchor holds still, and what the push moves (or, too
+        // heavy, whose followers it blows).
+        if (train.held?.length) this.drawCellTargets(train.held, THEME.teal, '95,191,174');
         if (train.heavy) this.drawCellTargets(train.cells, THEME.violet, '107,90,140');
         else this.drawCellTargets(train.cells, THEME.gold, '212,175,95');
       }
     }
     if (game.phase === 'flight') this.drawCellTargets(game.m.flightLifts(), THEME.teal, '95,191,174');
-    if (game.phase === 'flat') this.drawCellTargets(game.m.flatTargets(), THEME.gold, '212,175,95');
     if (game.phase === 'stroll') this.drawCellTargets(game.m.stroll?.targets || [], MOVE_OK.line, MOVE_OK.rgb);
     if (game.phase === 'recall') this.drawCellTargets(game.myMeeples(), MOVE_COSTLY.line, MOVE_COSTLY.rgb);
     if (game.phase === 'walk') this.drawCellTargets(game.pendingWalk?.targets || [], MOVE_OK.line, MOVE_OK.rgb);
     if (game.phase === 'place') this.drawPlacementHints(game);
 
     this.drawMeeples(game);
-    if (game.phase === 'meeple' && !this.hideMeepleTargets) this.drawMeepleTargets(game);
+    // With the claim panel aiming at the tile just laid, the board still shows
+    // the targets anywhere else (a flying machine's, along its flight).
+    if (game.phase === 'meeple') this.drawMeepleTargets(game, this.hideMeepleTargets ? game.lastPlaced : null);
     // With the claim panel doing the aiming, the board still says WHICH tile
     // is being claimed on — otherwise the two read as unrelated things.
     if (game.phase === 'meeple' && this.hideMeepleTargets && game.lastPlaced) {
@@ -280,7 +284,7 @@ export class Renderer {
         this.ctx.restore();
       }
     }
-    else this.meepleSpots = [];
+    if (game.phase !== 'meeple') this.meepleSpots = [];
 
     if (game.walker) this.drawPawns(game);
     else { this.pawnSpots = []; this.moveSpots = []; }
@@ -1455,16 +1459,17 @@ export class Renderer {
    * the board, drawn in the flight's own colour so you can tell the two kinds
    * of claim apart before you commit one.
    */
-  drawMeepleTargets(game) {
+  drawMeepleTargets(game, skip = null) {
     const ctx = this.ctx;
     this.meepleSpots = [];
     const pulse = 1 + Math.sin(performance.now() / 400) * 0.08;
 
     for (const o of game.meepleOptions()) {
+      if (skip && o.x === skip.x && o.y === skip.y) continue;   // the claim panel's
       const cell = game.board.get(o.x, o.y);
       if (!cell || !this.onScreen(o.x, o.y)) continue;
       const color = o.flying ? THEME.teal : PLAYER_COLORS[game.current];
-      const spot = rotPoint(cell.type.spots[o.i], cell.rot);
+      const spot = rotPoint(cell.type.spots[o.i] || [0.5, 0.5], cell.rot);
       const [sx, sy] = this.toScreen(cell.x + spot[0], cell.y + spot[1]);
       const r = this.cam.zoom * 0.19 * pulse;
       ctx.beginPath();
@@ -1476,7 +1481,7 @@ export class Renderer {
       ctx.stroke();
       drawMeeple(ctx, sx, sy, this.cam.zoom * 0.26, PLAYER_COLORS[game.current],
         { farmer: o.f?.type === 'field' });
-      this.meepleSpots.push({ i: o.i, x: o.x, y: o.y, sx, sy, r: this.cam.zoom * 0.24, type: o.f.type });
+      this.meepleSpots.push({ i: o.i, x: o.x, y: o.y, sx, sy, r: this.cam.zoom * 0.24, type: o.f?.type || o.what || 'tile' });
     }
   }
 

@@ -1330,6 +1330,60 @@ kingmakes badly, and you'd blame the mechanic instead of the count.
 >   rose pushing down several lanes); chain pushes fell from 73 to 44.
 >
 > Rules 3, 28 and 63 changed.
+>
+> **Thirty-first pass: walls take anything, held Abbazias, no cutting,
+> anchors, and a bot that learned.**
+>
+> Timothy, later on 2026-10-28, a list; asked four things, he chose the
+> windmills, flying machines and windvanes on road and district faces, "a
+> smattering of features" on the Abbazias' backs, "complete towers, and big
+> tower quarters" as anchors, and how a held Abbazia pays.
+>
+> - **Walls take anything** (rules 6, 68), as an Abbazia's edge does, and cap
+>   it: a city that runs into a wall is closed there (`edgesMeet`,
+>   Board.link). **Lying flat is gone** (rule 16 retired; 8, 13). **Eight
+>   followers** (rule 1). **Windmills pay 3** (rules 24, 59).
+> - **Held Abbazias** (rules 10, 39, 48, 61): never claimed by laying one; a
+>   follower flown onto an empty one (`flightTargets`, a claim with no
+>   feature, which the host now takes) or blown onto it holds it, and red pays
+>   the holder a point a tile round it and a point a follower round it
+>   (`abbaziaPoints`). One nobody holds pays the neighbourhood as before.
+> - **No cutting** (rule 70): your zephyr blows from open sky, never from
+>   between two tiles (`openBehind`). **Anchors** (rules 74, 75): a big tower
+>   quarter or a closed tower's half holds its lane still up to it, and what
+>   is past it is pushed (`pushOnce`, `laneOf`); an anchor no longer makes a
+>   push too heavy.
+> - **The deck** (rule 3): windmills (four on roads, two windmill districts),
+>   flying machines (three, at dead ends) and windvanes (two, on crossings)
+>   on the road faces of district tiles; the Abbazias backed by roads and
+>   districts of every shape.
+> - **The bot**: knows a flight onto an Abbazia (`botTileClaim`) and a heavy
+>   blow that lands its follower on one (`landingOf`), blows only from open
+>   sky, and was RETRAINED by self-play (tools/train.mjs, 16 rounds): the new
+>   weights beat the old in 75% of 60 games on unseen seeds, by 27 points.
+>   Farms fell from 4 to 1.2. A second session found nothing better (47%).
+> - The page: the board showed no follower targets at all while the claim
+>   panel aimed at the tile just laid, so a flying machine's targets along its
+>   flight could not be clicked; it shows them now.
+>
+> Where the points come from, the trained bots, two players, 30 games (score
+> 206 a player): **closing a city nobody holds 48%**, blue 27%, closing a
+> road 15%, red 13% (2% of it held Abbazias), windmills 5%, yellow 3%, the
+> archipelago 2%, green 1%, and **cities blown open cost their holders
+> 14%**. By what paid it: closing, on the spot, 62%; towers 19%; the sun 16%;
+> the end 11%; windmills 5%. Three players (16 games, 111 a player) and four
+> (12 games, 94) the same within a few points.
+>
+> **A third of the closer pay is paid again for something already paid** (6
+> times a game, 79 points): closed things are blown open 60 to 67 times a
+> game, and closing one again pays again. The trained bot lays the district
+> face (44 a game; 5 the pass before) and the zephyr road almost never (2.7
+> a game), so chains fell to 12 pushes and islands at the end to 5. Held
+> Abbazias: 0.8 a game by a blow, 0.1 by a flight. Blows held by an anchor:
+> 16 a game.
+>
+> Rules 1, 3, 6, 8, 10, 13, 24, 39, 48, 59, 61, 68, 70, 74 and 75 changed; 16
+> retired.
 
 
 **Question it answers:** is a small board you keep *editing* better than a big

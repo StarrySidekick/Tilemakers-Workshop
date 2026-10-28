@@ -505,12 +505,13 @@ for (const [what, mode, mech, kind] of [
         g.m.cancelLift();
       } else if (g.phase === 'blow') {
         // Every turn ends with a blow: against a tile it can move, if any.
+        // Only from open sky (no cutting): each way has its own targets.
         let at = null;
-        for (const t of g.m.blowTargets()) {
-          for (let d = 0; d < 4 && !at; d++) if (!g.m.trainAt(t.x, t.y, d).heavy) at = { ...t, d };
-          if (at) break;
+        for (let d = 0; d < 4 && !at; d++) {
+          const t = g.m.blowTargets(d).find((q) => g.m.trainAt(q.x, q.y, d) && !g.m.trainAt(q.x, q.y, d).heavy);
+          if (t) at = { ...t, d };
         }
-        at = at || { ...g.m.blowTargets()[0], d: 1 };
+        for (let d = 0; d < 4 && !at; d++) if (g.m.blowTargets(d).length) at = { ...g.m.blowTargets(d)[0], d };
         g.m.blowDir = at.d;
         g.cellClick(at.x, at.y);
       } else if (g.phase === 'astray') {
@@ -565,7 +566,7 @@ for (const [what, mode, mech, kind] of [
       const g = window.LAB.game, r = window.LAB.renderer;
       let q = null;
       for (let i = 0; i < 4 && !q; i++) {
-        q = g.m.blowTargets().find((t) => !g.m.trainAt(t.x, t.y).heavy) || null;
+        q = g.m.blowTargets().find((t) => g.m.trainAt(t.x, t.y) && !g.m.trainAt(t.x, t.y).heavy) || null;
         if (!q) g.rotate(1);
       }
       q = q || g.m.blowTargets()[0];
@@ -645,6 +646,48 @@ for (const [what, mode, mech, kind] of [
   if (errors.length) problems.push(errors[0].split('\n')[0]);
   if (problems.length) { failures++; console.log(`  ✗ soffiando faces: ${problems.join(' · ')}`); }
   else console.log('  ✓ soffiando faces     the back shown, turned over by a tap and by F, laid two-faced, listed both ways');
+}
+
+// A flying machine's flight onto an empty Abbazia (2026-10-28), clicked on
+// the board while the claim panel aims at the machine's own tile: the board
+// has to keep showing the targets anywhere else (it hid them all until then).
+{
+  errors.length = 0;
+  await page.selectOption('#mode', 'soffiando');
+  await page.click('#newGame');
+  await page.waitForTimeout(200);
+  await page.evaluate(async () => {
+    const g = window.LAB.game;
+    const { TILES } = await import('/src/tiles.js');
+    for (const c of [...g.board.cells.values()]) g.board.remove(c.x, c.y);
+    for (const x of [-1, -2, -3]) g.board.place(x, 0, TILES.B, 0);
+    const fl = g.board.place(0, 0, TILES.Kfl, 0);
+    g.board.place(0, -1, TILES.U, 0); g.board.place(0, -2, TILES.Kab, 0);
+    g.board.rebuild();
+    g.current = 0; g.tile = null;
+    g.m.flight = g.m.flightPath(fl);
+    g.lastPlaced = fl; g.phase = 'meeple';
+    window.LAB.renderer.glideTo?.(0, -1);
+  });
+  await page.waitForTimeout(800);
+  const problems = [];
+  const t = await page.evaluate(() => {
+    const r = window.LAB.renderer;
+    const s = r.meepleSpots.find((q) => q.x === 0 && q.y === -2);
+    if (!s) return null;
+    const rect = r.canvas.getBoundingClientRect();
+    return { x: rect.left + s.sx, y: rect.top + s.sy };
+  });
+  if (!t) problems.push('no target on the Abbazia along the flight');
+  else {
+    await page.mouse.click(t.x, t.y);
+    await page.waitForTimeout(200);
+    const held = await page.evaluate(() => window.LAB.game.board.get(0, -2)?.meeple?.player);
+    if (held !== 0) problems.push('the click did not put a follower on the Abbazia');
+  }
+  if (errors.length) problems.push(errors[0].split('\n')[0]);
+  if (problems.length) { failures++; console.log(`  ✗ soffiando abbazia: ${problems.join(' · ')}`); }
+  else console.log('  ✓ soffiando abbazia   a flight lands a follower on an empty Abbazia, by a click on the board');
 }
 
 // The endgame tally: many features settle in one frame, and they have to be

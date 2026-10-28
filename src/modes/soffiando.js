@@ -11,8 +11,10 @@
 // faces. A district backs onto a road of its shape (twelve of those roads
 // carry a zephyr or a cannon), a tower half onto a tower half of another
 // colour (2026-10-28: "tiles that have towers on them should have different
-// colored towers on the other side"), an Abbazia onto a windmill, a flying
-// machine or a windvane, and the sun's quarters onto the black hole's. You turn the
+// colored towers on the other side"), an Abbazia onto a smattering of roads
+// and districts, and the sun's quarters onto the black hole's. Windmills,
+// flying machines and windvanes ride on roads ("windmills should just be on
+// different kinds of tiles"). You turn the
 // tile over as well as round (the host's `flipTile`, F); one whose front
 // fits nowhere is dealt back up. The deck holds them as "front|back"
 // (soffiando-deck.js), and so does every tile on the board (`cell.key`), so
@@ -33,10 +35,14 @@
 // flying until the square ahead of it is taken. A zephyr tile does nothing
 // when it is laid: the blow is the only wind there is (wind.js `blow`).
 //
-// A push too heavy to move, or with a quarter of the big tower in it, moves
-// no tile, but blows the followers on the tiles it reaches a square downwind
-// ("you can blow on an area even if you can't move any tiles, and it will
-// still move meeple"). WALLS HOLD FOLLOWERS ("castle walls protect meeple"):
+// NO CUTTING (2026-10-28): your zephyr blows from open sky, never from
+// between two tiles. AN ANCHOR, a quarter of a big tower or a half of a
+// closed tower, holds its lane still from the zephyr up to it, and what is
+// past it is pushed ("have an anchor like a tower keep everything in your
+// lane from moving, but only up until the tower, stuff past it still moves").
+// A push too heavy to move moves no tile, but blows the followers on the
+// tiles it reaches a square downwind ("you can blow on an area even if you
+// can't move any tiles, and it will still move meeple"). WALLS HOLD FOLLOWERS ("castle walls protect meeple"):
 // a follower is never blown across a city wall, but a tile with a wall on it
 // moves like any other. Towers held tiles too ("towers/sfera protect tiles")
 // until later the same day ("let a blow move tower halves"): now only the big
@@ -58,8 +64,10 @@
 //   GREEN  the farms: a point for every two tiles of field
 //   BLUE   the cities: a point a district, plus 1, 3 or 6 for two, three or
 //          four kinds, all doubled once walled all round; plus 2 a garden
-//   RED    the Abbazias: a point for every tile round one, to whoever has the
-//          most followers on and round it
+//   RED    the Abbazias: one a follower HOLDS (flown or blown onto it) pays
+//          its holder a point for every tile round it and a point more for
+//          every follower round it; one nobody holds pays a point a tile
+//          round it to whoever has the most followers there
 //   YELLOW the roads: a point a tile, plus 1 for each open city a road
 //          reaches and 2 for each closed one
 //
@@ -80,11 +88,14 @@
 // whoever closed it what its tower would ("things that go unclaimed are
 // scored by whoever places the last piece of that feature").
 //
-// FOLLOWERS: five each ("you only have 5 meeple"). A road or city that is
-// still open may be joined even if somebody is already in it ("you can add
-// meeple to finished roads and cities even if other meeple are there, but
-// not if they are closed", read as: not yet closed); a closed one never, nor
-// a tower or an Abbazia ("you not longer claim them").
+// FOLLOWERS: eight each (2026-10-28: "let's go back to having 8 meeple"; five
+// the day before). A road or city that is still open may be joined even if
+// somebody is already in it ("you can add meeple to finished roads and cities
+// even if other meeple are there, but not if they are closed", read as: not
+// yet closed); a closed one never, nor a tower. An Abbazia is never claimed
+// by laying it: a follower flown onto an empty one, or blown onto it, holds
+// it ("you have to blow or flying machine into them from elsewhere"). Lying
+// a follower flat is gone ("remove laying meeple flat").
 //
 // THE MAINLAND is whatever piece of country is biggest, and every other piece,
 // down to a single tile, is an ISLAND: it pays double, and you may build onto
@@ -97,8 +108,9 @@
 // anymore"). Islands no longer travel as one piece either.
 //
 // CITIES ARE DISTRICTS: garden, residential, industrial and trade, each a
-// whole square, walled on every edge its city does not run on through. A road
-// may run into a wall and ends there, at a gate. THE ABBAZIA fits anything,
+// whole square, walled on every edge its city does not run on through. A wall
+// takes anything an Abbazia does (2026-10-28): a road runs into it and ends at
+// a gate, a city runs into it and is closed there. THE ABBAZIA fits anything,
 // caps what it touches and adds to everybody's push. THE FLYING MACHINE flies
 // a follower out down its lane, or fetches one home. THE WINDVANE turns onto
 // the wind. THE BALENA, a sky whale, is an option: no push moves its tile.
@@ -123,7 +135,7 @@ import {
  * sky go back on it, so a stormy game runs past the deck it started with.
  */
 const STORM_LIMIT = 96;
-const TURBINE = 2;           // to the feature's holder, per push that reaches it
+const TURBINE = 3;           // to the feature's holder, per push that reaches it (2 until 2026-10-28)
 /**
  * EVERY OPINION THE COMPUTER PLAYER HAS, in one object.
  *
@@ -150,13 +162,24 @@ const TURBINE = 2;           // to the feature's holder, per push that reaches i
  * important as first assumed, and the strongest single signal in the sweep by
  * a distance), temples come second, roads are worth about half what they look
  * like, and a windmill in a city you hold is worth twice the guess.
+ *
+ * RETRAINED 2026-10-28 (Timothy: "lets get the ai to learn how to play
+ * better"), under the rules of that day (two faces, walls that take
+ * anything, held Abbazias, anchors, eight followers): sixteen rounds of
+ * self-play (tools/train.mjs, tools/brains/soffiando-2026-10-28.json) took
+ * three challengers, and the result beat the old set in 75% of 60 games on
+ * seeds it never trained on, by 27 points. What moved says what changed in
+ * the mode: FARMS ARE NO LONGER THE GAME (4 to 1.2; green fires only when a
+ * green tower or the sun closes, and a farmer is a follower gone for good),
+ * roads are worth a little more, and a tower closed is worth a little less
+ * net of what it hands the table.
  */
 export const SOFFIANDO_WEIGHTS = {
   ahead: 2,          // firings a claim is priced over — and claim eagerness
-  farm: 4,           // …scaled per feature type, because the four colours pay
+  farm: 1.235,       // …scaled per feature type, because the four colours pay
   city: 1,           //    over different numbers of tiles and the bot has no
-  road: 1.1,         //    way of knowing which of them is actually winnable
-  sphere: 1,         // closing a tower, net of what it hands the table
+  road: 1.314,       //    way of knowing which of them is actually winnable
+  sphere: 0.834,     // closing a tower, net of what it hands the table
   closeTower: 8,     // …and closing one at all (measured: 8 against 2, even over 24 games; 8 closes more, as people do)
   quarter: 1.5,      // a quarter of a big tower laid against another, per quarter it joins
   parish: 0.6,       // a tile round an Abbazia, to whoever holds its neighbourhood
@@ -170,11 +193,11 @@ export const SOFFIANDO_WEIGHTS = {
 
 /** A seat's own weights, or the defaults. */
 const weightsFor = (mode, seat) => mode.brains?.[seat] || SOFFIANDO_WEIGHTS;
-const WINDMILL = 2;          // …and per windmill, to whoever HOLDS the feature it finishes
+const WINDMILL = 3;          // …and per windmill, to whoever HOLDS the feature it finishes (2 until 2026-10-28)
 const REOPENED = 1;          // per tile, off a held city the wind blows open again
 const FLIGHT_RANGE = 24;     // squares, before we assume the zephyrs are a loop
 const ARCHIPELAGO = 10;      // at the end, to whoever stands on the most islands
-const FOLLOWERS = 5;         // each (Timothy, 2026-10-27: "you only have 5 meeple")
+const FOLLOWERS = 8;         // each (Timothy, 2026-10-28: "let's go back to having 8 meeple"; 5 from the day before)
 const SUPPLY = FOLLOWERS;    // …which is what the panel draws
 const BASE_PUSH = 1;         // everybody's push power with no Abbazia on the board
 const GARDEN = 2;            // blue, per garden district in a city, open or closed
@@ -262,6 +285,14 @@ const RING = [[-1, -1], [0, -1], [1, -1], [-1, 0], [1, 0], [-1, 1], [0, 1], [1, 
  */
 const isQuarter = (cell) => cell.type.feats.some((f) => f.quarter);
 
+/** A half of a tower that has closed: with the big tower's quarters, an ANCHOR (2026-10-28). */
+const closedHalf = (board, cell) => {
+  const i = cell.type.feats.findIndex((f) => f.type === 'sfera' && !f.quarter);
+  if (i < 0) return false;
+  const d = board.featureOf(cell.x, cell.y, i);
+  return !!d && d.open === 0 && d.tiles.size >= 2;
+};
+
 /** A deck entry with a quarter of a big tower on either face. */
 const quarterKey = (key) => String(key).split('|').some((id) => TILES[id]?.feats.some((f) => f.quarter));
 
@@ -328,7 +359,6 @@ export class Soffiando extends Mode {
     this.pending = [];         // followers the tower has paid, waiting to come off
     this.strollers = [];       // followers offered a walk when the scoring settles
     this.stroll = null;        // …and the one being asked about now
-    this.laidFlat = false;     // one follower retired into a city per turn
     this.balenaMoved = false;  // …and the whale has already swum this turn
     // The whale starts asleep over the Plaza. OUT OF THE DEFAULT RULES
     // (Timothy, 2026-10-24: "for now, remove the balena in the default
@@ -593,6 +623,8 @@ export class Soffiando extends Mode {
   holdTurn() {
     const g = this.game;
     if (this.blown || g.phase === 'over' || !g.board.size) return false;
+    // Nowhere to blow from (no tile with open sky on any side): no blow.
+    if (![0, 1, 2, 3].some((d) => this.blowTargets(d).length)) return false;
     g.phase = 'blow';
     return true;
   }
@@ -603,7 +635,6 @@ export class Soffiando extends Mode {
     this.lifted = null;
     this.stroll = null;
     this.strollers.length = 0;
-    this.laidFlat = false;
     this.balenaMoved = false;
     this.blown = false;
     this.astray = [];
@@ -839,12 +870,11 @@ export class Soffiando extends Mode {
     const board = this.game.board;
     const cells = board.cellsOf(d);
     const { n, kinds, gardens } = this.districtsIn(d);
-    const flat = d.meeples.length > 0 && d.meeples.every((m) => m.flat);
-    const walled = d.open === 0 && !flat;
+    const walled = d.open === 0;
     const isle = cells.length > 0 && this.onIsland(cells[0]);
     const pts = ((n + VARIETY[Math.min(kinds, VARIETY.length - 1)]) * (walled ? WALLED : 1)
       + GARDEN * gardens) * (isle ? 2 : 1);
-    const line = `${flat ? 'A city kept by a retired follower' : walled ? 'A walled city' : 'An open city'}`
+    const line = `${walled ? 'A walled city' : 'An open city'}`
       + ` of ${n} district${n === 1 ? '' : 's'} in ${kinds} kind${kinds === 1 ? '' : 's'}`
       + `${gardens ? `, ${gardens} garden${gardens === 1 ? '' : 's'}` : ''}`
       + `${isle ? ' out on an island' : ''}`;
@@ -880,28 +910,80 @@ export class Soffiando extends Mode {
    */
   scoreAbbazias() {
     const g = this.game;
-    const board = g.board;
     for (const cell of this.tiles()) {
       if (!hasMark(cell, 'abbazia')) continue;
-      const around = board.surroundCount(cell.x, cell.y);
-      if (!around) continue;
+      const pts = this.abbaziaPoints(cell);
+      if (!pts) continue;
       const winners = this.abbaziaHolders(cell);
       if (!winners.length) continue;
-      const per = this.onIsland(cell) ? RATE.abbazia.isle : RATE.abbazia.main;
+      const isle = this.onIsland(cell);
+      const held = !!cell.meeple;
       for (const p of winners) {
-        this.pay(p, around * per,
-          `The Abbazia at (${cell.x}, ${cell.y}) with ${around} tile${around === 1 ? '' : 's'} round it`
-          + `${per > RATE.abbazia.main ? ' out on an island' : ''} — ${g.players[p].name}`,
+        this.pay(p, pts,
+          `The Abbazia at (${cell.x}, ${cell.y})${held ? ', held,' : ''} with ${this.game.board.surroundCount(cell.x, cell.y)} tiles round it`
+          + `${isle ? ' out on an island' : ''} — ${g.players[p].name}`,
           [{ x: cell.x, y: cell.y }]);
       }
     }
   }
 
-  /** Who has the most followers on an Abbazia and the eight squares round it. */
+  /**
+   * What red pays for an Abbazia: a point for every tile round it, and if a
+   * follower HOLDS it (stands on it, flown or blown there), a point more for
+   * every follower round it (Timothy, 2026-10-28: "it scores 1 point for
+   * every tile surrounding it, and and extra point for every meeple (besides
+   * the one that claimed it)"). Double on an island.
+   */
+  abbaziaPoints(cell) {
+    const board = this.game.board;
+    let pts = board.surroundCount(cell.x, cell.y);
+    if (cell.meeple) for (const [dx, dy] of RING) if (board.get(cell.x + dx, cell.y + dy)?.meeple) pts++;
+    return pts * (this.onIsland(cell) ? RATE.abbazia.isle : RATE.abbazia.main);
+  }
+
+  /**
+   * Where a follower on `cell` would come down if a push blew it `dir`, as
+   * the wind does it (wind.js `blowFollower`): the next tile downwind, or
+   * null if a wall or a figure keeps it where it is.
+   */
+  landingOf(cell, dir) {
+    const board = this.game.board;
+    const [dx, dy] = SIDE_STEP[dir];
+    if (board.edgeAt(cell, dir) === WALL) return null;
+    const lap = board.wraps ? (dx === 0 ? board.span.h : board.span.w) : 64;
+    for (let n = 1; n <= lap; n++) {
+      const sq = board.norm(cell.x + dx * n, cell.y + dy * n);
+      const dest = board.get(sq.x, sq.y);
+      if (!dest) continue;
+      if (dest === cell || dest.meeple || board.edgeAt(dest, opposite(dir)) === WALL) return null;
+      return dest;
+    }
+    return null;
+  }
+
+  /** What standing on an empty Abbazia (a claim with no feature, flown out to) is worth to a computer player. */
+  botTileClaim(o, seat) {
+    const cell = this.game.board.get(o.x, o.y);
+    if (!cell || !hasMark(cell, 'abbazia') || cell.meeple) return null;
+    const w = weightsFor(this, seat);
+    const before = this.abbaziaHolders(cell);
+    const was = before.length ? (before.includes(seat) ? 1 : -0.7) * this.abbaziaPoints(cell) : 0;
+    cell.meeple = { player: seat, feat: null };
+    const now = this.abbaziaPoints(cell);
+    cell.meeple = null;
+    return (now - was) * w.ahead * w.parish;
+  }
+
+  /**
+   * Who red pays for an Abbazia: whoever holds it, outright; or, nobody
+   * holding it, whoever has the most followers in the eight squares round
+   * it (ties all paid).
+   */
   abbaziaHolders(cell) {
     const board = this.game.board;
+    if (cell.meeple) return [cell.meeple.player];
     const counts = new Map();
-    for (const [dx, dy] of [[0, 0], ...RING]) {
+    for (const [dx, dy] of RING) {
       const m = board.get(cell.x + dx, cell.y + dy)?.meeple;
       if (m) counts.set(m.player, (counts.get(m.player) || 0) + 1);
     }
@@ -994,10 +1076,7 @@ export class Soffiando extends Mode {
         this.pay(p, pts, `${line} — ${g.players[p].name}`, where);
       }
     }
-    for (const m of d.meeples.slice()) {
-      if (m.flat) continue;
-      this.pending.push({ x: m.x, y: m.y });
-    }
+    for (const m of d.meeples.slice()) this.pending.push({ x: m.x, y: m.y });
   }
 
   /**
@@ -1018,7 +1097,7 @@ export class Soffiando extends Mode {
     for (const { x, y } of this.pending.splice(0)) {
       const cell = g.board.get(x, y);
       const m = cell?.meeple;
-      if (!m || m.flat) continue;                  // already gone, or lying down
+      if (!m) continue;                            // already gone
       // The current player is offered a walk instead of the trip home; this
       // notes the chance and the host asks about it once the pass is over.
       if (m.player === g.current) this.strollers.push({ x, y, i: m.feat });
@@ -1187,61 +1266,6 @@ export class Soffiando extends Mode {
     if (this.blown || (!g.meepleOptions().length && !this.holdsMeeplePhase())) g.endTurn();
   }
 
-  // --- retiring a follower into a city ---------------------------------------
-
-  /**
-   * Lay one flat. A follower lying down in a city stops being a follower: it
-   * never comes home, not even when the city finishes and pays — and the city
-   * pays the LOWER rate for as long as it is the only thing holding it. It is
-   * the answer to "I want to keep this city" in a mode where holding anything
-   * costs you the piece.
-   */
-  flatTargets() {
-    const g = this.game;
-    // Offered from the follower step, and still offered once you are in the
-    // middle of choosing — the guard used to empty the list the moment the
-    // phase changed, so nothing could ever be picked.
-    if (g.phase !== 'meeple' && g.phase !== 'flat') return [];
-    const out = [];
-    // Tiles in sight: under the tide a sunken one is still in `cells`.
-    for (const cell of this.tiles()) {
-      const m = cell.meeple;
-      if (!m || m.flat || m.player !== g.current || m.feat == null) continue;
-      if (cell.type.feats[m.feat]?.type !== 'city') continue;
-      out.push({ x: cell.x, y: cell.y });
-    }
-    return out;
-  }
-
-  canLieDown() { return this.flatTargets().length > 0 && !this.laidFlat; }
-
-  beginFlat() {
-    if (!this.canLieDown()) return false;
-    this.game.phase = 'flat';
-    return true;
-  }
-
-  flatAt(x, y) {
-    if (!this.flatTargets().some((o) => o.x === x && o.y === y)) return false;
-    const g = this.game;
-    const cell = g.board.get(x, y);
-    cell.meeple.flat = true;
-    const d = g.board.featureOf(x, y, cell.meeple.feat);
-    if (d) for (const m of d.meeples) if (m.x === x && m.y === y) m.flat = true;
-    this.laidFlat = true;
-    g.phase = 'meeple';
-    g.say(`${g.player.name} lays a follower flat in the city at (${x}, ${y}) — it stays, `
-      + 'and the city will not pay the walled double while only flat followers hold it.');
-    g.emit('landmark');
-    return true;
-  }
-
-  cancelFlat() {
-    if (this.game.phase !== 'flat') return false;
-    this.game.phase = 'meeple';
-    return true;
-  }
-
   // --- the Balena -----------------------------------------------------------
   //
   // A whale the size of a district, and the only brake in the mode. It is not
@@ -1297,7 +1321,7 @@ export class Soffiando extends Mode {
    * as long as there is a whale to send.
    */
   holdsMeeplePhase() {
-    return !!this.lifted || this.flightLifts().length > 0 || this.canLieDown()
+    return !!this.lifted || this.flightLifts().length > 0
       || (!this.balenaMoved && this.balenaTargets().length > 0);
   }
 
@@ -1311,7 +1335,6 @@ export class Soffiando extends Mode {
 
   onCellClick(x, y) {
     if (this.game.phase === 'stroll') return this.strollTo(x, y);
-    if (this.game.phase === 'flat') return this.flatAt(x, y);
     if (this.game.phase === 'flight') return this.liftAt(x, y);
     if (this.game.phase === 'blow') return this.blowAt(x, y);
     if (this.game.phase === 'astray') return this.sendAstray(x, y);
@@ -1356,7 +1379,27 @@ export class Soffiando extends Mode {
   }
 
   /** A tile no push moves: a tower, or the whale's. */
-  holds(cell) { return isQuarter(cell) || immovable(cell); }
+  /**
+   * AN ANCHOR: a quarter of a big tower or a half of a tower that has closed
+   * (Timothy, 2026-10-28: "complete towers, and big tower quarters"). No push
+   * moves one, and it holds the lane still up to it; what is past it is
+   * pushed (wind.js `pushOnce`). An open tower half is pushed like any tile.
+   */
+  holds(cell) { return isQuarter(cell) || closedHalf(this.game.board, cell) || immovable(cell); }
+
+  /**
+   * NO CUTTING: your zephyr blows from open sky, never from between two
+   * tiles (Timothy, 2026-10-28: "you can't only push from an open space, no
+   * from inbetween two tiles that are next to each other"). The square
+   * behind the tile, against the wind, must be empty.
+   */
+  openBehind(x, y, dir) {
+    const board = this.game.board;
+    const [dx, dy] = SIDE_STEP[dir];
+    const sq = board.norm(x - dx, y - dy);
+    if (board.bounds && !board.wraps && !board.inBounds(sq.x, sq.y)) return true;
+    return !board.get(sq.x, sq.y);
+  }
 
   /**
    * What a blow against (x, y) the current way would do first: the run of
@@ -1365,33 +1408,42 @@ export class Soffiando extends Mode {
    */
   trainAt(x, y, dir = this.blowDir) {
     const board = this.game.board;
-    if (!board.get(x, y)) return null;
-    const power = this.pushPower();
+    if (!board.get(x, y) || !this.openBehind(x, y, dir)) return null;
     const { cells, ring } = runFrom(board, { x, y }, dir);
-    const heavy = this.heavyRun(cells, ring, power, dir);
-    return { cells: heavy ? cells.slice(0, power) : cells, heavy };
+    const lane = this.laneOf(cells, ring, this.pushPower(), dir);
+    return { cells: lane.pushed, heavy: lane.heavy, held: lane.held };
   }
 
   /**
-   * Is a push on this run too heavy to move a tile: longer than its power, a
-   * quarter of the big tower in it, or the big tower's kept 2x2 where its
-   * front tile would go. The same test the wind makes (wind.js, pushOnce).
+   * A push on a lane, the same test the wind makes (wind.js, pushOnce): what
+   * its anchors hold still (up to the last one), what it pushes past them,
+   * and whether that is too heavy to move (longer than its power, or the big
+   * tower's kept 2x2 where its front tile would go), in which case it blows
+   * the followers on the first `power` of them instead.
    */
-  heavyRun(cells, ring, power, dir) {
-    if (ring || cells.length > power || cells.some((c) => this.holds(c))) return true;
-    const last = cells[cells.length - 1];
-    return !!last && this.keptFor(last.x + SIDE_STEP[dir][0], last.y + SIDE_STEP[dir][1]);
+  laneOf(cells, ring, power, dir) {
+    let held = 0;
+    for (let i = cells.length - 1; i >= 0; i--) if (this.holds(cells[i])) { held = i + 1; break; }
+    const run = cells.slice(held);
+    const last = run[run.length - 1];
+    const heavy = !!run.length && (ring || run.length > power
+      || this.keptFor(last.x + SIDE_STEP[dir][0], last.y + SIDE_STEP[dir][1]));
+    return { held: cells.slice(0, held), run, heavy, pushed: heavy ? run.slice(0, power) : run };
   }
 
-  /** Every tile on the board: a blow may go against any of them. */
-  blowTargets() {
-    return this.tiles().map((c) => ({ x: c.x, y: c.y }));
+  /** Every tile a blow the current way may go against: one with open sky behind it. */
+  blowTargets(dir = this.blowDir) {
+    return this.tiles().filter((c) => this.openBehind(c.x, c.y, dir)).map((c) => ({ x: c.x, y: c.y }));
   }
 
   /** Blow against (x, y), and the turn ends once what it moved has settled. */
   blowAt(x, y) {
     const g = this.game;
     if (g.phase !== 'blow' || !g.board.get(x, y)) return false;
+    if (!this.openBehind(x, y, this.blowDir)) {
+      g.say('Your zephyr blows from open sky: it cannot get between two tiles.');
+      return false;
+    }
     const dir = this.blowDir;
     const power = this.pushPower();
     this.blown = true;
@@ -1652,6 +1704,9 @@ export class Soffiando extends Mode {
     this.flight.forEach((cell, step) => {
       if (step < from) return;
       if (!board.get(cell.x, cell.y) || cell.meeple) return;
+      // An empty Abbazia along the flight is held outright by the follower
+      // set down on it (rule 82); it has no feature to claim.
+      if (hasMark(cell, 'abbazia')) { out.push({ x: cell.x, y: cell.y, i: null, f: null, flying: true, what: 'Abbazia' }); return; }
       for (const { i, f } of claimableFeatures(cell.type, { fields: this.game.has('fields') })) {
         if (!board.featureOf(cell.x, cell.y, i)) continue;
         if (f.type === 'city' && !f.district) continue;          // a wall, not a district
@@ -2310,15 +2365,17 @@ export class Soffiando extends Mode {
     const guesses = [];
     for (const c of this.tiles()) {
       for (let dir = 0; dir < 4; dir++) {
+        if (!this.openBehind(c.x, c.y, dir)) continue;          // no cutting
         const { cells, ring } = runFrom(board, c, dir);
-        const heavy = this.heavyRun(cells, ring, power, dir);
-        const reached = heavy ? cells.slice(0, power) : cells;
-        const touches = reached.some((t) => (heavy ? t.meeple && !t.meeple.flat : true) || turbineOn(t) || isCannon(t) || zephyrDirs(t).length);
+        const lane = this.laneOf(cells, ring, power, dir);
+        const { heavy, pushed: reached } = lane;
+        const touches = reached.some((t) => (heavy ? !!t.meeple : true) || isCannon(t) || zephyrDirs(t).length)
+          || [...lane.held, ...reached].some((t) => turbineOn(t));
         if (!touches) {
           if (!idle) idle = { x: c.x, y: c.y, dir, value: 0 };
           continue;
         }
-        guesses.push({ x: c.x, y: c.y, dir, guess: this.blowGuess(reached, heavy, seat) });
+        guesses.push({ x: c.x, y: c.y, dir, guess: this.blowGuess(reached, heavy, seat, dir) });
       }
     }
     let best = idle;
@@ -2333,10 +2390,13 @@ export class Soffiando extends Mode {
   }
 
   /** A quick guess at a blow: whose followers it carries or blows, and how much it moves. */
-  blowGuess(reached, heavy, seat) {
+  blowGuess(reached, heavy, seat, dir) {
     let value = 0;
     for (const t of reached) {
-      if (t.meeple) value += t.meeple.player === seat ? -1 : 1;
+      // A follower of ours a heavy push would blow onto an empty Abbazia
+      // claims it (rule 39): worth trying for real.
+      if (heavy && t.meeple?.player === seat && hasMark(this.landingOf(t, dir) || t, 'abbazia')) value += 4;
+      else if (t.meeple) value += t.meeple.player === seat ? -1 : 1;
       if (!heavy && zephyrDirs(t).length) value += 1;
       if (!heavy && sferaHue(t)) value += 1;     // a tower half on the move might meet its other half
     }
@@ -2423,8 +2483,7 @@ export class Soffiando extends Mode {
       if (hasMark(c, 'abbazia')) {
         const holders = this.abbaziaHolders(c);
         if (holders.length) {
-          const per = (this.onIsland(c) ? RATE.abbazia.isle : RATE.abbazia.main) * w.ahead * w.parish;
-          value += (holders.includes(seat) ? 1 : -0.7) * per * board.surroundCount(c.x, c.y);
+          value += (holders.includes(seat) ? 1 : -0.7) * this.abbaziaPoints(c) * w.ahead * w.parish;
         }
       }
       if (!c.meeple || c.meeple.feat == null) continue;
@@ -2495,9 +2554,6 @@ export class Soffiando extends Mode {
     if (g.phase === 'stroll') {
       return [{ label: 'Send it home instead', key: 'Space', fn: () => this.skipStroll(), wide: true }];
     }
-    if (g.phase === 'flat') {
-      return [{ label: 'Leave them standing', fn: () => this.cancelFlat() }];
-    }
     if (g.phase === 'balena') {
       return [{ label: 'Leave the Balena where it is', fn: () => this.cancelSwim() }];
     }
@@ -2517,9 +2573,6 @@ export class Soffiando extends Mode {
     }] : [];
     if (this.canLift()) {
       out.unshift({ label: 'Fly out and pick a follower up', fn: () => this.beginLift() });
-    }
-    if (this.canLieDown()) {
-      out.unshift({ label: 'Lay a follower flat in its city', fn: () => this.beginFlat() });
     }
     if (this.lifted) {
       out.unshift({ label: 'Bring the lifted follower home', fn: () => g.skipMeeple(), wide: true });
@@ -2603,16 +2656,16 @@ Soffiando.spec = {
   tideStart: 5,
   opening: 'A first stone hangs in the cloud. Everything else is weather.',
   hint: 'A turn is three steps: lay a tile, claim on it or not, and BLOW. '
-    + 'Every tile has TWO FACES: F (or the little tile under your hand) turns it over, R turns it round. A district has a road of its shape on the back (some roads carry a zephyr or a cannon), a tower half a tower half of another colour, an Abbazia a windmill, a flying machine or a windvane. '
-    + 'Your zephyr goes against any tile on any side (R turns it): that tile and every tile touching in front of it, up to the first gap, go one square, if there are no more of them than your PUSH POWER, which is 1 plus every Abbazia on the board. '
+    + 'Every tile has TWO FACES: F (or the little tile under your hand) turns it over, R turns it round. A district has a road of its shape on the back (some roads carry a zephyr, a cannon, a windmill, a flying machine or a windvane), a tower half a tower half of another colour, an Abbazia a road or a district. '
+    + 'Your zephyr goes in open sky against any tile on any side, never between two tiles (R turns it): that tile and every tile touching in front of it, up to the first gap, go one square, if there are no more of them than your PUSH POWER, which is 1 plus every Abbazia on the board. An ANCHOR (a quarter of a big tower, or a half of a closed tower) holds the lane still up to it, and what is past it is pushed. '
     + 'A zephyr tile your blow pushes then pushes the way it points, at its own push plus yours, and that chains on; a gust cannon fires what is in front of it until each tile hits something. Zephyr tiles do nothing when laid. '
-    + 'Too heavy to move, or with a quarter of the big tower in it (they never move), a blow moves no tile but blows the followers it reaches a square downwind, never across a city wall. '
+    + 'Too heavy to move, a blow moves no tile but blows the followers it reaches a square downwind, never across a city wall; one blown onto an empty Abbazia holds it. '
     + 'A moved tile that no longer meets all its neighbours MOVES ON: you pick a way, and it slides to the first empty square where it fits. Only one with every way blocked falls, and you lay one more tile. '
     + 'TOWERS are the scoring: a half meets only its own colour, and a closed tower, laid or pushed together, scores its colour over the whole board. '
-    + 'Green the farms (1 per two tiles of field), blue the cities (1 a district, plus 1, 3 or 6 for two, three or four kinds, doubled once walled, plus 2 a garden), red the Abbazias (1 per tile round one, to whoever has most followers there), yellow the roads (1 a tile plus 1 or 2 for each city they reach). '
+    + 'Green the farms (1 per two tiles of field), blue the cities (1 a district, plus 1, 3 or 6 for two, three or four kinds, doubled once walled, plus 2 a garden), red the Abbazias (one you hold, flown or blown onto it: 1 per tile round it and 1 per follower there; otherwise 1 per tile round it to whoever has most followers there), yellow the roads (1 a tile plus 1 or 2 for each city they reach). '
     + 'The BIG TOWERS are eight tiles with the SUN on one face and the BLACK HOLE on the other, walled outside, and a game makes one of each: the first quarter laid decides which comes first, and the rest of its 2x2 is kept for the other three, which must go into it; then the other is made. The sun fires every colour; the black hole swallows the ring round it (never the sun) back into the deck. '
     + 'A road or city closed with nobody in it pays whoever closed it, on the spot. '
-    + 'Five followers each. You may join an open road or city however many are in it, never a closed one. A feature a tower pays hands its followers back, or one of yours walks on down a road. '
+    + 'Eight followers each. You may join an open road or city however many are in it, never a closed one. A feature a tower pays hands its followers back, or one of yours walks on down a road. Windmills pay 3 for every push that reaches one and 3 when their road or city closes. City walls take anything, as an Abbazia does. '
     + 'The biggest piece of country is the mainland; every other piece is an ISLAND, pays double, and is buildable only by somebody standing on it. At the end, 10 to whoever stands on most islands. '
     + 'The map is 17 squares a side with the Plaza in the middle, and its edges meet: a tile pushed off one side comes on at the other, still joined.',
 };

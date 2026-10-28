@@ -830,11 +830,13 @@ export function shove(board, { at, dir, most = Infinity, pinned = null }) {
 //
 // One push is the stick's: the tile the zephyr is against and every tile
 // touching in front of it, up to the first gap, go one square, if there are
-// no more of them than the push's power and nothing among them `holds`.
-// Otherwise no tile moves, and the followers on the tiles the push reaches
-// (as many as its power) are blown a square downwind instead (Timothy: "you
-// can blow on an area even if you can't move any tiles, and it will still
-// move meeple"), never across a city wall ("castle walls protect meeple").
+// no more of them than the push's power. An anchor among them (`holds`)
+// holds everything up to it still, and only what lies past it is pushed.
+// Too many to move: no tile moves, and the followers on the tiles the push
+// reaches (as many as its power) are blown a square downwind instead
+// (Timothy: "you can blow on an area even if you can't move any tiles, and
+// it will still move meeple"), never across a city wall ("castle walls
+// protect meeple").
 // ---------------------------------------------------------------------------
 
 /**
@@ -868,7 +870,8 @@ export function runFrom(board, at, dir) {
  * `power`, from the tile in front of it (its own tile never moves with its
  * own push), once a way per blow; a gust cannon FIRES what is in front of it
  * instead, each tile flying until the square in front of it is taken.
- * `holds(cell)` is a tile no push can move, and `keepOut(x, y)` a square no
+ * `holds(cell)` is an anchor, which no push moves and which holds the lane
+ * still up to it (what is past it is pushed), and `keepOut(x, y)` a square no
  * tile may be pushed or fired into (Soffiando keeps the big tower's 2x2).
  */
 export function blow(board, { at, dir, power = 1, holds = null, keepOut = null, cap = 64 }) {
@@ -908,17 +911,30 @@ function pushOnce(board, job, holds, keepOut) {
     moved: [], fell: [], carried: [], homed: [], swung: [],
     turbines: [], reached: [], zephyrs: [], lifted: [], heavy: false,
   };
-  const { cells: run, ring } = runFrom(board, job.at, dir);
-  if (!run.length) return report;
+  const { cells: lane, ring } = runFrom(board, job.at, dir);
+  if (!lane.length) return report;
+  // AN ANCHOR holds the lane still up to it, itself included, and the push
+  // goes on through it: what lies past the last anchor is pushed as if the
+  // push began there (Timothy, 2026-10-28: "have an anchor like a tower keep
+  // everything in your lane from moving, but only up until the tower, stuff
+  // past it still moves"). Until then an anchor made the whole push heavy.
+  let held = 0;
+  for (let i = lane.length - 1; i >= 0; i--) {
+    if (immovable(lane[i]) || (!!holds && holds(lane[i]))) { held = i + 1; break; }
+  }
+  report.held = lane.slice(0, held);
+  const run = lane.slice(held);
   const last = run[run.length - 1];
-  const gap = board.norm(last.x + dx, last.y + dy);
-  const heavy = ring || run.length > power || run.some((c) => immovable(c) || (!!holds && holds(c)))
-    || (!!keepOut && keepOut(gap.x, gap.y));
+  const gap = last ? board.norm(last.x + dx, last.y + dy) : null;
+  const heavy = !!run.length && (ring || run.length > power || (!!keepOut && keepOut(gap.x, gap.y)));
   report.heavy = heavy;
-  report.reached = heavy ? run.slice(0, power) : run.slice();
+  // What the push reaches: the lane it holds, and what it moves or, too
+  // heavy, the first of it, as many as its power.
+  const pushed = heavy ? run.slice(0, power) : run.slice();
+  report.reached = [...report.held, ...pushed];
   for (const c of report.reached) if (turbineOn(c)) report.turbines.push(c);
 
-  if (!heavy) {
+  if (!heavy && run.length) {
     // Far end first, so every square a tile moves into has just been left.
     const lap = board.wraps ? (dx === 0 ? board.span.h : board.span.w) : MAX_RUN;
     for (let i = run.length - 1; i >= 0; i--) {
@@ -938,10 +954,10 @@ function pushOnce(board, job, holds, keepOut) {
       if (!board.shift(was, { x: was.x + dx * steps, y: was.y + dy * steps })) continue;
       report.moved.push({ cell, from: was, steps });
     }
-  } else {
+  } else if (heavy) {
     // Too heavy: nothing moves, and the followers on the tiles it reaches
-    // are blown a square downwind, the front one first.
-    for (let i = report.reached.length - 1; i >= 0; i--) blowFollower(board, report.reached[i], dir, report);
+    // past any anchor are blown a square downwind, the front one first.
+    for (let i = pushed.length - 1; i >= 0; i--) blowFollower(board, pushed[i], dir, report);
   }
 
   // The windvanes it reached turn onto the wind, moved or not.

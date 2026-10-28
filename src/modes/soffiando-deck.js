@@ -50,6 +50,14 @@
 // tile has the same shape on both faces (plain, road or district), every
 // colour is on eight faces and meets every other colour on some tile; which
 // roads carry wind is spread over the four district kinds.
+//
+// Later on 2026-10-28: windmills, flying machines and windvanes are on
+// "different kinds of tiles, not be specifically and side option on abbazia
+// tiles": they ride on roads too, his choice, a windmill on a straight or a
+// bend (and the windmill district on a corner's face), a flying machine at a
+// dead end, a windvane on a crossing. The Abbazias' backs are "a smattering
+// of features": roads and districts of every shape. Which ones is Claude's
+// call.
 // ---------------------------------------------------------------------------
 
 export const DECK_SIZE = 72;
@@ -59,19 +67,20 @@ const KINDS = ['g', 'r', 'i', 'm'];
 
 /** The deck in the groups the rulebook page shows, each tile as [id, copies]. */
 export const DECK_GROUPS = [
-  { name: 'Cities and roads', note: 'A district on one face, a road of the same shape on the other: a through-piece on a straight, a corner on a bend, an end on a dead end, a three-way on a junction town, and one all-round district on the crossing. Three of each through-piece and corner, two of each end, in each of the four kinds (garden, residential, industrial, trade). Twelve of the straights and bends carry a zephyr or a gust cannon across the road: a zephyr tile pushes only when your blow pushes it, with its own push plus yours.',
+  { name: 'Cities and roads', note: 'A district on one face, a road of the same shape on the other: a through-piece on a straight, a corner on a bend, an end on a dead end, a three-way on a junction town, an all-round district on a crossing. Some of the roads carry something: a zephyr or a gust cannon across the road (twelve), a windmill (four; two more are windmill districts, on a corner\'s face), a flying machine at a dead end (three), a windvane on a crossing (two). A zephyr tile pushes only when your blow pushes it, with its own push plus yours.',
     tiles: [
       ['DIg|U', 1], ['DIg|Kzr', 1], ['DIg|Kgr', 1],
-      ['DIr|U', 1], ['DIr|Kzr', 1], ['DIr|Kzzr', 1],
+      ['DIr|Ktr', 1], ['DIr|Kzr', 1], ['DIr|Kzzr', 1],
       ['DIi|U', 1], ['DIi|Kzr', 1], ['DIi|Kgr', 1],
-      ['DIm|U', 2], ['DIm|Kzr', 1],
-      ['DLg|V', 2], ['DLg|Kzb', 1],
-      ['DLr|V', 2], ['DLr|Kzb', 1],
-      ['DLi|V', 2], ['DLi|Kgb', 1],
+      ['DIm|Ktr', 1], ['DIm|U', 1], ['DIm|Kzr', 1],
+      ['DLg|V', 1], ['DLg|Ktw', 1], ['DLg|Kzb', 1],
+      ['DLr|V', 1], ['DLr|Ktw', 1], ['DLr|Kzb', 1],
+      ['Ktc|V', 2], ['DLi|Kgb', 1],
       ['DLm|V', 1], ['DLm|Kzb', 2],
-      ...per(KINDS, (k) => [`DE${k}|Kde`, 2]),
+      ['DEg|Kfl', 1], ['DEg|Kde', 1], ['DEr|Kfl', 1], ['DEr|Kde', 1],
+      ['DEi|Kde', 2], ['DEm|Kfl', 1],
       ...per(KINDS, (k) => [`DT${k}|Gw`, 1]),
-      ['DXm|X', 1],
+      ['DXm|Kw', 1], ['DXr|Kw', 1],
     ] },
   { name: 'Towers', note: 'A tower half on each face, two colours, the same shape both sides: a plain half, a half on a road, or a half in a district of its colour\'s kind. Every colour is on eight faces. A half meets only its own colour, and a closed tower fires its colour.',
     tiles: [
@@ -81,13 +90,15 @@ export const DECK_GROUPS = [
     ] },
   { name: 'The big towers', note: 'Eight tiles, a quarter of the sun on one face and a quarter of the black hole on the other, walled on their outer sides. A game makes one of each: the first quarter laid decides which comes first, the rest must join its 2x2, and then the other is made. The sun fires every colour; the black hole swallows the ring around it.',
     tiles: [['Kqs|Kqh', 8]] },
-  { name: 'Abbazias', note: 'An Abbazia on one face (each one on the board adds 1 to everybody\'s push power), and on the other a windmill (pays its holder 2 for every push that reaches it), a flying machine or a windvane.',
-    tiles: [['Kab|Ktc', 2], ['Kab|Ktr', 2], ['Kab|Ktw', 2], ['Kab|Kfl', 3], ['Kab|Kw', 2]] },
-  { name: 'Extras', note: 'One-faced, and not dealt: the zephyrs and cannons with no road (the plain zephyr, crosswind, split wind, trident, compass rose, double zephyr, gust cannon and double cannon), the temple districts, the other all-round districts and the temples.',
+  { name: 'Abbazias', note: 'An Abbazia on one face (each one on the board adds 1 to everybody\'s push power; held by a follower flown or blown onto it), and a smattering of country on the other: roads and districts of every shape.',
+    tiles: [
+      ['Kab|X', 1], ['Kab|Gw', 1], ['Kab|U', 1], ['Kab|V', 1], ['Kab|Kde', 1],
+      ['Kab|DXg', 1], ['Kab|DXi', 1], ['Kab|DTr', 1], ['Kab|DTi', 1], ['Kab|DIg', 1], ['Kab|DLm', 1],
+    ] },
+  { name: 'Extras', note: 'One-faced, and not dealt: the zephyrs and cannons with no road (the plain zephyr, crosswind, split wind, trident, compass rose, double zephyr, gust cannon and double cannon), the temple districts and the temples.',
     tiles: [
       ['Kz', 0], ['Kzx', 0], ['Kzy', 0], ['Kzw', 0], ['Kzq', 0], ['Kzz', 0], ['Kg', 0], ['Kgg', 0],
-      ['DEt', 0], ['DLt', 0], ['DIt', 0], ['DTt', 0],
-      ['DXg', 0], ['DXt', 0], ['DXr', 0], ['DXi', 0],
+      ['DEt', 0], ['DLt', 0], ['DIt', 0], ['DTt', 0], ['DXt', 0],
       ['Kt', 0], ['Kta', 0],
     ] },
   // Lone walls, out for now (Timothy, 2026-10-24: "for now remove single

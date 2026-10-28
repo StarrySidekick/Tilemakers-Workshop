@@ -475,6 +475,15 @@ export class Bot {
     // An option knows its own square: most are on the tile just laid, but a
     // mode can offer one anywhere on the board.
     for (const o of options) {
+      // A claim with no feature stands on the tile itself (Soffiando's
+      // Abbazia): only the mode can price that.
+      if (o.i == null) {
+        const gain = g.m.botTileClaim?.(o, this.seat);
+        if (gain == null) continue;
+        const value = base + gain - cost + this.jitter() * 0.4;
+        if (!best || value > best.value) best = { ...o, value, gain: value + cost - base };
+        continue;
+      }
       const d = g.board.featureOf(o.x, o.y, o.i);
       if (!d) continue;
       // A follower laid in a field is gone for the rest of the game, so it has
