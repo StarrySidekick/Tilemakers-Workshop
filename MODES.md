@@ -1463,6 +1463,49 @@ kingmakes badly, and you'd blame the mechanic instead of the count.
 > hardly happens: a city pays 1 a district, so the bots hold few.
 >
 > Rules 8, 10, 13, 46, 51, 61 and 65 changed; 82 is new; 52 and 79 retired.
+>
+> **Thirty-fourth pass: green is the land, Abbazias are cloisters, and walls
+> keep followers in.**
+>
+> Timothy, 2026-10-28: "make abbazzias only get points for adjacent squares
+> like cloisters". Red now pays only the follower standing on an Abbazia, a
+> point for every tile in the eight squares round it; one nobody holds pays
+> nobody. That took away the neighbourhood majority that was 57% of all
+> points in the pass before.
+>
+> "make it so meeple can move past walls, that have to have a road meet the
+> wall to be able to move through them. this means cities with no roads
+> attached them cannot leave that city that way": a move's square never
+> crosses a city wall, on either tile, unless a road meets the wall there
+> (`gateOpen`; a gate, rule 68).
+>
+> He asked what farmers score, and "is there any incentive still to make
+> islands? Because that's a big part of this." Asked which reading he meant:
+> "ok no more farmers actually. the green scoring from towers simply
+> measures who has control of the landmass (who has the most meeple) a
+> awards them with 5 points. this means you can get 5 points from even a
+> tiny island." Green pays every piece of country, the mainland and each
+> island, 5 to whoever has the most followers on it, holding anything or
+> nothing, ties each in full, not doubled (`scoreLand`, `landHolders`). A
+> field is held by nobody: no claim, flight, move or blown landing takes one
+> (`freeToTake`, wind.js `landingFeature`).
+>
+> **Islands, before and after.** Before this pass, 55% of every point was
+> already paid on an island (everything there pays double): 74% of yellow,
+> 56% of red's neighbourhoods. After it, two players: 52% (green 66% of it
+> on islands, yellow 60%); three players: 43%.
+>
+> **What it did to the points.** Bots, two players, 30 games, 93 a player
+> (126 before): **green 38%**, yellow 32%, windmills 13%, **blue 11%**, the
+> archipelago 6%, held Abbazias 5%, cities blown open -5%. Three players (16
+> games, 51 a player): green 40%, yellow 29%, blue 17%, windmills 13%, red
+> 6%, the archipelago 5%, cities blown open -10%. The bots move 11 times a
+> game (27 before), nearly all off roads, and walk out of a closed city 0.03
+> times a game. They lay an Abbazia face up 6.7 times a game (10.3 before):
+> unheld, one pays nothing now, so its back is often the better face, and
+> push power climbs more slowly.
+>
+> Rules 10, 13, 39, 41, 44, 47, 48, 61 and 82 changed.
 
 
 **Question it answers:** is a small board you keep *editing* better than a big
