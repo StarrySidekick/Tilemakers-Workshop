@@ -216,7 +216,9 @@ export const SOFFIANDO_WEIGHTS = {
   parish: 0.6,       // a tile round an Abbazia, to whoever holds its neighbourhood
   stride: 0.93,      // what moving a follower has to be worth over the best claim
   keep: 1,           // …and building a keep up
-  calcolo: 0.356,    // how much every blow has to cost before the Calcolo is set down instead
+  calcolo: 2,        // what the Calcolo has to be worth over the blow given up (`bestStone`)
+  calcoloGuard: 0,   // …counting this much of what it saves us from the next player's likeliest blow (measured: it hurt)
+  calcoloAim: 1,     // …and this much of what a lane it stops would blow next turn
   turbineMine: 6.114, // a windmill in a feature we hold
   turbineTheirs: -2.901, // …or one somebody else does
   blowLook: 15,      // blows tried for real each turn, of the best guessed
@@ -2531,27 +2533,107 @@ export class Soffiando extends Mode {
     return this.sendAstray(best.x, best.y);
   }
 
-  /** Blow where it does most for us, or, if nothing helps, where it does nothing. */
+  /**
+   * Blow where it does most for us, or, if nothing helps, where it does
+   * nothing; or set the Calcolo down instead (rule 86), where `bestStone`
+   * finds it worth more than the blow.
+   */
   botBlow(seat) {
     const best = this.bestBlow(seat);
-    // Every blow costs us: set the Calcolo down instead (rule 86), beside
-    // the most of our followers, where a push towards them stops.
-    const w = weightsFor(this, seat);
-    if (best.value < -(w.calcolo ?? SOFFIANDO_WEIGHTS.calcolo) && this.canCalcolo()) {
-      const board = this.game.board;
-      let spot = null;
-      for (const t of this.calcoloTargets()) {
-        let mine = 0;
-        for (const [dx, dy] of SIDE_STEP) {
-          const n = board.norm(t.x + dx, t.y + dy);
-          if (board.get(n.x, n.y)?.meeple?.player === seat) mine++;
-        }
-        if (mine && (!spot || mine > spot.mine)) spot = { ...t, mine };
-      }
-      if (spot && this.beginCalcolo()) return this.placeCalcolo(spot.x, spot.y);
-    }
+    const stone = this.canCalcolo() && this.bestStone(seat, best);
+    if (stone && this.beginCalcolo()) return this.placeCalcolo(stone.x, stone.y);
     this.blowDir = best.dir;
     return this.blowAt(best.x, best.y);
+  }
+
+  /**
+   * Where the Calcolo is worth setting down this turn instead of blowing, or
+   * null. It does nothing the turn it goes down: what it buys is on the next
+   * two, and it is priced two ways.
+   *
+   * GUARD: the next player's likeliest blow (their best, as they would price
+   * it) is made, and what it would cost us; then again with the stone in the
+   * square past that blow's lane, which stops it (rule 87), letting them pick
+   * another. What we keep is the guard.
+   *
+   * AIM: a lane the stone stops is too heavy to move, so a blow down it next
+   * turn moves only the followers on it (Timothy, 2026-10-28: "you can use it
+   * to move meeple on purpose, because it stops landmasses from moving, but
+   * not meeple"). Every lane with followers on it that would move is tried
+   * with the stone past it; the best is the aim.
+   *
+   * A square is worth `calcoloGuard` of its guard (the next player lays a
+   * tile and claims before blowing, so the blow foreseen is often not the one
+   * made), and `calcoloAim` of what its aim beats this turn's best blow by (next turn's blow, without the stone, is guessed to be
+   * as good as this one), less the blow given up. It goes down where that is
+   * most and over `calcolo`.
+   *
+   * MEASURED, 2026-10-28, against the same bot never setting it down (60
+   * games each): the guard trusted in full won 40%, at 0.3 52%; the aim alone
+   * (`calcolo` 2, `calcoloAim` 1) won 67.5%, by 8 points. So the guard is off
+   * (`calcoloGuard` 0, and not worked out at all): foreseeing the next
+   * player's blow from the board before they lay their tile is too often
+   * wrong to give a blow up for.
+   */
+  bestStone(seat, best) {
+    const g = this.game;
+    const board = g.board;
+    const w = weightsFor(this, seat);
+    const open = new Set(this.calcoloTargets().map((t) => board.key(t.x, t.y)));
+    const squares = new Map();
+    const square = (x, y) => {
+      const sq = board.norm(x, y);
+      const k = board.key(sq.x, sq.y);
+      if (!open.has(k)) return null;
+      if (!squares.has(k)) squares.set(k, { x: sq.x, y: sq.y, guard: 0, aim: -Infinity });
+      return squares.get(k);
+    };
+    /** The empty square past the moving part of a lane, if a stone there would stop it. */
+    const past = (at, dir) => {
+      const { cells, ring } = runFrom(board, at, dir);
+      const lane = this.laneOf(cells, ring, this.pushPower(), dir);
+      if (lane.heavy || !lane.run.length) return null;
+      const last = lane.run[lane.run.length - 1];
+      return { lane, sq: square(last.x + SIDE_STEP[dir][0], last.y + SIDE_STEP[dir][1]) };
+    };
+    const was = this.calcolo;
+    const withStone = (sq, fn) => {
+      this.calcolo = { x: sq.x, y: sq.y };
+      try { return fn(); } finally { this.calcolo = was; }
+    };
+    const base = this.holding(seat);
+
+    for (const c of this.tiles()) {
+      for (let dir = 0; dir < 4; dir++) {
+        if (!this.openBehind(c.x, c.y, dir)) continue;
+        const p = past(c, dir);
+        if (!p?.sq || !p.lane.run.some((t) => t.meeple)) continue;
+        const value = withStone(p.sq, () => this.tryBlow(c, dir, seat)) - base;
+        p.sq.aim = Math.max(p.sq.aim, value);
+      }
+    }
+
+    const guard = w.calcoloGuard ?? SOFFIANDO_WEIGHTS.calcoloGuard;
+    const next = (seat + 1) % g.players.length;
+    const threat = guard > 0 && next !== seat && this.bestBlow(next);
+    if (threat) {
+      const lost = this.tryBlow(threat, threat.dir, seat) - base;
+      const p = lost < 0 && past(threat, threat.dir);
+      if (p?.sq) {
+        p.sq.guard = withStone(p.sq, () => {
+          const other = this.bestBlow(next);
+          return other ? this.tryBlow(other, other.dir, seat) - base - lost : -lost;
+        });
+      }
+    }
+
+    let pick = null;
+    for (const sq of squares.values()) {
+      const aim = sq.aim > best.value ? sq.aim - best.value : 0;
+      const value = guard * sq.guard + (w.calcoloAim ?? SOFFIANDO_WEIGHTS.calcoloAim) * aim - best.value;
+      if (value > (w.calcolo ?? SOFFIANDO_WEIGHTS.calcolo) && (!pick || value > pick.value)) pick = { ...sq, value };
+    }
+    return pick;
   }
 
   /**
@@ -2580,7 +2662,12 @@ export class Soffiando extends Mode {
           if (!idle) idle = { x: c.x, y: c.y, dir, value: 0 };
           continue;
         }
-        guesses.push({ x: c.x, y: c.y, dir, guess: this.blowGuess(reached, heavy, seat, dir) });
+        // A lane the Calcolo stops moves only its followers: what the stone
+        // was set down for (`bestStone`), so always worth trying for real.
+        const end = lane.run[lane.run.length - 1];
+        const stopped = heavy && !ring && lane.run.length <= power
+          && this.stoneAt(end.x + SIDE_STEP[dir][0], end.y + SIDE_STEP[dir][1]);
+        guesses.push({ x: c.x, y: c.y, dir, guess: this.blowGuess(reached, heavy, seat, dir) + (stopped ? 3 : 0) });
       }
     }
     let best = idle;

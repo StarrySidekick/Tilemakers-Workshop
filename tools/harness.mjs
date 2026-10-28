@@ -23,6 +23,7 @@ import { liftableCells, BASE_LAYER, allFields, citiesFed } from '../src/mechanic
 import { gust, storm } from '../src/wind.js';
 import { GROUPS } from '../src/tiles.js';
 import { checkRulebook } from './soffiando-rulebook.mjs';
+import { SOFFIANDO_WEIGHTS } from '../src/modes/soffiando.js';
 
 const ALL_GROUPS = GROUPS.map((g) => g.id);
 
@@ -1622,6 +1623,32 @@ function checkSoffiando() {
     h.m.fire('yellow');
     if (!b.get(0, 0).meeple || h.players[0].meeples !== had) return fail('a road yellow pays keeps its follower', 'it went home');
     if ('strollTargets' in h.m || 'beginStroll' in h.m) return fail('the walk is gone', 'it is still there');
+  }
+
+  // THE CALCOLO, AS A BOT USES IT (Timothy, 2026-10-28: "you can use it to
+  // move meeple on purpose, because it stops landmasses from moving, but not
+  // meeple"). Our follower on a road, an empty Abbazia beside it with four
+  // tiles round it, a push of two that would move the two: the bot sets the stone down in line with them,
+  // and next turn blows the stopped lane, which carries the follower onto
+  // the Abbazia and claims it (rule 39).
+  {
+    const h = fresh(51);
+    const b = h.board;
+    lay(b, 0, 0, 'U', 1); lay(b, 1, 0, 'Kab');
+    for (const [x, y] of [[0, -1], [1, -1], [0, 1], [1, 1]]) lay(b, x, y, 'B');
+    b.addMeeple(0, 0, roadOf('U'), 0);
+    b.rebuild();
+    h.m.brains = { 0: { ...SOFFIANDO_WEIGHTS, calcolo: 0, calcoloGuard: 0, calcoloAim: 1 } };
+    h.phase = 'blow';
+    const pick = h.m.bestStone(0, h.m.bestBlow(0));
+    if (!pick || pick.y !== 0) return fail('a bot aims the Calcolo to move its own follower', JSON.stringify(pick));
+    h.m.calcolo = { x: pick.x, y: pick.y };
+    const next = h.m.bestBlow(0);
+    h.m.blowDir = next.dir;
+    h.m.blowAt(next.x, next.y);
+    if (b.get(1, 0)?.meeple?.player !== 0 || b.get(0, 0)?.type.id !== 'U') {
+      return fail('a bot blows the lane its Calcolo stopped, and only the follower moves', JSON.stringify(next));
+    }
   }
 
   // The flying machine picks a follower back up. It is the only thing in the
