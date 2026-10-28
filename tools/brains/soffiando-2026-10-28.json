@@ -12,7 +12,7 @@
   },
   "weights": {
     "ahead": 2,
-    "farm": 1.235,
+    "land": 1,
     "city": 1,
     "road": 1.314,
     "sphere": 0.834,
