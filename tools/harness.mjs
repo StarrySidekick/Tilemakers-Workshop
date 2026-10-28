@@ -1270,8 +1270,10 @@ function checkSoffiando() {
     if (!b.get(0, -1) || b.get(0, -2)) return fail('a zephyr tile does nothing when it is laid', 'it pushed');
   }
 
-  // RED — the Abbazias (2026-10-27): a point for every tile round one, to
-  // whoever has the most followers on it and round it; nobody comes home.
+  // RED — the Abbazias, like cloisters (2026-10-28): a point for every tile
+  // round one, to the follower standing on it; one nobody holds pays nobody
+  // (it paid whoever had most followers round it until then); nobody comes
+  // home.
   {
     const h = fresh(31);
     const b = h.board;
@@ -1282,12 +1284,18 @@ function checkSoffiando() {
     b.addMeeple(0, 1, fieldOf('B'), 1);
     b.rebuild();
     h.m.fire('red');
-    h.m.sweep();
-    if (h.players[0].score !== 4 || h.players[1].score !== 0) {
-      return fail('red pays an Abbazia\'s four tiles to whoever has most followers round it',
+    if (h.players[0].score !== 0 || h.players[1].score !== 0) {
+      return fail('an Abbazia nobody holds pays nobody, however many stand round it',
         `paid ${h.players[0].score} and ${h.players[1].score}`);
     }
-    if (!b.get(1, 0).meeple) return fail('red sends nobody home', 'it did');
+    b.get(0, 0).meeple = { player: 1, feat: null, big: false };
+    h.m.fire('red');
+    h.m.sweep();
+    if (h.players[0].score !== 0 || h.players[1].score !== 4) {
+      return fail('red pays an Abbazia\'s four tiles to the follower holding it',
+        `paid ${h.players[0].score} and ${h.players[1].score}`);
+    }
+    if (!b.get(1, 0).meeple || !b.get(0, 0).meeple) return fail('red sends nobody home', 'it did');
   }
 
   // YELLOW — the roads: a point a tile, plus what each city the road reaches
@@ -1315,19 +1323,25 @@ function checkSoffiando() {
     }
   }
 
-  // GREEN — the farms, a point for every TWO tiles of field.
+  // GREEN — the land (2026-10-28; farms until then): 5 to whoever has the
+  // most followers on each piece of country, a one-tile island as much as
+  // the mainland, and a field is never held.
   {
     const h = fresh(33);
     const b = h.board;
     for (const [x, y] of [[0, 0], [1, 0], [2, 0], [3, 0], [4, 0]]) lay(b, x, y, 'Kz');
-    const field = TILES.Kz.feats.findIndex((f) => f.type === 'field');
-    b.addMeeple(0, 0, field, 0);
+    lay(b, 0, 5, 'B');                        // an island of one tile
+    b.get(0, 0).meeple = { player: 0, feat: null, big: false };
+    b.get(0, 5).meeple = { player: 1, feat: null, big: false };
     b.rebuild();
     h.m.fire('green');
     h.m.sweep();
-    if (h.players[0].score !== 2) {
-      return fail('green pays a point per two tiles of field', `paid ${h.players[0].score} for five tiles`);
+    if (h.players[0].score !== 5 || h.players[1].score !== 5) {
+      return fail('green pays 5 for each piece of country to whoever has most followers on it', `paid ${h.players[0].score} and ${h.players[1].score}`);
     }
+    if (!b.get(0, 0).meeple || !b.get(0, 5).meeple) return fail('green sends nobody home', 'it did');
+    h.lastPlaced = b.get(4, 0); h.phase = 'meeple';
+    if (h.meepleOptions().some((o) => o.f?.type === 'field')) return fail('there are no farmers', 'a field was offered');
   }
 
   // A TOWER (2026-10-27) is two halves of ONE colour, and fires that colour
@@ -1336,14 +1350,13 @@ function checkSoffiando() {
     const h = fresh(35);
     const b = h.board;
     for (const x of [0, 1, 2, 3]) lay(b, x, 0, 'B');
-    b.addMeeple(0, 0, fieldOf('B'), 0);       // a farmer for green
+    b.get(0, 0).meeple = { player: 0, feat: null, big: false };   // holding the mainland, for green
     lay(b, 0, -1, 'Kso', 0);                  // a green half facing north…
     lay(b, 0, -2, 'Kso', 2);                  // …meeting one facing south
     b.rebuild();
-    const farm = b.featureOf(0, 0, fieldOf('B')).tiles.size;
     h.m.joinSferas();
-    if (h.players[0].score !== Math.floor(farm / 2)) {
-      return fail('a tower fires its colour once', `paid ${h.players[0].score} for a farm of ${farm}`);
+    if (h.players[0].score !== 5) {
+      return fail('a tower fires its colour once', `paid ${h.players[0].score} for the mainland`);
     }
     const was = h.players[0].score;
     h.m.joinSferas();
@@ -1510,6 +1523,11 @@ function checkSoffiando() {
     h.current = 1;
     if (h.m.claimAllowed({ x: 1, y: 0, i: field, f: { type: 'field' } })) {
       return fail('a field with a rival farmer is closed to you', 'it was offered');
+    }
+    b.get(0, 0).meeple = null;
+    b.rebuild();
+    if (h.m.claimAllowed({ x: 1, y: 0, i: field, f: { type: 'field' } })) {
+      return fail('a field nobody holds is closed too: there are no farmers', 'it was offered');
     }
     const r = fresh(54);
     const rb = r.board;
@@ -1893,7 +1911,7 @@ function checkSoffiando() {
     b.get(5, 0).meeple = { player: 0, feat: null, big: false };
     b.get(9, 0).meeple = { player: 0, feat: null, big: false };
     b.get(9, 1).meeple = { player: 1, feat: null, big: false };
-    h.m.finish();
+    h.m.archipelago();                        // (the end's last firing pays green for the islands too)
     if (h.players[0].score !== 10) {
       return fail('the archipelago pays 10 for the most islands', `paid ${h.players[0].score}`);
     }
@@ -1905,7 +1923,7 @@ function checkSoffiando() {
   console.log('  ✓ mainland and islands, the four tower colours, towers of one colour firing once,'
     + ' the sun and the black hole, district variety and gardens, walls unclaimable,'
     + ' walls holding followers and not tiles, the blow, its chain, the cannon, towers holding,'
-    + ' what moves on, joining open roads, the closer paid, five followers, the wrapping map, the deck list,'
+    + ' what moves on, claiming only what nobody holds, nothing paid for closing, eight followers, the wrapping map, the deck list,'
     + ' windmills, island rates, the last round, the flying machine\'s lift, the Balena (off by default),'
     + ' the Plaza towing nothing, long flights, the archipelago');
 }

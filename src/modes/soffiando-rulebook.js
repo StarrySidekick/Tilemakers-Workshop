@@ -99,6 +99,10 @@ const ROADS_TOO = 'the closing rule also applies to roads as well. So you can\'t
 const PER_TILE = 'towers score cities 1 point per tile, whether it\'s closed or open.';
 const NO_JOIN = 'we\'re revoking the rule that says that you can place meeple even on things already claimed by enemy meeple.';
 const BONUSES = 'bonuses are only for completing the city and at the end when scored';
+// …and the round after that.
+const CLOISTER = 'make abbazzias only get points for adjacent squares like cloisters';
+const GATED = 'make it so meeple can move past walls, that have to have a road meet the wall to be able to move through them. this means cities with no roads attached them cannot leave that city that way';
+const NO_FARMERS = 'ok no more farmers actually. the green scoring from towers simply measures who has control of the landmass (who has the most meeple) a awards them with 5 points. this means you can get 5 points from even a tiny island';
 // …and later on 2026-10-27.
 const HALVES = 'let a blow move tower halves.';
 const INEVITABLE = 'also make it so you must place a sun or black hole attached correctly to another, so there completion is inevitable.';
@@ -182,8 +186,8 @@ export const RULES = [
 
   // --- Followers. ------------------------------------------------------------
   { n: 10, id: 'followers-claim', group: 'followers',
-    text: 'To claim, put a follower on a road, a field or a district of the tile you just laid, if nobody has a follower in it, you included. Never on a road or city that is closed, a tower, a wall, or an Abbazia you have just laid: an Abbazia is held by a follower flown onto it (rule 61) or blown onto it (rule 39).',
-    from: T(D28, NO_JOIN, 'Asked whether a road or city only you are in may be joined, he chose nobody\'s at all, as before 2026-10-27, when an open one could be joined ("' + JOIN + '"). The Abbazia: "' + ABB_SCORE + '".'),
+    text: 'To claim, put a follower on a road or a district of the tile you just laid, if nobody has a follower in it, you included. Never in a field (there are no farmers, rule 47), never on a road or city that is closed, a tower, a wall, or an Abbazia you have just laid: an Abbazia is held by a follower flown onto it (rule 61) or blown onto it (rule 39).',
+    from: T(D28, NO_JOIN, 'Asked whether a road or city only you are in may be joined, he chose nobody\'s at all, as before 2026-10-27, when an open one could be joined ("' + JOIN + '"). No fields: "' + NO_FARMERS + '". The Abbazia: "' + ABB_SCORE + '".'),
     changed: D28,
     was: 'To claim, put a follower on a road, a field or a district of the tile you just laid. A road or city that is still open you may join however many followers are in it already, yours too; a field only if nobody has a follower in it. Never on a road or city that is closed, a tower, an Abbazia or a wall.' },
   { n: 11, id: 'followers-island', group: 'followers',
@@ -193,8 +197,8 @@ export const RULES = [
     text: 'A tile holds one figure at most.',
     from: H(null) },
   { n: 13, id: 'followers-home', group: 'followers',
-    text: 'When a tower pays a road or a farm (rule 44), every follower in it goes home, paid or not. A city keeps its followers: blue pays them every time it fires, for as long as they stay, and the wind may blow it open under them (rule 53). They leave by moving (rule 82).',
-    from: T(D28, STAY, 'Staying "to score continuously from towers" read as a city keeping its followers when blue pays it: Claude\'s reading, named to Timothy when it shipped. Roads and farms still empty when paid, as everything did from the thirteenth pass, so that a follower put down early does not collect from every tower for the rest of the game; no wind can open a road or a farm, which is the risk that pays for staying.'),
+    text: 'When a tower pays a road (rule 44), every follower in it goes home, paid or not. A city keeps its followers: blue pays them every time it fires, for as long as they stay, and the wind may blow it open under them (rule 53). They leave by moving (rule 82).',
+    from: T(D28, STAY, 'Staying "to score continuously from towers" read as a city keeping its followers when blue pays it: Claude\'s reading, named to Timothy when it shipped. Roads still empty when paid, as everything did from the thirteenth pass, so that a follower put down early does not collect from every tower for the rest of the game; no wind can open a road, which is the risk that pays for staying. Farms emptied too, until there were none.'),
     changed: D28,
     was: 'When a tower pays a feature (rule 44), every follower in it goes home, paid or not, except one lying flat.' },
   { n: 14, id: 'followers-walk', group: 'followers',
@@ -206,8 +210,8 @@ export const RULES = [
     text: 'A road that runs off a tile into open sky, and lines up with a road on the next tile along however far away, is one a walker can step across. The two halves still score as two roads.',
     from: H('twelfth', 'There was a sky bridge across a one-square gap at first, and the halves scored as one road; the step, over any distance, is the half that was kept.') },
   { n: 82, id: 'followers-move', group: 'followers',
-    text: 'Instead of claiming, you may move one of your followers already on the board: one square, to a tile beside it; or, if a road runs across the tile it stands on, down that road as far as it goes, and across any gap a walker may step (rule 15), to any tile of it. Never onto a tile with a figure on it or an Abbazia, and never down a road somebody else has a follower on. Where it stops it keeps what it held, if that runs onto the tile, or takes up a feature there that nobody holds and that may be claimed (rule 10), or, with neither, stands holding nothing. A city wall does not stop it, so it may leave a closed city. It costs no follower from your supply.',
-    from: T(D28, MOVE, 'Onto an Abbazia, asked: no, only blown or flown. Claude\'s calls, named to Timothy when it shipped: the road is one on the tile it stands on, crossed over gaps as a walk is (rule 15); a wall does not stop a move, since a closed city is walled all round and "you could just leave the city if you wanted to"; and where it stops it keeps what it held, takes up a feature or stands holding nothing, as a blown follower does (rule 39).'),
+    text: 'Instead of claiming, you may move one of your followers already on the board: one square, to a tile beside it; or, if a road runs across the tile it stands on, down that road as far as it goes, and across any gap a walker may step (rule 15), to any tile of it. Never onto a tile with a figure on it or an Abbazia, and never down a road somebody else has a follower on. Where it stops it keeps what it held, if that runs onto the tile, or takes up a feature there that nobody holds and that may be claimed (rule 10), or, with neither, stands holding nothing. Its square never crosses a city wall, on either tile, except where a road meets the wall at a gate (rule 68): so a city no road runs into cannot be walked out of. It costs no follower from your supply.',
+    from: T(D28, MOVE, 'Onto an Abbazia, asked: no, only blown or flown. Walls: "' + GATED + '" (a wall did not stop a move earlier the same day). Claude\'s calls, named to Timothy when it shipped: the road is one on the tile it stands on, crossed over gaps as a walk is (rule 15); and where it stops it keeps what it held, takes up a feature or stands holding nothing, as a blown follower does (rule 39).'),
     added: D28 },
 
   // --- Your zephyr. ------------------------------------------------------------
@@ -319,8 +323,8 @@ export const RULES = [
     changed: D27,
     was: 'A follower that would land on a tile with a figure on it stays where it was; if that tile has gone too, it goes home.' },
   { n: 39, id: 'blown-feature', group: 'blown',
-    text: 'Where it lands, it holds the same kind of feature if the tile has one, or else whatever it can. Landing on an empty Abbazia, it holds the Abbazia (rule 48); on any other tile with nothing to hold, it stands holding nothing.',
-    from: T(D28, ABB_CLAIM, 'Before, a follower on an Abbazia held nothing (the third pass).'),
+    text: 'Where it lands, it holds the same kind of feature if the tile has one, or else whatever it can, never a field (rule 10). Landing on an empty Abbazia, it holds the Abbazia (rule 48); on any other tile with nothing to hold, it stands holding nothing.',
+    from: T(D28, ABB_CLAIM, 'Before, a follower on an Abbazia held nothing (the third pass). Never a field since farmers went ("' + NO_FARMERS + '").'),
     changed: D28,
     was: 'Where it lands, it holds the same kind of feature if the tile has one, or else whatever it can; on a tile with nothing to hold, like an Abbazia, it stands holding nothing.' },
 
@@ -329,8 +333,10 @@ export const RULES = [
     text: 'The biggest piece of connected country is the mainland. Every other piece, down to a single tile, is an island.',
     from: H('eighth', 'The mainland was wherever the Palazzo stood until the sixteenth pass made it the biggest piece; every fragment has been an island since the fifteenth.') },
   { n: 41, id: 'land-double', group: 'land',
-    text: 'Everything on an island pays double.',
-    from: H('eighth', 'Half again as much at first; double now.') },
+    text: 'Everything on an island pays double, except green\'s 5 for holding it (rule 47).',
+    from: H('eighth', 'Half again as much at first; double now. Green\'s 5 is the same on an island as on the mainland since 2026-10-28 ("this means you can get 5 points from even a tiny island"): Claude\'s reading of "5 points", named to Timothy when it shipped.'),
+    changed: D28,
+    was: 'Everything on an island pays double.' },
 
   // --- Towers. ---------------------------------------------------------------
   { n: 43, id: 'sphere-halves', group: 'spheres',
@@ -339,10 +345,10 @@ export const RULES = [
     changed: D27,
     was: 'A sfera half meets only another sfera half, of any colour.' },
   { n: 44, id: 'sphere-close', group: 'spheres',
-    text: 'Two halves meeting close a tower, whether a tile was laid or a push brought them together, and it fires its colour once over the whole board, paying whoever holds each feature of that kind (rules 47 to 49, and 51). A tower closes once.',
-    from: T(D27, MATCH, 'Once, not once a half: two halves of one colour would only pay the same thing twice over. Claude\'s call, named to Timothy when it shipped. Closed by a push too since "' + HALVES + '"'),
-    changed: D27,
-    was: 'Two halves meeting close a tower, and it fires its colour once over the whole board, paying whoever holds each feature of that kind (rules 47 to 49, and 51). A tower closes once. No push moves a tower (rule 75), so only a tile laid can close one.' },
+    text: 'Two halves meeting close a tower, whether a tile was laid or a push brought them together, and it fires its colour once over the whole board (rules 47 to 49, and 51). A tower closes once.',
+    from: T(D27, MATCH, 'Once, not once a half: two halves of one colour would only pay the same thing twice over. Claude\'s call, named to Timothy when it shipped. Closed by a push too since "' + HALVES + '". It paid "whoever holds each feature of that kind" until green paid the land (2026-10-28).'),
+    changed: D28,
+    was: 'Two halves meeting close a tower, whether a tile was laid or a push brought them together, and it fires its colour once over the whole board, paying whoever holds each feature of that kind (rules 47 to 49, and 51). A tower closes once.' },
   { n: 76, id: 'tower-big', group: 'spheres',
     text: 'The big towers are the sun and the black hole, made of eight tiles that carry a quarter of the sun on one face and a quarter of the black hole on the other. Each quarter sits in one corner of its tile, and four of one come together as a 2x2. A quarter\'s edge meets only the edge of a quarter of the same big tower that carries its circle on; its other two edges are walled, and like an Abbazia\'s take anything and cap what they meet.',
     from: T(D27, EIGHT, 'And "' + WALLED + '", read as the Abbazia\'s walls, which take anything, an open city too: a plain wall would not. And "' + BIG + '".'),
@@ -372,11 +378,13 @@ export const RULES = [
 
   // --- Green, red and yellow. ------------------------------------------------
   { n: 47, id: 'colour-green', group: 'colours',
-    text: 'Green pays each farm a point for every two tiles of field, rounded down.',
-    from: H('tenth') },
+    text: 'Green pays every piece of country, the mainland and each island however small, 5 points to whoever has the most followers standing on it, holding anything or nothing; tied, each of them in full. Nobody comes home for it.',
+    from: T(D28, NO_FARMERS, 'Ties paid in full as every majority is (rule 45): Claude\'s call, named to Timothy when it shipped.'),
+    changed: D28,
+    was: 'Green pays each farm a point for every two tiles of field, rounded down.' },
   { n: 48, id: 'colour-red', group: 'colours',
-    text: 'Red pays each Abbazia. One a follower holds (rules 39 and 61) pays that follower\'s player a point for every tile in the eight squares round it, and a point more for every follower on those eight, anybody\'s. One nobody holds pays a point for every tile round it to whoever has the most followers on those eight squares; tied, each in full. Nobody comes home for it.',
-    from: T(D28, ABB_SCORE, '"Every meeple" read as every follower round it, anybody\'s; an Abbazia nobody holds paying the neighbourhood as before is Claude\'s call, named to Timothy when it shipped.'),
+    text: 'Red pays each Abbazia a follower holds (rules 39 and 61), as a cloister pays its monk: that follower\'s player gets a point for every tile in the eight squares round it. One nobody holds pays nobody. Nobody comes home for it.',
+    from: T(D28, CLOISTER, 'Read as the eight squares round it, not counting itself. Earlier the same day a held one paid a point more for every follower round it ("' + ABB_SCORE + '"), and one nobody held paid whoever had most followers round it, which became 57% of every point scored once followers stayed on the board and could walk.'),
     changed: D28,
     was: 'Red pays each Abbazia a point for every tile in the eight squares round it, to whoever has the most followers on those eight and on the Abbazia; tied, each in full. Nobody comes home for it.' },
   { n: 49, id: 'colour-yellow', group: 'colours',
@@ -418,7 +426,7 @@ export const RULES = [
     text: 'A flying machine, on the turn it is laid, flies its way across the board, over open sky too, and turns with any zephyr it crosses; one pointing back at it ends the flight.',
     from: H('second', 'Across open sky since the seventh pass.') },
   { n: 61, id: 'flight-claim', group: 'tiles',
-    text: 'On that follower step you may put a follower on any feature of any tile along the flight that nobody has a follower in, on an island or not, if the tile has no figure on it; or on an empty Abbazia along it, which it then holds (rule 48). Never on a road or city that is closed, or a wall.',
+    text: 'On that follower step you may put a follower on any feature of any tile along the flight that nobody has a follower in, on an island or not, if the tile has no figure on it; or on an empty Abbazia along it, which it then holds (rule 48). Never in a field, on a road or city that is closed, or on a wall.',
     from: T(D28, NO_JOIN, 'Until then it could go onto a feature somebody held. The Abbazia is from earlier the same day ("' + ABB_CLAIM + '").'),
     changed: D28,
     was: 'On that follower step you may put a follower on any feature of any tile along the flight, held or not and on an island or not, if the tile has no figure on it. Never on a wall.' },

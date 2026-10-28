@@ -61,14 +61,14 @@
 // scoring pass over the whole board, paying whoever holds the most of each
 // feature of that kind.
 //
-//   GREEN  the farms: a point for every two tiles of field
+//   GREEN  the land: 5 to whoever has the most followers on each piece of
+//          country, the mainland and every island alike (no farmers)
 //   BLUE   the cities: a point a district, open or closed; a closed one,
 //          and every city in the last scoring, its bonuses too: 1, 3 or 6
 //          for two, three or four kinds, and 2 a garden
 //   RED    the Abbazias: one a follower HOLDS (flown or blown onto it) pays
-//          its holder a point for every tile round it and a point more for
-//          every follower round it; one nobody holds pays a point a tile
-//          round it to whoever has the most followers there
+//          its holder a point for every tile in the eight squares round it,
+//          like a cloister; one nobody holds pays nobody
 //   YELLOW the roads: a point a tile, plus 1 for each open city a road
 //          reaches and 2 for each closed one
 //
@@ -83,7 +83,7 @@
 // hole swallows the twelve squares round it, shuffled back into the deck,
 // sparing the sun.
 //
-// A road or farm a tower pays is emptied: its followers come home, or one of
+// A road a tower pays is emptied: its followers come home, or one of
 // the current player's walks on down a road. A CITY KEEPS ITS FOLLOWERS and
 // is paid by every blue tower while they stay, which is a gamble: a closed
 // city the wind blows open costs its holders a point a district (Timothy,
@@ -179,11 +179,12 @@ const TURBINE = 3;           // to the feature's holder, per push that reaches i
  * the mode: FARMS ARE NO LONGER THE GAME (4 to 1.2; green fires only when a
  * green tower or the sun closes, and a farmer is a follower gone for good),
  * roads are worth a little more, and a tower closed is worth a little less
- * net of what it hands the table.
+ * net of what it hands the table. The farm weight became `land` when farms
+ * went (2026-10-28, green pays for holding a piece of country), untrained at 1.
  */
 export const SOFFIANDO_WEIGHTS = {
   ahead: 2,          // firings a claim is priced over — and claim eagerness
-  farm: 1.235,       // …scaled per feature type, because the four colours pay
+  land: 1,          // …scaled per colour, because the four colours pay
   city: 1,           //    over different numbers of tiles and the bot has no
   road: 1.314,       //    way of knowing which of them is actually winnable
   sphere: 0.834,     // closing a tower, net of what it hands the table
@@ -208,6 +209,7 @@ const FOLLOWERS = 8;         // each (Timothy, 2026-10-28: "let's go back to hav
 const SUPPLY = FOLLOWERS;    // …which is what the panel draws
 const BASE_PUSH = 1;         // everybody's push power with no Abbazia on the board
 const GARDEN = 2;            // blue, per garden district in a closed city, and every city at the end
+const LAND = 5;              // green, to whoever has most followers on a piece of country, a tiny island too
 const MOVE_ON_PAUSE = 260;   // ms between the ring on a tile that no longer fits and its slide
 
 /**
@@ -238,7 +240,6 @@ const districtOf = (type) => type.feats.find((f) => f.district) || null;
 
 
 const RATE = {
-  farm: { main: 1, isle: 2, per: 2 },     // per `per` tiles of field
   cityOpen: { main: 1, isle: 2 },         // per tile, unfinished
   cityDone: { main: 2, isle: 4 },         // per tile, finished
   abbazia: { main: 1, isle: 2 },          // red, per tile standing around one
@@ -254,7 +255,7 @@ const RATE = {
  * rather than a bonus on top of it.
  */
 const COLOURS = {
-  green: 'the farms',
+  green: 'the land',
   blue: 'the cities',
   red: 'the Abbazias',
   yellow: 'the roads',
@@ -602,6 +603,9 @@ export class Soffiando extends Mode {
    *     closes the city it faces.
    */
   freeToTake(cell, i, f) {
+    // NO MORE FARMERS (2026-10-28): green pays for holding the land, and a
+    // field is held by nobody.
+    if (f.type === 'field') return false;
     if (f.type === 'city' && !f.district) return false;
     const d = this.game.board.featureOf(cell.x, cell.y, i);
     if (!d || d.meeples.length) return false;
@@ -701,8 +705,6 @@ export class Soffiando extends Mode {
     const isle = this.onIsland(on);
     const per = (kind) => (isle ? RATE[kind].isle : RATE[kind].main) * w.ahead;
     switch (d.type) {
-      case 'field':
-        return Math.floor(d.tiles.size / RATE.farm.per) * per('farm') * w.farm;
       case 'city':
         return this.cityPoints(d).pts * w.ahead * w.city;
       case 'road':
@@ -829,7 +831,7 @@ export class Soffiando extends Mode {
    */
   fire(hue) {
     switch (hue) {
-      case 'green': return this.scoreFarms();
+      case 'green': return this.scoreLand();
       case 'blue': return this.scoreCities();
       case 'red': return this.scoreAbbazias();
       case 'yellow': return this.scoreRoads();
@@ -843,23 +845,35 @@ export class Soffiando extends Mode {
   }
 
   /**
-   * GREEN — the farms. A point for every two tiles of field, doubled to a
-   * point a tile out on an island. It is the one colour that pays for GROUND
-   * rather than for anything built on it, so the sprawling field nobody wanted
-   * is suddenly the thing worth holding.
+   * GREEN — the land (Timothy, 2026-10-28: "no more farmers actually. the
+   * green scoring from towers simply measures who has control of the
+   * landmass (who has the most meeple) a awards them with 5 points. this
+   * means you can get 5 points from even a tiny island"). Every piece of
+   * country, the mainland and each island, pays 5 to whoever has the most
+   * followers standing on it, holding anything or nothing; tied, each in
+   * full. Not doubled out on an island: the 5 is the same on a rock as on
+   * the mainland, which is what makes the rock worth having. Nobody goes
+   * home for it. Until then green paid farms, a point for every two tiles of
+   * field.
    */
-  scoreFarms() {
-    const board = this.game.board;
-    for (const d of board.allComponents()) {
-      if (d.type !== 'field' || !d.meeples.length) continue;
-      const cells = board.cellsOf(d);
-      if (!cells.length) continue;
-      const per = this.rate('farm', cells);
-      const pts = Math.floor(d.tiles.size / RATE.farm.per) * per;
-      this.payHolders(d, pts,
-        `Farm of ${d.tiles.size} tile${d.tiles.size === 1 ? '' : 's'}`
-        + `${per > RATE.farm.main ? ' out on an island' : ''}`, cells);
+  scoreLand() {
+    const g = this.game;
+    const { main, isles } = this.land();
+    for (const group of [main, ...isles]) {
+      const winners = this.landHolders(group);
+      if (!winners.length) continue;
+      const where = group.map((c) => ({ x: c.x, y: c.y }));
+      const what = group === main ? 'The mainland' : `An island of ${group.length} tile${group.length === 1 ? '' : 's'}`;
+      for (const p of winners) this.pay(p, LAND, `${what}, held by the most followers — ${g.players[p].name}`, where);
     }
+  }
+
+  /** Who has the most followers standing on a piece of country (ties all). */
+  landHolders(group) {
+    const counts = new Map();
+    for (const c of group) if (c.meeple) counts.set(c.meeple.player, (counts.get(c.meeple.player) || 0) + 1);
+    const best = Math.max(0, ...counts.values());
+    return best ? [...counts].filter(([, n]) => n === best).map(([p]) => p) : [];
   }
 
   /**
@@ -947,17 +961,14 @@ export class Soffiando extends Mode {
   }
 
   /**
-   * What red pays for an Abbazia: a point for every tile round it, and if a
-   * follower HOLDS it (stands on it, flown or blown there), a point more for
-   * every follower round it (Timothy, 2026-10-28: "it scores 1 point for
-   * every tile surrounding it, and and extra point for every meeple (besides
-   * the one that claimed it)"). Double on an island.
+   * What red pays for an Abbazia: a point for every tile in the eight squares
+   * round it, as a cloister does (Timothy, 2026-10-28: "make abbazzias only
+   * get points for adjacent squares like cloisters"). Double on an island.
+   * Until then a held one paid a point more for every follower round it.
    */
   abbaziaPoints(cell) {
-    const board = this.game.board;
-    let pts = board.surroundCount(cell.x, cell.y);
-    if (cell.meeple) for (const [dx, dy] of RING) if (board.get(cell.x + dx, cell.y + dy)?.meeple) pts++;
-    return pts * (this.onIsland(cell) ? RATE.abbazia.isle : RATE.abbazia.main);
+    return this.game.board.surroundCount(cell.x, cell.y)
+      * (this.onIsland(cell) ? RATE.abbazia.isle : RATE.abbazia.main);
   }
 
   /**
@@ -994,20 +1005,14 @@ export class Soffiando extends Mode {
   }
 
   /**
-   * Who red pays for an Abbazia: whoever holds it, outright; or, nobody
-   * holding it, whoever has the most followers in the eight squares round
-   * it (ties all paid).
+   * Who red pays for an Abbazia: the follower standing on it, flown or blown
+   * there, as a cloister pays its monk; one nobody holds pays nobody. Until
+   * 2026-10-28 it paid whoever had most followers round it, and with
+   * followers staying on the board and walking, that was 57% of every point
+   * scored (MODES.md, thirty-third pass).
    */
   abbaziaHolders(cell) {
-    const board = this.game.board;
-    if (cell.meeple) return [cell.meeple.player];
-    const counts = new Map();
-    for (const [dx, dy] of RING) {
-      const m = board.get(cell.x + dx, cell.y + dy)?.meeple;
-      if (m) counts.set(m.player, (counts.get(m.player) || 0) + 1);
-    }
-    const best = Math.max(0, ...counts.values());
-    return best ? [...counts].filter(([, n]) => n === best).map(([p]) => p) : [];
+    return cell.meeple ? [cell.meeple.player] : [];
   }
 
   /**
@@ -1075,7 +1080,8 @@ export class Soffiando extends Mode {
    * Pay a component's majority, and then take everybody off it, except in a
    * city.
    *
-   * SCORING A FEATURE EMPTIES IT. Farms, roads, temples — finished or not, a
+   * SCORING A FEATURE EMPTIES IT. Roads, temples (farms, until there were
+   * none) — finished or not, a
    * colour firing over a thing you are standing in pays you and then hands
    * the figure back. That is the brake on the whole economy: without it a
    * figure put down early collects from every tower for the rest of the game
@@ -1307,7 +1313,8 @@ export class Soffiando extends Mode {
 
   /**
    * Where the follower at (x, y) could move to: the four squares beside it
-   * (across the map's edge too), and every square of a road running across
+   * (across the map's edge too, never through a wall but at a gate,
+   * `gateOpen`), and every square of a road running across
    * its tile, and of any road that one hops to (rule 15), unless somebody
    * else has a follower on it. Never a square with a figure on it or an
    * Abbazia. On each it keeps what it held, if that runs onto the square (a
@@ -1336,10 +1343,11 @@ export class Soffiando extends Mode {
         if (board.get(c.x, c.y) !== c) return;
         squares.set(key(c), c);
       };
-      for (const [dx, dy] of SIDE_STEP) {
+      SIDE_STEP.forEach(([dx, dy], dir) => {
         const n = board.norm(x + dx, y + dy);
-        add(board.get(n.x, n.y));
-      }
+        const there = board.get(n.x, n.y);
+        if (there && this.gateOpen(cell, dir, there)) add(there);
+      });
       const seen = new Set();
       cell.type.feats.forEach((f, i) => {
         if (f.type !== 'road') return;
@@ -1371,6 +1379,22 @@ export class Soffiando extends Mode {
       cell.meeple = m;
       if (held) d0.meeples.splice(idx, 0, held);
     }
+  }
+
+  /**
+   * May a follower step from `cell` to `there`, the square `dir` of it? Not
+   * across a city wall, on either tile's edge, unless a road meets the wall
+   * there: a gate (rule 68). So a city no road runs into is walked out of no
+   * way but down a road of its own (Timothy, 2026-10-28: "meeple can move
+   * past walls, that have to have a road meet the wall to be able to move
+   * through them").
+   */
+  gateOpen(cell, dir, there) {
+    const board = this.game.board;
+    const out = board.edgeAt(cell, dir);
+    const back = board.edgeAt(there, opposite(dir));
+    if (out !== WALL && back !== WALL) return true;
+    return (out === WALL && back === 'r') || (back === WALL && out === 'r');
   }
 
   /** Your followers on the board that have somewhere to move to. */
@@ -2268,7 +2292,7 @@ export class Soffiando extends Mode {
 
   /**
    * The end of the season, and it is every colour going off at once: the
-   * farms, the cities, the Abbazias and the roads are all scored one final
+   * land, the cities, the Abbazias and the roads are all scored one final
    * time. Everything you are still standing in pays, which is the whole point
    * of a mode where nothing is ever finished for good.
    *
@@ -2411,10 +2435,10 @@ export class Soffiando extends Mode {
   }
 
   /**
-   * Filling a square round an Abbazia, or laying one. Red pays whoever has
-   * the most followers round an Abbazia a point for every tile there, so a
-   * square filled next to one we hold is worth a point on every red tower
-   * still to come, and next to one a rival holds the same to them.
+   * Filling a square round an Abbazia, or laying one. Red pays an Abbazia's
+   * holder a point for every tile round it, so a square filled next to one
+   * we hold is worth a point on every red tower still to come, and next to
+   * one a rival holds the same to them.
    */
   abbaziaValue(cell, player) {
     const board = this.game.board;
@@ -2611,18 +2635,25 @@ export class Soffiando extends Mode {
   /**
    * What the board as it stands is worth to a seat: what its followers stand
    * in (valueOf, which doubles it out on an island), less a little of what
-   * everybody else's do; the Abbazias it would win red for; and 2 for every
-   * separate island it is standing on (the archipelago's 10, a little at a
-   * time).
+   * everybody else's do; the pieces of country it would win green for; the
+   * Abbazias it would win red for; and 2 for every separate island it is
+   * standing on (the archipelago's 10, a little at a time).
    */
   holding(seat) {
     const board = this.game.board;
     const w = weightsFor(this, seat);
-    const { isles } = this.land();
+    const { main, isles } = this.land();
     const isleOf = new Map();
     isles.forEach((grp, i) => { for (const c of grp) isleOf.set(c, i); });
     const mine = new Set();
     let value = 0;
+    // Green: 5 for every piece of country we have the most followers on,
+    // and as much against us where a rival has.
+    for (const group of [main, ...isles]) {
+      const top = this.landHolders(group);
+      if (!top.length) continue;
+      value += (top.includes(seat) ? 1 : -0.7) * LAND * w.ahead * (w.land ?? 1);
+    }
     for (const c of this.tiles()) {
       if (hasMark(c, 'abbazia')) {
         const holders = this.abbaziaHolders(c);
@@ -2630,12 +2661,13 @@ export class Soffiando extends Mode {
           value += (holders.includes(seat) ? 1 : -0.7) * this.abbaziaPoints(c) * w.ahead * w.parish;
         }
       }
-      if (!c.meeple || c.meeple.feat == null) continue;
+      if (!c.meeple) continue;
+      if (c.meeple.player === seat && isleOf.has(c)) mine.add(isleOf.get(c));
+      if (c.meeple.feat == null) continue;
       const d = board.featureOf(c.x, c.y, c.meeple.feat);
       const worth = (d && this.valueOf(d)) || 0;
       if (c.meeple.player !== seat) { value -= 0.7 * worth; continue; }
       value += worth;
-      if (isleOf.has(c)) mine.add(isleOf.get(c));
     }
     return value + 2 * mine.size;
   }
@@ -2867,10 +2899,10 @@ Soffiando.spec = {
     + 'Too heavy to move, a blow moves no tile but blows the followers it reaches a square downwind, never across a city wall; one blown onto an empty Abbazia holds it. '
     + 'A moved tile that no longer meets all its neighbours MOVES ON: you pick a way, and it slides to the first empty square where it fits. Only one with every way blocked falls, and you lay one more tile. '
     + 'TOWERS are the scoring: a half meets only its own colour, and a closed tower, laid or pushed together, scores its colour over the whole board. '
-    + 'Green the farms (1 per two tiles of field), blue the cities (1 a district, open or closed; closed, and every city at the end, plus 1, 3 or 6 for two, three or four kinds and 2 a garden), red the Abbazias (one you hold, flown or blown onto it: 1 per tile round it and 1 per follower there; otherwise 1 per tile round it to whoever has most followers there), yellow the roads (1 a tile plus 1 or 2 for each city they reach). '
+    + 'Green the land (5 to whoever has the most followers on each piece of country, a tiny island too; there are no farmers), blue the cities (1 a district, open or closed; closed, and every city at the end, plus 1, 3 or 6 for two, three or four kinds and 2 a garden), red the Abbazias (one a follower holds, flown or blown onto it, pays it 1 per tile round it, like a cloister; one nobody holds pays nobody), yellow the roads (1 a tile plus 1 or 2 for each city they reach). '
     + 'The BIG TOWERS are eight tiles with the SUN on one face and the BLACK HOLE on the other, walled outside, and a game makes one of each: the first quarter laid decides which comes first, and the rest of its 2x2 is kept for the other three, which must go into it; then the other is made. The sun fires every colour; the black hole swallows the ring round it (never the sun) back into the deck. '
     + 'Closing something pays nobody: things pay their holders when their tower fires. '
-    + 'Eight followers each. You may claim only what nobody is in, yourself included, never a closed road or city. Instead of claiming you may MOVE one of your followers (M): a square, or down a road it stands on as far as the road goes, even out of a closed city. A road or farm a tower pays hands its followers back, or one of yours walks on down a road; a CITY KEEPS ITS FOLLOWERS, and blue pays them every time it fires, until the wind blows it open (a point a district lost) or they move out. Windmills pay 3 for every push that reaches one and 3 when their road or city closes. City walls take anything, as an Abbazia does. '
+    + 'Eight followers each. You may claim only what nobody is in, yourself included, never a closed road or city. Instead of claiming you may MOVE one of your followers (M): a square, or down a road it stands on as far as the road goes; never through a city wall except where a road meets it (a gate), so a city no road runs into is not walked out of. A road a tower pays hands its followers back, or one of yours walks on down a road; a CITY KEEPS ITS FOLLOWERS, and blue pays them every time it fires, until the wind blows it open (a point a district lost) or they move out. Windmills pay 3 for every push that reaches one and 3 when their road or city closes. City walls take anything, as an Abbazia does. '
     + 'The biggest piece of country is the mainland; every other piece is an ISLAND, pays double, and is buildable only by somebody standing on it. At the end, 10 to whoever stands on most islands. '
     + 'The map is 17 squares a side with the Plaza in the middle, and its edges meet: a tile pushed off one side comes on at the other, still joined.',
 };

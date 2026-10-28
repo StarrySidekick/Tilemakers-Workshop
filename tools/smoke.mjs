@@ -706,7 +706,8 @@ for (const [what, mode, mech, kind] of [
     const { TILES } = await import('/src/tiles.js');
     for (const c of [...g.board.cells.values()]) g.board.remove(c.x, c.y);
     g.board.place(0, 0, TILES.DEg, 2); g.board.place(0, 1, TILES.DEr, 0);   // a closed city
-    g.board.place(-1, 0, TILES.Kt, 0);                                    // a temple beside it
+    g.board.place(-1, 0, TILES.Kt, 0);                                    // a temple beside it, past a wall
+    g.board.place(0, -1, TILES.U, 0);                                     // a road into its north wall: a gate
     const laid = g.board.place(3, 3, TILES.B, 0);
     g.board.rebuild();
     g.current = 0; g.tile = null;
@@ -732,18 +733,20 @@ for (const [what, mode, mech, kind] of [
     await page.waitForTimeout(300);
     const t = await page.evaluate(() => {
       const r = window.LAB.renderer;
-      const s = r.meepleSpots.find((q) => q.x === -1 && q.y === 0 && q.type === 'temple');
+      if (r.meepleSpots.some((q) => q.x === -1 && q.y === 0)) return 'wall';
+      const s = r.meepleSpots.find((q) => q.x === 0 && q.y === -1 && q.type === 'road');
       if (!s) return null;
       const rect = r.canvas.getBoundingClientRect();
       return { x: rect.left + s.sx, y: rect.top + s.sy };
     });
-    if (!t) problems.push('no target on the temple beside the city');
+    if (t === 'wall') problems.push('a target through a wall no road meets');
+    else if (!t) problems.push('no target on the road through the gate');
     else {
       await page.mouse.click(t.x, t.y);
       await page.waitForTimeout(200);
       const after = await page.evaluate(() => {
         const g = window.LAB.game;
-        return { there: g.board.get(-1, 0)?.meeple?.player, left: !g.board.get(0, 0)?.meeple, phase: g.phase, supply: g.players[0].meeples };
+        return { there: g.board.get(0, -1)?.meeple?.player, left: !g.board.get(0, 0)?.meeple, phase: g.phase, supply: g.players[0].meeples };
       });
       if (after.there !== 0 || !after.left) problems.push('the follower did not move');
       if (after.supply !== 7) problems.push(`the move spent a follower (${after.supply} in hand)`);
@@ -752,7 +755,7 @@ for (const [what, mode, mech, kind] of [
   }
   if (errors.length) problems.push(errors[0].split('\n')[0]);
   if (problems.length) { failures++; console.log(`  ✗ soffiando move: ${problems.join(' · ')}`); }
-  else console.log('  ✓ soffiando move      a follower walked out of a closed city by the button and two clicks, then the blow');
+  else console.log('  ✓ soffiando move      a follower walked out of a closed city through its gate, by the button and two clicks, then the blow');
 }
 
 // The endgame tally: many features settle in one frame, and they have to be

@@ -671,9 +671,11 @@ export function gust(board, {
  * underneath it changes again.
  */
 function landingFeature(cell, wasType) {
+  // Never a field: Soffiando has no farmers (2026-10-28), and a follower
+  // that comes down where there is nothing else stands holding nothing.
   const open = cell.type.feats
     .map((f, i) => ({ f, i }))
-    .filter(({ f }) => !NO_MEEPLE.has(f.type));
+    .filter(({ f }) => !NO_MEEPLE.has(f.type) && f.type !== 'field');
   if (!open.length) return null;
   return (open.find(({ f }) => f.type === wasType) || open[0]).i;
 }

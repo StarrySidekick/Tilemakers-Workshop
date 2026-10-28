@@ -144,8 +144,18 @@ closed or open"; and "we're revoking the rule that says that you can place
 meeple even on things already claimed by enemy meeple". Asked, he said the
 city bonuses "are only for completing the city and at the end when scored",
 nobody's feature may be joined (yours included), and a move never goes onto
-an Abbazia. That is the thirty-third pass; all four wait for his word to
-merge.
+an Abbazia. That is the thirty-third pass.
+
+Then: "make abbazzias only get points for adjacent squares like cloisters";
+"make it so meeple can move past walls, that have to have a road meet the
+wall to be able to move through them. this means cities with no roads
+attached them cannot leave that city that way"; and he asked what farmers
+score and "is there any incentive still to make islands? Because that's a
+big part of this." Asked what he meant for farmers: "ok no more farmers
+actually. the green scoring from towers simply measures who has control of
+the landmass (who has the most meeple) a awards them with 5 points. this
+means you can get 5 points from even a tiny island". That is the
+thirty-fourth pass; all five wait for his word to merge.
 
 **Fields: settled 2026-09-06, and Timothy was right.** They are fully built.
 `src/tiles.js` cuts the perimeter into eight half-edges with `halfPartner` as the

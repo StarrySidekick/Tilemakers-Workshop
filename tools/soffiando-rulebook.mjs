@@ -350,7 +350,7 @@ prove('followers-claim', (ok) => {
     return g.meepleOptions().map((o) => o.f.type);
   };
   const pz = kinds('Kpz');
-  ok(pz.includes('road') && pz.includes('field'), 'a road or a field');
+  ok(pz.includes('road') && !pz.includes('field'), 'a road, never a field: there are no farmers');
   const sx = kinds('Ksx');
   ok(sx.includes('city') && !sx.includes('sfera'), 'a district, never a tower');
   ok(!kinds('Kab').length, 'never an Abbazia');
@@ -376,7 +376,7 @@ prove('followers-claim', (ok) => {
   g.board.addMeeple(0, 0, fi(at(g, 0, 0), 'field'), 1);
   g.board.rebuild();
   g.phase = 'meeple';
-  ok(!g.meepleOptions().some((o) => o.f.type === 'field'), 'a field only if nobody is in it');
+  ok(!g.meepleOptions().some((o) => o.f.type === 'field'), 'and a field never, held or not');
 });
 prove('followers-island', (ok) => {
   const g = fresh(14);
@@ -408,18 +408,12 @@ prove('followers-one', (ok) => {
 });
 prove('followers-home', (ok) => {
   const g = fresh(16);
-  for (const x of [0, 1, 2]) lay(g, x, 0, 'B');
+  for (const x of [0, 1, 2]) lay(g, x, 0, 'U', 1);
   g.board.rebuild();
-  put(g, 0, 0, 'field', 0); put(g, 1, 0, 'field', 0); put(g, 2, 0, 'field', 1);
-  g.m.fire('green'); g.m.sweep();
-  ok(g.players[0].score === 1 && g.players[1].score === 0, 'paid by majority');
-  ok(![0, 1, 2].some((x) => at(g, x, 0).meeple) && g.players[0].meeples === 8 && g.players[1].meeples === 8, 'everyone in a farm goes home, paid or not');
-  const h = fresh(116);
-  lay(h, 0, 0, 'U'); lay(h, 0, 1, 'U');
-  h.board.rebuild();
-  put(h, 0, 0, 'road', 0);
-  h.m.fire('yellow'); h.m.sweep();
-  ok(!at(h, 0, 0).meeple && h.players[0].meeples === 8, 'and in a road');
+  put(g, 0, 0, 'road', 0); put(g, 1, 0, 'road', 0); put(g, 2, 0, 'road', 1);
+  g.m.fire('yellow'); g.m.sweep();
+  ok(g.players[0].score === 3 && g.players[1].score === 0, 'paid by majority');
+  ok(![0, 1, 2].some((x) => at(g, x, 0).meeple) && g.players[0].meeples === 8 && g.players[1].meeples === 8, 'everyone in a road goes home, paid or not');
   const k = fresh(117);
   lay(k, 0, 0, 'DEg', 2); lay(k, 0, 1, 'DEr', 0);
   k.board.rebuild();
@@ -434,18 +428,18 @@ prove('followers-walk', (ok) => {
     const g = fresh(17);
     lay(g, 0, 0, 'U'); lay(g, 0, 1, 'Kta', 2);   // a road south into a temple
     g.board.rebuild();
-    put(g, 0, 0, 'field', 0);
+    put(g, 0, 0, 'road', 0);
     g.phase = 'meeple';
     return g;
   };
   let g = build();
-  g.m.fire('green'); g.m.sweep();
+  g.m.fire('yellow'); g.m.sweep();
   ok(g.m.beginStroll() && g.phase === 'stroll', 'sent home on your turn: a walk is offered');
   ok(g.m.stroll.targets.some((t) => t.x === 0 && t.y === 1 && t.f.type === 'temple'), 'along the road, into the temple');
   ok(g.cellClick(0, 1) && at(g, 0, 1).meeple?.player === 0, 'and it walks there');
   g = build();
   g.current = 1;
-  g.m.fire('green'); g.m.sweep();
+  g.m.fire('yellow'); g.m.sweep();
   ok(!g.m.strollers.length, 'not on somebody else\'s turn');
   g = fresh(18);
   lay(g, 0, 0, 'U'); lay(g, 0, 1, 'U');
@@ -471,31 +465,41 @@ prove('followers-hop', (ok) => {
   ok(g.board.featureOf(0, 0, 0) !== g.board.featureOf(0, 3, 0), 'two roads still');
 });
 prove('followers-move', (ok) => {
-  // A closed city of two (0,0)-(0,1), a field west of it, an Abbazia east,
-  // a road running south from (0,2), and a tile laid somewhere else.
+  // A closed city of two (0,0)-(0,1), walled round: a temple west of it, an
+  // Abbazia east, a road running north from its north wall (a gate) and one
+  // south from its south wall, and a tile laid somewhere else.
   const g = fresh(118);
   lay(g, 0, 0, 'DEg', 2); lay(g, 0, 1, 'DEr', 0);
   lay(g, -1, 0, 'Kt'); lay(g, 1, 0, 'Kab'); lay(g, 0, -1, 'U');
-  lay(g, 0, 2, 'U'); lay(g, 0, 3, 'U'); lay(g, 0, 4, 'Kta', 2);
+  lay(g, 0, 2, 'U'); lay(g, 0, 3, 'U');
   g.lastPlaced = lay(g, 5, 5, 'Kt');
   g.board.rebuild();
   put(g, 0, 0, 'city', 0);
-  put(g, 0, -1, 'road', 1);                 // a figure north of it
+  put(g, 0, 2, 'road', 1);                  // a figure at the south gate
   g.phase = 'meeple';
   ok(g.m.canStride() && g.m.beginStride() && g.phase === 'stride', 'instead of claiming, a move');
-  ok(g.m.strideFrom.some((o) => o.x === 0 && o.y === 0) && !g.m.strideFrom.some((o) => o.y === -1), 'of one of your own followers');
+  ok(g.m.strideFrom.some((o) => o.x === 0 && o.y === 0) && !g.m.strideFrom.some((o) => o.y === 2), 'of one of your own followers');
   ok(g.cellClick(0, 0) && g.phase === 'meeple' && !at(g, 0, 0).meeple, 'picked up');
   const t = g.meepleOptions();
   ok(t.length && t.every((o) => o.moving), 'it goes where the move reaches, and claims nothing on the tile laid');
-  ok(t.some((o) => o.x === -1 && o.y === 0), 'one square, through its own city wall');
+  ok(t.some((o) => o.x === 0 && o.y === -1 && o.f?.type === 'road'), 'one square, out through a gate, where a road meets the wall');
+  ok(!t.some((o) => o.x === -1 && o.y === 0), 'never through a wall no road meets');
   ok(t.some((o) => o.x === 0 && o.y === 1 && o.f?.type === 'city'), 'and it may keep the city it held, closed as it is');
   ok(!t.some((o) => o.x === 1 && o.y === 0), 'never onto an Abbazia');
-  ok(!t.some((o) => o.y === -1), 'never onto a figure');
-  ok(!t.some((o) => o.y >= 2), 'and from a city, no road');
+  ok(!t.some((o) => o.y === 2), 'never onto a figure');
   const supply = g.players[0].meeples;
-  const to = t.find((o) => o.x === -1 && o.f?.type === 'temple');
-  ok(g.placeMeeple(to.i, to) && at(g, -1, 0).meeple?.player === 0 && g.players[0].meeples === supply - 1, 'it moves, and costs nothing from the supply');
+  const to = t.find((o) => o.x === 0 && o.y === -1 && o.f?.type === 'road');
+  ok(g.placeMeeple(to.i, to) && at(g, 0, -1).meeple?.player === 0 && g.players[0].meeples === supply - 1, 'it moves, and costs nothing from the supply');
   ok(g.phase === 'blow' && g.current === 0, 'then you blow');
+  // A city no road runs into is not walked out of.
+  const w = fresh(121);
+  lay(w, 0, 0, 'DEg', 2); lay(w, 0, 1, 'DEr', 0);
+  lay(w, -1, 0, 'Kt'); lay(w, 0, -1, 'Kt'); lay(w, 0, 2, 'Kt');
+  w.lastPlaced = lay(w, 5, 5, 'Kt');
+  w.board.rebuild();
+  put(w, 0, 0, 'city', 0);
+  const inside = w.m.strideTargets(0, 0);
+  ok(inside.length && inside.every((o) => o.x === 0 && o.y === 1), 'a city no road runs into is not walked out of');
   // Down a road, to its far end; not down somebody else's.
   const h = fresh(119);
   lay(h, 0, 0, 'U'); lay(h, 0, 1, 'U'); lay(h, 0, 2, 'U'); lay(h, 0, 3, 'Kta', 2);
@@ -755,14 +759,21 @@ prove('land-mainland', (ok) => {
   ok(land.isles.length === 2 && land.isles.some((i) => i.length === 1 && i[0].type.id === 'Kpz'), 'every other piece an island, down to one tile');
 });
 prove('land-double', (ok) => {
-  const g = fresh(47);
-  for (const x of [0, 1, 2, 3]) lay(g, x, 0, 'B');
-  lay(g, 0, 5, 'B'); lay(g, 1, 5, 'B');
-  g.board.rebuild();
-  put(g, 0, 0, 'field', 0);
-  put(g, 0, 5, 'field', 1);
-  g.m.fire('green');
-  ok(g.players[0].score === 2 && g.players[1].score === 2, `four tiles on the mainland, two on an island: the same (${g.players[0].score}, ${g.players[1].score})`);
+  const build = () => {
+    const g = fresh(47);
+    for (const x of [0, 1, 2, 3]) lay(g, x, 0, 'U', 1);   // the mainland, a road of four
+    lay(g, 0, 5, 'U', 1); lay(g, 1, 5, 'U', 1);            // an island, a road of two
+    g.board.rebuild();
+    put(g, 0, 0, 'road', 0);
+    put(g, 0, 5, 'road', 1);
+    return g;
+  };
+  const g = build();
+  g.m.fire('yellow');
+  ok(g.players[0].score === 4 && g.players[1].score === 4, `four road tiles on the mainland, two on an island: the same (${g.players[0].score}, ${g.players[1].score})`);
+  const h = build();
+  h.m.fire('green');
+  ok(h.players[0].score === 5 && h.players[1].score === 5, `but green's 5 is 5 on an island too (${h.players[0].score}, ${h.players[1].score})`);
 });
 
 // --- Spheres. -------------------------------------------------------------------
@@ -777,13 +788,13 @@ prove('sphere-close', (ok) => {
   lay(g, 0, 0, 'Kso', 2);                   // green, facing south
   for (const x of [-1, -2, -3]) lay(g, x, 0, 'B');   // on the mainland
   for (const x of [3, 4]) lay(g, x, 3, 'B');
-  lay(g, 6, 6, 'DXr');
+  lay(g, 5, 3, 'DEg', 1);                  // an island of three: a city on it, its wall against the field
   g.board.rebuild();
-  put(g, 3, 3, 'field', 0);
-  put(g, 6, 6, 'city', 1);
+  put(g, 3, 3, 'monastery', 0); put(g, 4, 3, 'monastery', 0);
+  put(g, 5, 3, 'city', 1);
   layHand(g, 'Kso', 0, 1, 0);               // green, facing north: the tower closes
   ok(g.m.spheres === 1 && g.m.hues.green === 1, 'a tile laid closes it');
-  ok(g.players[0].score === 2 && g.players[1].score === 0, `it fires its colour once: the farm, not the city (${g.players[0].score}, ${g.players[1].score})`);
+  ok(g.players[0].score === 5 && g.players[1].score === 0, `it fires its colour once: the land, not the city (${g.players[0].score}, ${g.players[1].score})`);
   const before = g.players.map((p) => p.score);
   g.m.joinSferas();
   ok(g.m.spheres === 1 && g.players.every((p, i) => p.score === before[i]), 'a tower closes once');
@@ -839,29 +850,22 @@ prove('sphere-only', (ok) => {
 // --- Green, red and yellow. -----------------------------------------------------
 prove('colour-green', (ok) => {
   const g = fresh(55);
-  for (const x of [0, 1, 2, 3, 4]) lay(g, x, 0, 'B');
+  for (const x of [0, 1, 2, 3, 4]) lay(g, x, 0, 'B');   // the mainland
+  lay(g, 0, 5, 'B');                                    // an island of one tile
+  lay(g, 5, 5, 'B'); lay(g, 6, 5, 'B');                 // and one of two
+  lay(g, -5, -5, 'Kqs');                                // and one with nothing on it to hold
   g.board.rebuild();
-  put(g, 0, 0, 'field', 0);
-  g.m.fire('green');
-  ok(g.players[0].score === 2, `five tiles of field pay 2 (${g.players[0].score})`);
+  put(g, 0, 0, 'monastery', 0); put(g, 1, 0, 'monastery', 0); put(g, 2, 0, 'monastery', 1);
+  put(g, 0, 5, 'monastery', 1);
+  put(g, 5, 5, 'monastery', 0); put(g, 6, 5, 'monastery', 1);
+  at(g, -5, -5).meeple = { player: 1, feat: null };      // standing there, holding nothing
+  g.m.fire('green'); g.m.sweep();
+  ok(g.players[0].score === 10 && g.players[1].score === 15, `5 a piece of country to whoever has most followers on it: the mainland 2 to 1, a tiny island, a tie paid each, and a follower holding nothing counts (${g.players[0].score}, ${g.players[1].score})`);
+  ok([[0, 0], [2, 0], [0, 5], [5, 5], [-5, -5]].every(([x, y]) => at(g, x, y).meeple), 'nobody comes home for it');
+  g.lastPlaced = at(g, 3, 0); g.phase = 'meeple';
+  ok(!g.meepleOptions().some((o) => o.f.type === 'field') && !/scoreFarms/.test(MODE_SRC), 'and there are no farmers');
 });
 prove('colour-red', (ok) => {
-  const g = fresh(56);
-  lay(g, 0, 0, 'Kab');
-  for (const [x, y] of [[1, 0], [-1, 0], [0, 1], [1, 1], [0, -1]]) lay(g, x, y, 'B');
-  for (const x of [2, 3, 4]) lay(g, x, 0, 'B');
-  g.board.rebuild();
-  put(g, 1, 0, 'monastery', 0); put(g, -1, 0, 'monastery', 0); put(g, 0, 1, 'monastery', 1);
-  g.m.fire('red');
-  ok(g.players[0].score === 5 && g.players[1].score === 0, `a point a tile round it, to whoever has most followers there (${g.players[0].score}, ${g.players[1].score})`);
-  ok(at(g, 1, 0).meeple && at(g, 0, 1).meeple, 'nobody comes home for it');
-  const h = fresh(57);
-  lay(h, 0, 0, 'Kab');
-  for (const [x, y] of [[1, 0], [-1, 0], [2, 0], [3, 0]]) lay(h, x, y, 'B');
-  h.board.rebuild();
-  put(h, 1, 0, 'monastery', 0); put(h, -1, 0, 'monastery', 1);
-  h.m.fire('red');
-  ok(h.players[0].score === 2 && h.players[1].score === 2, 'tied, each in full');
   const k = fresh(58);
   lay(k, 0, 0, 'Kab');
   for (const [x, y] of [[1, 0], [-1, 0], [0, 1], [1, 1], [0, -1]]) lay(k, x, y, 'B');
@@ -869,7 +873,15 @@ prove('colour-red', (ok) => {
   put(k, 1, 0, 'monastery', 0); put(k, -1, 0, 'monastery', 0); put(k, 0, 1, 'monastery', 0);
   at(k, 0, 0).meeple = { player: 1, feat: null };   // flown or blown onto it
   k.m.fire('red');
-  ok(k.players[1].score === 8 && k.players[0].score === 0, `held: its holder alone, a point a tile round it and a point a follower there (${k.players[1].score}, ${k.players[0].score})`);
+  ok(k.players[1].score === 5 && k.players[0].score === 0, `held: its holder alone, a point a tile in the eight squares round it, nothing for the followers there (${k.players[1].score}, ${k.players[0].score})`);
+  ok(at(k, 0, 0).meeple && at(k, 1, 0).meeple, 'nobody comes home for it');
+  const g = fresh(56);
+  lay(g, 0, 0, 'Kab');
+  for (const [x, y] of [[1, 0], [-1, 0], [0, 1], [1, 1], [0, -1]]) lay(g, x, y, 'B');
+  g.board.rebuild();
+  put(g, 1, 0, 'monastery', 0); put(g, -1, 0, 'monastery', 0); put(g, 0, 1, 'monastery', 1);
+  g.m.fire('red');
+  ok(g.players[0].score === 0 && g.players[1].score === 0, `one nobody holds pays nobody, however many stand round it (${g.players[0].score}, ${g.players[1].score})`);
   ok(!new Game({ mode: 'soffiando', players: 2, seed: 9 }).m.claimAllowed({ x: 0, y: 0, i: 0, f: { type: 'temple' } }) || !TILES.Kab.feats.length, 'and nobody claims an Abbazia');
 });
 prove('colour-yellow', (ok) => {
@@ -1022,8 +1034,9 @@ prove('flight-claim', (ok) => {
   g.m.flight = g.m.flightPath(at(g, 0, 0));
   g.lastPlaced = at(g, 0, 0); g.phase = 'meeple';
   const t = g.meepleOptions().filter((o) => o.flying);
-  ok(t.some((o) => o.y === -1 && o.f.type === 'field') && !t.some((o) => o.y === -1 && o.f.type === 'road'), 'a feature nobody holds, never one somebody does');
+  ok(t.some((o) => o.y === -4 && o.f?.type === 'road') && !t.some((o) => o.y === -1 && o.f?.type === 'road'), 'a feature nobody holds, never one somebody does');
   ok(t.some((o) => o.y === -4), 'on an island');
+  ok(!t.some((o) => o.f?.type === 'field'), 'never a field');
   ok(!t.some((o) => o.y === -2), 'not a tile with a figure');
   ok(!t.some((o) => o.y === -4 && o.f?.type === 'city'), 'never a wall');
   const h = fresh(73);
@@ -1114,9 +1127,10 @@ prove('end-last', (ok) => {
   lay(g, 0, 5, 'Kab'); lay(g, 1, 5, 'B'); lay(g, 2, 5, 'DXg'); lay(g, 3, 5, 'DXg');
   lay(g, 0, 8, 'U'); lay(g, 0, 9, 'U');
   g.board.rebuild();
-  put(g, 0, 0, 'field', 0); put(g, 1, 5, 'monastery', 1); put(g, 2, 5, 'city', 0); put(g, 0, 8, 'road', 1);
+  put(g, 0, 0, 'monastery', 0); put(g, 1, 5, 'monastery', 1); put(g, 2, 5, 'city', 0); put(g, 0, 8, 'road', 1);
+  at(g, 0, 5).meeple = { player: 1, feat: null };   // holding the Abbazia, for red
   const lines = said(g, () => g.finish());
-  ok(lines.some((l) => /^Farm/.test(l)) && lines.some((l) => /Abbazia/.test(l)) && lines.some((l) => /city/.test(l)) && lines.some((l) => /^Road/.test(l)), 'every colour fires');
+  ok(lines.some((l) => /^(The mainland|An island)/.test(l)) && lines.some((l) => /Abbazia/.test(l)) && lines.some((l) => /city/.test(l)) && lines.some((l) => /^Road/.test(l)), 'every colour fires');
   ok(lines.findIndex((l) => /island|Nobody is standing/.test(l)) < lines.findIndex((l) => /every colour|last time/.test(l)), 'after the islands are counted');
   ok(lines.some((l) => /An open city of 2 districts in 1 kind, 2 gardens/.test(l)) && g.m.final === false, 'and blue pays an open city its bonuses this once');
 });
