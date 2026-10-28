@@ -58,6 +58,14 @@
 // dead end, a windvane on a crossing. The Abbazias' backs are "a smattering
 // of features": roads and districts of every shape. Which ones is Claude's
 // call.
+//
+// Later still: flying machines "shouldn't be competing with district faces,
+// they should be on all different kinds of tiles". Two district ends carry
+// one on BOTH faces (the district with a machine in it, the dead end into
+// one), so whichever face goes down flies; three Abbazias carry one on their
+// backs, in a field, on a straight road and on a bend. Seven machine faces
+// on five tiles, none of them the other side of a plain district: Claude's
+// call.
 // ---------------------------------------------------------------------------
 
 export const DECK_SIZE = 72;
@@ -77,8 +85,8 @@ export const DECK_GROUPS = [
       ['DLr|V', 1], ['DLr|Ktw', 1], ['DLr|Kzb', 1],
       ['Ktc|V', 2], ['DLi|Kgb', 1],
       ['DLm|V', 1], ['DLm|Kzb', 2],
-      ['DEg|Kfl', 1], ['DEg|Kde', 1], ['DEr|Kfl', 1], ['DEr|Kde', 1],
-      ['DEi|Kde', 2], ['DEm|Kfl', 1],
+      ['Kfg|Kfl', 1], ['DEg|Kde', 1], ['DEr|Kde', 2],
+      ['DEi|Kde', 2], ['Kft|Kfl', 1],
       ...per(KINDS, (k) => [`DT${k}|Gw`, 1]),
       ['DXm|Kw', 1], ['DXr|Kw', 1],
     ] },
@@ -92,7 +100,7 @@ export const DECK_GROUPS = [
     tiles: [['Kqs|Kqh', 8]] },
   { name: 'Abbazias', note: 'An Abbazia on one face (each one on the board adds 1 to everybody\'s push power; held by a follower flown or blown onto it), and a smattering of country on the other: roads and districts of every shape.',
     tiles: [
-      ['Kab|X', 1], ['Kab|Gw', 1], ['Kab|U', 1], ['Kab|V', 1], ['Kab|Kde', 1],
+      ['Kab|X', 1], ['Kab|Gw', 1], ['Kab|Kfr', 1], ['Kab|Kfb', 1], ['Kab|Kff', 1],
       ['Kab|DXg', 1], ['Kab|DXi', 1], ['Kab|DTr', 1], ['Kab|DTi', 1], ['Kab|DIg', 1], ['Kab|DLm', 1],
     ] },
   { name: 'Extras', note: 'One-faced, and not dealt: the zephyrs and cannons with no road (the plain zephyr, crosswind, split wind, trident, compass rose, double zephyr, gust cannon and double cannon), the temple districts and the temples.',

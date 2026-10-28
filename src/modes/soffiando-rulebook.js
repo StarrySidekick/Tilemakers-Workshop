@@ -90,6 +90,8 @@ const MILLS3 = 'windmills should reward 3 points when blown or in a feature';
 const EIGHT_MEEPLE = 'let\'s go back to having 8 meeple';
 const MILLS_ON = 'windmills should just be on different kinds of tiles, not be specifically and side option on abbazia tiles, same goes for wind waves and flying machines';
 const SMATTERING = 'we can just add a smattering of features';
+const CITIES_HELD = 'let\'s make cities not give points but closing, just like normal claiming rules and from towers';
+const FLIERS_ANY = 'flying machines shouldn\'t be competing with district faces, they should be on all different kinds of tiles';
 // …and later on 2026-10-27.
 const HALVES = 'let a blow move tower halves.';
 const INEVITABLE = 'also make it so you must place a sun or black hole attached correctly to another, so there completion is inevitable.';
@@ -128,8 +130,8 @@ export const RULES = [
     changed: D27,
     was: 'The game starts with one tile on the board, the Palazzo, in the middle of the map. Players take turns in order.' },
   { n: 3, id: 'game-deck', group: 'game',
-    text: 'The deck is 72 tiles, shuffled, each with two faces (rule 80) and named in the deck list: 37 with a district on one face and a road of the same shape on the other, some of those roads carrying a zephyr or a gust cannon (twelve), a windmill (four), a flying machine (three) or a windvane (two), and two of the districts windmill districts; 16 with a tower half on each face, of two different colours; 8 with a quarter of the sun on one face and a quarter of the black hole on the other; and 11 with an Abbazia on one face and a road or a district on the other. Every other tile is an extra, one-faced and not dealt: the zephyrs and cannons with no road, the temples and temple districts among them, and for now the lone city walls.',
-    from: T(D28, MILLS_ON, 'Asked where, he chose road and district faces; for the Abbazias\' backs, "' + SMATTERING + '". Which roads and districts are Claude\'s calls, named to Timothy when they shipped, as are which colours share a tower tile and which roads carry a zephyr ("' + TWO_COLOURS + '"; the zephyrs ride on roads, his choice). Still 72 ("' + SEVENTY_TWO + '").'),
+    text: 'The deck is 72 tiles, shuffled, each with two faces (rule 80) and named in the deck list: 37 with a district on one face and a road of the same shape on the other, some of those roads carrying a zephyr or a gust cannon (twelve), a windmill (four) or a windvane (two), and two of the districts windmill districts; two of the district ends carry a flying machine, with a flying machine at the dead end on the back; 16 with a tower half on each face, of two different colours; 8 with a quarter of the sun on one face and a quarter of the black hole on the other; and 11 with an Abbazia on one face and a road, a district or a flying machine (in a field, on a road, on a bend) on the other. Every other tile is an extra, one-faced and not dealt: the zephyrs and cannons with no road, the temples and temple districts among them, and for now the lone city walls.',
+    from: T(D28, FLIERS_ANY, 'Where: on two district ends, which carry one on both faces, and on three Abbazias\' backs, never the back of a plain district, is Claude\'s call, named to Timothy when it shipped. Before that day: windmills, windvanes and flying machines on roads ("' + MILLS_ON + '"), the Abbazias\' backs "' + SMATTERING + '", and the towers two-coloured ("' + TWO_COLOURS + '"). Still 72 ("' + SEVENTY_TWO + '").'),
     settings: ['deck'], changed: D28,
     was: 'The deck is 72 tiles, shuffled, each with two faces (rule 80) and named in the deck list: 37 with a district on one face and a road of the same shape on the other, twelve of those roads carrying a zephyr or a gust cannon; 16 with a tower half on each face, of two different colours; 8 with a quarter of the sun on one face and a quarter of the black hole on the other; and 11 with an Abbazia on one face and a windmill, a flying machine or a windvane on the other. Every other tile is an extra, one-faced and not dealt: the zephyrs and cannons with no road, the temples and temple districts among them, and for now the lone city walls.' },
   { n: 4, id: 'game-map', group: 'game',
@@ -352,14 +354,15 @@ export const RULES = [
     text: 'A feature pays whoever has the most followers in it; tied, each of them is paid in full.',
     from: CARC() },
   { n: 46, id: 'sphere-only', group: 'spheres',
-    text: 'Nothing pays for being finished, except windmills (rule 59) and a road or city closed with nobody in it (rule 79).',
+    text: 'Nothing pays for being finished, except windmills (rule 59) and a road closed with nobody in it (rule 79).',
     from: H('tenth'),
-    changed: D27,
-    was: 'Nothing pays for being finished, except windmills (rule 59).' },
+    changed: D28,
+    was: 'Nothing pays for being finished, except windmills (rule 59) and a road or city closed with nobody in it (rule 79).' },
   { n: 79, id: 'close-unclaimed', group: 'spheres',
-    text: 'A road or city that closes with nobody in it pays whoever\'s turn it is, at once, what its tower would pay for it: yellow\'s rate for a road, blue\'s for a city. It is closed by the tile they laid or by their blow.',
-    from: T(D27, UNCLAIMED, 'Asked when, he chose on the spot.'),
-    added: D27 },
+    text: 'A road that closes with nobody in it pays whoever\'s turn it is, at once, what yellow would pay for it. It is closed by the tile they laid or by their blow. A city that closes pays nobody for closing: like any feature, it pays its holders when its tower fires (blue, or the sun).',
+    from: T(D28, CITIES_HELD, '"Not give points but closing" read as not BY closing: an unclaimed city pays nobody, and a held one is paid by its tower, as any claim is. Roads, which he did not name, still pay their closer: Claude\'s reading, named to Timothy when it shipped. Before: "' + UNCLAIMED + '" (2026-10-27).'),
+    added: D27, changed: D28,
+    was: 'A road or city that closes with nobody in it pays whoever\'s turn it is, at once, what its tower would pay for it: yellow\'s rate for a road, blue\'s for a city. It is closed by the tile they laid or by their blow.' },
 
   // --- Green, red and yellow. ------------------------------------------------
   { n: 47, id: 'colour-green', group: 'colours',

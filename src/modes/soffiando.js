@@ -84,9 +84,12 @@
 //
 // A feature a tower pays is emptied: its followers come home, or one of the
 // current player's walks on down a road. Nothing pays for being finished,
-// except a windmill, and a road or city closed with NOBODY in it, which pays
-// whoever closed it what its tower would ("things that go unclaimed are
-// scored by whoever places the last piece of that feature").
+// except a windmill, and a road closed with NOBODY in it, which pays whoever
+// closed it what its tower would ("things that go unclaimed are scored by
+// whoever places the last piece of that feature"). A city did too until
+// 2026-10-28; now a city pays only its holders, when blue or the sun fires
+// ("let's make cities not give points but closing, just like normal claiming
+// rules and from towers").
 //
 // FOLLOWERS: eight each (2026-10-28: "let's go back to having 8 meeple"; five
 // the day before). A road or city that is still open may be joined even if
@@ -183,7 +186,7 @@ export const SOFFIANDO_WEIGHTS = {
   closeTower: 8,     // …and closing one at all (measured: 8 against 2, even over 24 games; 8 closes more, as people do)
   quarter: 1.5,      // a quarter of a big tower laid against another, per quarter it joins
   parish: 0.6,       // a tile round an Abbazia, to whoever holds its neighbourhood
-  closer: 1,         // a road or city closed with nobody in it, paid to the closer
+  closer: 1,         // a road closed with nobody in it, paid to the closer
   turbineMine: 10,   // a windmill in a feature we hold
   turbineTheirs: -3.4, // …or one somebody else does
   blowLook: 12,      // blows tried for real each turn, of the best guessed
@@ -299,6 +302,9 @@ const quarterKey = (key) => String(key).split('|').some((id) => TILES[id]?.feats
 /** Is world side set `a` the same two sides as `b`? */
 const sameSides = (a, b) => a.length === b.length && a.every((s) => b.includes(s));
 const key = (c) => `${c.x},${c.y}`;
+
+/** What pays whoever closes it with nobody in it (rule 79): roads, not cities, since 2026-10-28. */
+const CLOSER_PAID = new Set(['road']);
 
 /** What may be joined while it is open, however many are in it already. */
 const SHARED = new Set(['road', 'city']);
@@ -2032,15 +2038,18 @@ export class Soffiando extends Mode {
   onClosed(d, closer) {
     if (d.type !== 'city' && d.type !== 'road') return;
     this.millsPay(d);
-    if (!d.meeples.length && closer != null) this.payCloser(d, closer);
+    if (CLOSER_PAID.has(d.type) && !d.meeples.length && closer != null) this.payCloser(d, closer);
   }
 
   /**
-   * A ROAD OR CITY CLOSED WITH NOBODY IN IT pays whoever closed it, at once,
-   * what its tower would pay for it (Timothy, 2026-10-27: "things that go
-   * unclaimed are scored by whoever places the last piece of that feature";
-   * asked when, he chose on the spot). Whoever's turn it is closed it, by
-   * laying its last piece or by their blow.
+   * A ROAD CLOSED WITH NOBODY IN IT pays whoever closed it, at once, what its
+   * tower would pay for it (Timothy, 2026-10-27: "things that go unclaimed are
+   * scored by whoever places the last piece of that feature"; asked when, he
+   * chose on the spot). Whoever's turn it is closed it, by laying its last
+   * piece or by their blow. A CITY did too until 2026-10-28 ("let's make
+   * cities not give points but closing, just like normal claiming rules and
+   * from towers"): it was half of every point scored. A city now pays only
+   * its holders, when blue or the sun fires.
    */
   payCloser(d, closer) {
     const g = this.game;
@@ -2273,7 +2282,7 @@ export class Soffiando extends Mode {
     let value = 0;
     const seen = new Set();
     cell.type.feats.forEach((f, i) => {
-      if (!SHARED.has(f.type)) return;
+      if (!CLOSER_PAID.has(f.type)) return;
       const d = board.featureOf(cell.x, cell.y, i);
       if (!d || d.open !== 0 || d.scored || d.meeples.length) return;
       const root = board.find(d.parts[0]);
@@ -2446,8 +2455,8 @@ export class Soffiando extends Mode {
           paid += this.towerValue(sferaHue(cells[0]), cells[0], seat) * w.sphere + w.closeTower;
           continue;
         }
-        if (!SHARED.has(d.type) || d.scored || d.open !== 0 || d.meeples.length) continue;
-        paid += (d.type === 'road' ? this.roadPoints(d) : this.cityPoints(d)).pts;
+        if (!CLOSER_PAID.has(d.type) || d.scored || d.open !== 0 || d.meeples.length) continue;
+        paid += this.roadPoints(d).pts;
       }
       return this.holding(seat) + paid;
     } finally {
@@ -2664,7 +2673,7 @@ Soffiando.spec = {
     + 'TOWERS are the scoring: a half meets only its own colour, and a closed tower, laid or pushed together, scores its colour over the whole board. '
     + 'Green the farms (1 per two tiles of field), blue the cities (1 a district, plus 1, 3 or 6 for two, three or four kinds, doubled once walled, plus 2 a garden), red the Abbazias (one you hold, flown or blown onto it: 1 per tile round it and 1 per follower there; otherwise 1 per tile round it to whoever has most followers there), yellow the roads (1 a tile plus 1 or 2 for each city they reach). '
     + 'The BIG TOWERS are eight tiles with the SUN on one face and the BLACK HOLE on the other, walled outside, and a game makes one of each: the first quarter laid decides which comes first, and the rest of its 2x2 is kept for the other three, which must go into it; then the other is made. The sun fires every colour; the black hole swallows the ring round it (never the sun) back into the deck. '
-    + 'A road or city closed with nobody in it pays whoever closed it, on the spot. '
+    + 'A road closed with nobody in it pays whoever closed it, on the spot; a city pays only its holders, when blue or the sun fires. '
     + 'Eight followers each. You may join an open road or city however many are in it, never a closed one. A feature a tower pays hands its followers back, or one of yours walks on down a road. Windmills pay 3 for every push that reaches one and 3 when their road or city closes. City walls take anything, as an Abbazia does. '
     + 'The biggest piece of country is the mainland; every other piece is an ISLAND, pays double, and is buildable only by somebody standing on it. At the end, 10 to whoever stands on most islands. '
     + 'The map is 17 squares a side with the Plaza in the middle, and its edges meet: a tile pushed off one side comes on at the other, still joined.',

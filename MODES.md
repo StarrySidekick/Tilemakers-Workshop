@@ -1384,6 +1384,36 @@ kingmakes badly, and you'd blame the mechanic instead of the count.
 >
 > Rules 1, 3, 6, 8, 10, 13, 24, 39, 48, 59, 61, 68, 70, 74 and 75 changed; 16
 > retired.
+>
+> **Thirty-second pass: a city pays nobody for closing; flying machines on
+> every kind of tile.**
+>
+> Timothy, 2026-10-28: "ok let's make cities not give points but closing,
+> just like normal claiming rules and from towers", read as not BY closing:
+> a city closed with nobody in it pays nobody, and a held one is paid by blue
+> or the sun, as any claim is (rules 46, 79; `CLOSER_PAID`). Roads, which he
+> did not name, still pay their closer. And "flying machines shouldn't be
+> competing with district faces, they should be on all different kinds of
+> tiles": new tiles with a machine in a field (`Kff`), on a road (`Kfr`), on
+> a bend (`Kfb`) and in a garden or trade district end (`Kfg`, `Kft`); two
+> district ends carry one on both faces, three Abbazias on their backs, and
+> none is the back of a plain district (rule 3).
+>
+> The bot was trained again for the new scoring (20 rounds): the one
+> challenger it took lost on unseen seeds (37.5% of 32), so the weights of
+> the thirty-first pass stand.
+>
+> Trained bots, two players, 30 games (126 a player, 206 the pass before):
+> blue 53%, red 27% (3% of it held Abbazias), closing a road 25%, windmills
+> 10%, yellow 6%, the archipelago 3%, green 1%; **cities blown open cost
+> their holders 24%**. By what paid it: the sun 31%, the end 29%, towers 29%,
+> closing a road 25%, windmills 10%. Three players (16 games, 67 a player):
+> blue 52%, red 33%, roads closed 27%, and blown-open cities **-32%**.
+> Flying machines laid 2.6 a game (0.6 before), 0.7 claims along a flight and
+> 0.2 Abbazias reached by one; Abbazias claimed by a blow 0.7. A closer paid
+> again for the same road: 2.8 times, 8 points.
+>
+> Rules 3, 46 and 79 changed.
 
 
 **Question it answers:** is a small board you keep *editing* better than a big

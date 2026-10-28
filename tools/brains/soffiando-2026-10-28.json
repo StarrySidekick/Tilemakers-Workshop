@@ -4,7 +4,7 @@
   "games": 20,
   "trials": 60,
   "accepted": 3,
-  "note": "First session from the 2026-08-23 weights: three challengers taken of 16 (farm 4 to 1.235, road 1.1 to 1.314, sphere 1 to 0.834). Against the old weights on unseen seeds: 65.6% of 32 games (+18.6), then 75% of 60 games (+26.9). Adopted as SOFFIANDO_WEIGHTS. A second session of 16 rounds from these weights took three more challengers, but its result won only 46.9% of 32 games against them, so it was not adopted.",
+  "note": "First session from the 2026-08-23 weights: three challengers taken of 16 (farm 4 to 1.235, road 1.1 to 1.314, sphere 1 to 0.834). Against the old weights on unseen seeds: 65.6% of 32 games (+18.6), then 75% of 60 games (+26.9). Adopted as SOFFIANDO_WEIGHTS. A second session of 16 rounds from these weights took three more challengers, but its result won only 46.9% of 32 games against them, so it was not adopted. After cities stopped paying their closer (the same day), a third session of 20 rounds took one challenger (city 1 to 0.877, road 1.314 to 1.649), which won only 37.5% of 32 unseen games: noise, not adopted.",
   "validation": {
     "games": 60,
     "rate": 0.75,

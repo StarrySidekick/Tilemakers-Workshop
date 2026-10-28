@@ -540,6 +540,15 @@ export const TILE_TYPES = [
   // A flying machine and its strip. Placing one lets a follower fly out along
   // the way it points, riding any zephyr it crosses.
   { id: 'Kfl', n: 5, group: 'cloud', name: 'Flying machine', feats: [road([S])], marks: [mark('flier', null, N)], fields: [[0, 1, 2, 3, 4, 5, 6, 7]] },
+  // …and the same machine on other kinds of tile (Soffiando, 2026-10-28:
+  // "flying machines shouldn't be competing with district faces, they should
+  // be on all different kinds of tiles"): in open field, standing on a straight
+  // road or a bend, and in a district end, flying out over its wall.
+  { id: 'Kff', n: 0, group: 'cloud', name: 'Flying machine in a field', feats: [], marks: [mark('flier', null, N)], fields: [[0, 1, 2, 3, 4, 5, 6, 7]] },
+  { id: 'Kfr', n: 0, group: 'cloud', name: 'Flying machine on a road', feats: [road([E, W])], marks: [mark('flier', null, N)], fields: [[7, 0, 1, 2], [3, 4, 5, 6]] },
+  { id: 'Kfb', n: 0, group: 'cloud', name: 'Flying machine on a bend', feats: [road([W, S])], marks: [mark('flier', null, N)], fields: [[5, 6], [0, 1, 2, 3, 4, 7]] },
+  { id: 'Kfg', n: 0, group: 'cloud', name: 'Garden district end, with a flying machine', feats: [district([N], 'garden')], marks: [mark('flier', null, S)], fields: [] },
+  { id: 'Kft', n: 0, group: 'cloud', name: 'Trade district end, with a flying machine', feats: [district([N], 'trade')], marks: [mark('flier', null, S)], fields: [] },
 
   // Not dealt: Soffiando swaps these in for the base 3-way junctions. They END
   // the three roads that run into them, the way the base set's do, and they

@@ -615,6 +615,10 @@ for (const [what, mode, mech, kind] of [
   await page.selectOption('#mode', 'soffiando');
   await page.click('#newGame');
   await page.waitForTimeout(150);
+  // A tile both faces of which fit beside the Plaza: a through-district
+  // (its wall against the Plaza's road) and a straight road.
+  await page.evaluate(() => { const g = window.LAB.game; g.deck.push(g.tileKey); g.deck.push('DIg|U'); g.tile = null; g.drawTile(); });
+  await page.waitForTimeout(150);
   const problems = [];
   const hand = () => page.evaluate(() => ({ id: window.LAB.game.tile?.id, key: window.LAB.game.tileKey, back: !document.getElementById('previewBack').hidden, name: document.getElementById('tileName').textContent }));
   const before = await hand();

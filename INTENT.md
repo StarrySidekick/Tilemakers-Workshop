@@ -125,7 +125,12 @@ again; windmills, windvanes and flying machines on road and district faces
 rather than the Abbazias' backs, which take "a smattering of features"; "lets
 get the ai to learn how to play better"; and "data as to what percentage of
 scored games goes to what kind of point". That is the thirty-first pass,
-built on the thirtieth, both waiting for his word to merge.
+built on the thirtieth.
+
+Then: "ok let's make cities not give points but closing, just like normal
+claiming rules and from towers", and "flying machines shouldn't be competing
+with district faces, they should be on all different kinds of tiles". That
+is the thirty-second pass; all three wait for his word to merge.
 
 **Fields: settled 2026-09-06, and Timothy was right.** They are fully built.
 `src/tiles.js` cuts the perimeter into eight half-edges with `halfPartner` as the

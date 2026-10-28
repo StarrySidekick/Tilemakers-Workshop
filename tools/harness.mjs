@@ -1793,7 +1793,7 @@ function checkSoffiando() {
   {
     const ids = (o) => new Game({ mode: 'soffiando', players: 2, seed: 5, options: o }).m.deck();
     const lone = (k) => k.split('|').some((id) => TILES[id].feats.some((f) => f.type === 'city' && !f.district));
-    const plain = ids({}), walled = ids({ deck: { Kce: 3, 'Kab|U': 0, 'Kab|V': 0, 'Kab|Kde': 0 } });
+    const plain = ids({}), walled = ids({ deck: { Kce: 3, 'DIm|U': 0, 'DEr|Kde': 0 } });
     if (!plain.every((k) => k.split('|').length === 2 && k.split('|').every((id) => TILES[id]))) return fail('every tile dealt has two faces', plain.filter((k) => !k.includes('|')).join(' '));
     if (plain.length !== 72) return fail('the deck is 72 tiles', `${plain.length}`);
     if (plain.some(lone)) return fail('no lone wall is dealt by default', plain.filter(lone).join(' '));
