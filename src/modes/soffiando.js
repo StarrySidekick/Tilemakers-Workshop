@@ -1331,6 +1331,9 @@ export class Soffiando extends Mode {
       const squares = new Map();
       const add = (c) => {
         if (!c || c === cell || c.meeple || hasMark(c, 'abbazia')) return;
+        // Only the tile on top of its square: a road's cells can include one
+        // buried under another (the stack modifier).
+        if (board.get(c.x, c.y) !== c) return;
         squares.set(key(c), c);
       };
       for (const [dx, dy] of SIDE_STEP) {

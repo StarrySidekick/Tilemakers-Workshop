@@ -1414,6 +1414,55 @@ kingmakes badly, and you'd blame the mechanic instead of the count.
 > again for the same road: 2.8 times, 8 points.
 >
 > Rules 3, 46 and 79 changed.
+>
+> **Thirty-third pass: move a follower; cities keep theirs; closing pays
+> nobody; nobody's feature is joined.**
+>
+> Timothy, 2026-10-28, on what a city is for: "when you stay in a city ...
+> you're risking the chance to score continuously from towers, but at risk of
+> losing points because you're still in the city and the city could get
+> opened. So you're kind of testing fate, because you could just leave the
+> city if you wanted to." The rules emptied every feature a tower paid
+> (rule 13), so nobody could stay; a city now keeps its followers and blue
+> pays them every time it fires. Roads and farms still empty: no wind can
+> open those, so staying in them would be income with no risk.
+>
+> The way out is the new move (rule 82): "instead of placing a meeple, you
+> can move a meeple instead ... they can move one space for their turn. And
+> if they move using a road, they can move all the way down the road." A
+> square, or down a road on the tile it stands on (gaps crossed as a walk
+> crosses them), never onto a figure or an Abbazia (asked: "only blown or
+> flown"). It keeps what it held, takes what nobody holds, or stands holding
+> nothing. Walls do not stop it, or a closed city could never be left. Two
+> clicks, as the flying machine does (`striding`, `flightTargets`), and a
+> follower picked up and not put down goes back (`settleStride`).
+>
+> Also: "you can't get points from a road that you don't own when you close
+> it" (rule 79 retired, `CLOSER_PAID` gone); "towers score cities 1 point per
+> tile, whether it's closed or open", the bonuses "only for completing the
+> city and at the end when scored" (rule 52 retired, rules 51 and 65); and
+> "we're revoking the rule that says that you can place meeple even on things
+> already claimed by enemy meeple", asked: nobody's at all, yourself included
+> (`freeToTake`, which claims, flights and moves all ask).
+>
+> The bot prices a move against its best claim by the board each leaves
+> (`botStride`, `holding`). Trained again (20 rounds): the one challenger it
+> took won 40.6% of 32 unseen games, so the weights stand, with `stride` at 1.
+>
+> **What it did to the points.** Bots, two players, 30 games, 126 a player:
+> **red's Abbazia neighbourhoods 57%**, yellow 19%, windmills 10%, green 7%,
+> the archipelago 4%, **blue 4%**, held Abbazias 1%, cities blown open -1%.
+> Paid by the end 36%, the sun 32%, towers 23%, windmills 10%. Three players
+> (16 games, 57 a player): red's neighbourhoods 49%, yellow 23%, windmills
+> 11%, blue 7%, blown open -4%. The bots move 27 times a game at two players
+> (16 off a road, 8.5 off a field, 1.5 out of an open city, **0.4 out of a
+> closed one**) and 22 at three. With the move switched off in the bot (20
+> games), red's neighbourhoods were 42% and blue 7%: followers staying on the
+> board feed the neighbourhood majorities, and the move walks them there.
+> The gamble the pass was for, staying in a closed city or walking out,
+> hardly happens: a city pays 1 a district, so the bots hold few.
+>
+> Rules 8, 10, 13, 46, 51, 61 and 65 changed; 82 is new; 52 and 79 retired.
 
 
 **Question it answers:** is a small board you keep *editing* better than a big
