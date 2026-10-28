@@ -35,7 +35,8 @@
     "turbineTheirs": -3.4,
     "blowLook": 12,
     "whale": 0,
-    "walk": 2
+    "keep": 1,
+    "calcolo": 1
   },
   "note": "First session from the 2026-08-23 weights: three challengers taken of 16 (farm 4 to 1.235, road 1.1 to 1.314, sphere 1 to 0.834). Against the old weights on unseen seeds: 65.6% of 32 games (+18.6), then 75% of 60 games (+26.9). Adopted as SOFFIANDO_WEIGHTS. A second session of 16 rounds from these weights took three more challengers, but its result won only 46.9% of 32 games against them, so it was not adopted. After cities stopped paying their closer (the same day), a third session of 20 rounds took one challenger (city 1 to 0.877, road 1.314 to 1.649), which won only 37.5% of 32 unseen games: noise, not adopted. After the thirty-third pass (a follower may move instead of claiming, cities keep their followers, no pay for closing), a fourth session of 20 rounds took one challenger (farm 1.235 to 0.581, road 1.314 to 1.57), which won only 40.6% of 32 unseen games: not adopted. The closer weight went with the closer pay; stride (what a move must beat the best claim by) came in at 1, untrained. After the thirty-fourth pass (green pays 5 for holding each piece of country, no farmers; Abbazias pay like cloisters), a fifth session of 20 rounds took two challengers (ahead 2 to 5.854, land 1 to 0.567, road 1.314 to 1.57, turbineMine 10 to 6.114), which won 73.4% of 32 unseen games (+29.0) and 77.5% of 60 (+29.3). Adopted as SOFFIANDO_WEIGHTS.",
   "validation60": {
