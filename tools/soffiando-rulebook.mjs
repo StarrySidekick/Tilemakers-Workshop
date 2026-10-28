@@ -305,12 +305,13 @@ prove('turn-reach', (ok) => {
 prove('turn-step', (ok) => {
   const g = fresh(10);
   lay(g, 0, 0, 'U'); lay(g, 0, 1, 'U');
-  lay(g, 3, 0, 'DXg');
+  lay(g, 3, 0, 'DXg'); lay(g, 4, 0, 'B');
   g.board.rebuild();
   put(g, 3, 0, 'city', 0);
   ok(layHand(g, 'U', 0, 2) && g.phase === 'meeple', 'after laying, the follower step');
   ok(g.meepleOptions().length > 0, 'a claim on offer');
   ok(!('beginFlat' in g.m) && !g.m.actions().some((a) => /flat/i.test(a.label)), 'and no lying a follower flat');
+  ok(g.m.canStride() && g.m.actions().some((a) => /Move a follower/.test(a.label)), 'or a move of one of yours instead');
   const o = g.meepleOptions()[0];
   g.placeMeeple(o.i, o);
   ok(g.phase === 'blow' && g.current === 0, 'then the blow');
@@ -364,9 +365,10 @@ prove('followers-claim', (ok) => {
     g.phase = 'meeple';
     return g.meepleOptions().some((o) => o.f.type === 'road');
   };
-  ok(road(1, false), 'an open road somebody else is in');
-  ok(road(0, false), 'or you are in');
-  ok(!road(null, true) && !road(1, true), 'never a closed one');
+  ok(road(null, false), 'an open road nobody is in');
+  ok(!road(1, false), 'never one somebody else is in');
+  ok(!road(0, false), 'nor one you are in');
+  ok(!road(null, true), 'never a closed one');
   for (const c of [...g.board.cells.values()]) g.board.remove(c.x, c.y);
   lay(g, 0, 0, 'B');
   g.lastPlaced = lay(g, 1, 0, 'B');
@@ -411,7 +413,21 @@ prove('followers-home', (ok) => {
   put(g, 0, 0, 'field', 0); put(g, 1, 0, 'field', 0); put(g, 2, 0, 'field', 1);
   g.m.fire('green'); g.m.sweep();
   ok(g.players[0].score === 1 && g.players[1].score === 0, 'paid by majority');
-  ok(![0, 1, 2].some((x) => at(g, x, 0).meeple) && g.players[0].meeples === 8 && g.players[1].meeples === 8, 'everyone in it goes home, paid or not');
+  ok(![0, 1, 2].some((x) => at(g, x, 0).meeple) && g.players[0].meeples === 8 && g.players[1].meeples === 8, 'everyone in a farm goes home, paid or not');
+  const h = fresh(116);
+  lay(h, 0, 0, 'U'); lay(h, 0, 1, 'U');
+  h.board.rebuild();
+  put(h, 0, 0, 'road', 0);
+  h.m.fire('yellow'); h.m.sweep();
+  ok(!at(h, 0, 0).meeple && h.players[0].meeples === 8, 'and in a road');
+  const k = fresh(117);
+  lay(k, 0, 0, 'DEg', 2); lay(k, 0, 1, 'DEr', 0);
+  k.board.rebuild();
+  put(k, 0, 0, 'city', 0);
+  k.m.fire('blue'); k.m.sweep();
+  ok(at(k, 0, 0).meeple?.player === 0 && k.players[0].meeples === 7, 'a city keeps its followers');
+  k.m.fire('blue'); k.m.sweep();
+  ok(k.players[0].score === 2 * k.m.cityPoints(k.board.featureOf(0, 0, 0)).pts, `and blue pays them every time it fires (${k.players[0].score})`);
 });
 prove('followers-walk', (ok) => {
   const build = () => {
@@ -453,6 +469,56 @@ prove('followers-hop', (ok) => {
   put(g, 0, 0, 'field', 0);
   ok(g.m.strollTargets({ x: 0, y: 0, i: fi(at(g, 0, 0), 'field') }).some((t) => t.y === 4 && t.f.type === 'temple'), 'a walker crosses it');
   ok(g.board.featureOf(0, 0, 0) !== g.board.featureOf(0, 3, 0), 'two roads still');
+});
+prove('followers-move', (ok) => {
+  // A closed city of two (0,0)-(0,1), a field west of it, an Abbazia east,
+  // a road running south from (0,2), and a tile laid somewhere else.
+  const g = fresh(118);
+  lay(g, 0, 0, 'DEg', 2); lay(g, 0, 1, 'DEr', 0);
+  lay(g, -1, 0, 'Kt'); lay(g, 1, 0, 'Kab'); lay(g, 0, -1, 'U');
+  lay(g, 0, 2, 'U'); lay(g, 0, 3, 'U'); lay(g, 0, 4, 'Kta', 2);
+  g.lastPlaced = lay(g, 5, 5, 'Kt');
+  g.board.rebuild();
+  put(g, 0, 0, 'city', 0);
+  put(g, 0, -1, 'road', 1);                 // a figure north of it
+  g.phase = 'meeple';
+  ok(g.m.canStride() && g.m.beginStride() && g.phase === 'stride', 'instead of claiming, a move');
+  ok(g.m.strideFrom.some((o) => o.x === 0 && o.y === 0) && !g.m.strideFrom.some((o) => o.y === -1), 'of one of your own followers');
+  ok(g.cellClick(0, 0) && g.phase === 'meeple' && !at(g, 0, 0).meeple, 'picked up');
+  const t = g.meepleOptions();
+  ok(t.length && t.every((o) => o.moving), 'it goes where the move reaches, and claims nothing on the tile laid');
+  ok(t.some((o) => o.x === -1 && o.y === 0), 'one square, through its own city wall');
+  ok(t.some((o) => o.x === 0 && o.y === 1 && o.f?.type === 'city'), 'and it may keep the city it held, closed as it is');
+  ok(!t.some((o) => o.x === 1 && o.y === 0), 'never onto an Abbazia');
+  ok(!t.some((o) => o.y === -1), 'never onto a figure');
+  ok(!t.some((o) => o.y >= 2), 'and from a city, no road');
+  const supply = g.players[0].meeples;
+  const to = t.find((o) => o.x === -1 && o.f?.type === 'temple');
+  ok(g.placeMeeple(to.i, to) && at(g, -1, 0).meeple?.player === 0 && g.players[0].meeples === supply - 1, 'it moves, and costs nothing from the supply');
+  ok(g.phase === 'blow' && g.current === 0, 'then you blow');
+  // Down a road, to its far end; not down somebody else's.
+  const h = fresh(119);
+  lay(h, 0, 0, 'U'); lay(h, 0, 1, 'U'); lay(h, 0, 2, 'U'); lay(h, 0, 3, 'Kta', 2);
+  lay(h, 1, 0, 'Kqs');                      // a quarter of the sun: nothing on it to hold
+  h.lastPlaced = lay(h, 5, 5, 'Kt');
+  h.board.rebuild();
+  put(h, 0, 0, 'road', 0);
+  h.phase = 'meeple';
+  const far = h.m.strideTargets(0, 0);
+  ok(far.some((o) => o.y === 3 && o.f?.type === 'temple') && far.some((o) => o.y === 2 && o.f?.type === 'road'), 'down the road as far as it goes, keeping the road or taking what is there');
+  ok(far.some((o) => o.x === 1 && o.y === 0 && o.i == null), 'onto a square with nothing to take, holding nothing');
+  put(h, 0, 2, 'road', 1);
+  ok(!h.m.strideTargets(0, 0).some((o) => o.y === 3), 'never down a road somebody else has a follower on');
+  // Not put down: it goes back.
+  const k = fresh(120);
+  lay(k, 0, 0, 'U'); lay(k, 0, 1, 'U');
+  k.lastPlaced = lay(k, 5, 5, 'Kt');
+  k.board.rebuild();
+  put(k, 0, 0, 'road', 0);
+  k.phase = 'meeple';
+  k.m.beginStride(); k.cellClick(0, 0);
+  k.skipMeeple();
+  ok(at(k, 0, 0).meeple?.player === 0 && k.players[0].meeples === 7 && k.phase === 'blow', 'changed your mind, it goes back');
 });
 // --- The wind. ------------------------------------------------------------------
 prove('wind-blows', (ok) => {
@@ -751,6 +817,23 @@ prove('sphere-only', (ok) => {
   layHand(g, 'DEt', 0, 1, 0);               // closes the city
   g.skipMeeple();
   ok(g.board.featureOf(0, 0, 0)?.scored && g.players[0].score === 0, 'a city closed pays nothing');
+  const h = fresh(97);
+  lay(h, 0, 0, 'U'); lay(h, 0, -1, 'Kab');
+  h.board.rebuild();
+  h.current = 1;
+  layHand(h, 'Kab', 0, 1);
+  ok(h.board.featureOf(0, 0, 0)?.open === 0 && h.players[1].score === 0 && h.players[0].score === 0, 'nor a road closed with nobody in it');
+  const k = fresh(98);
+  lay(k, 0, 0, 'DEg', 2);
+  k.board.rebuild();
+  layHand(k, 'DEr', 0, 1, 0);
+  ok(k.board.featureOf(0, 0, 0)?.open === 0 && k.players[0].score === 0, 'nor a city');
+  const m = fresh(99);
+  lay(m, 0, 0, 'U'); lay(m, 0, -1, 'Kab'); lay(m, -1, 1, 'Kab');
+  m.board.rebuild();
+  blow(m, -1, 1, 1);                        // the Abbazia pushed onto the road's open end
+  ok(m.board.featureOf(0, 0, 0)?.open === 0 && m.players[0].score === 0, 'whether a tile or a blow closes it');
+  ok(!/payCloser|CLOSER_PAID/.test(MODE_SRC), 'and there is nothing left that would');
 });
 
 // --- Green, red and yellow. -----------------------------------------------------
@@ -827,34 +910,33 @@ prove('city-districts', (ok) => {
   }
 });
 prove('city-blue', (ok) => {
-  const pay = (ids) => {
+  const pay = (ids, final = false) => {
     const g = fresh(59);
     ids.forEach((id, x) => lay(g, x, 0, id));
     g.board.rebuild();
     put(g, 0, 0, 'city', 0);
+    g.m.final = final;
     g.m.fire('blue');
     return g.players[0].score;
   };
-  ok(pay(['DXr', 'DXr', 'DXr']) === 3, 'one kind: a point a district');
-  ok(pay(['DXr', 'DXi']) === 3, 'two kinds: plus 1');
-  ok(pay(['DXr', 'DXi', 'DXm']) === 6, 'three kinds: plus 3');
-  ok(pay(['DXr', 'DXi', 'DXm', 'DXg']) === 12, 'four kinds: plus 6, and 2 for the garden');
-  ok(pay(['DXg', 'DXg']) === 6, 'a garden: 2 more each');
-});
-prove('city-walled', (ok) => {
-  const g = fresh(60);
-  lay(g, 0, 0, 'DEg', 2); lay(g, 0, 1, 'DEg', 0);
-  g.board.rebuild();
-  put(g, 0, 0, 'city', 0);
-  ok(g.board.featureOf(0, 0, 0).open === 0, 'closed all round');
-  g.m.fire('blue');
-  ok(g.players[0].score === 8, `two districts of one kind doubled, and the gardens not (${g.players[0].score})`);
-  const h = fresh(61);
-  lay(h, 0, 0, 'DEg', 2); lay(h, 0, 1, 'DIg', 1);
-  h.board.rebuild();
-  put(h, 0, 0, 'city', 0);
-  h.m.fire('blue');
-  ok(h.players[0].score === 6, `open, the same two pay 2 and their gardens 4 (${h.players[0].score})`);
+  ok(pay(['DXr', 'DXr', 'DXr']) === 3, 'open, a point a district');
+  ok(pay(['DXr', 'DXi', 'DXm', 'DXg']) === 4 && pay(['DXg', 'DXg']) === 2, 'and no bonuses while it is open');
+  ok(pay(['DXr', 'DXi'], true) === 3, 'in the last scoring, two kinds: plus 1');
+  ok(pay(['DXr', 'DXi', 'DXm'], true) === 6, 'three kinds: plus 3');
+  ok(pay(['DXr', 'DXi', 'DXm', 'DXg'], true) === 12, 'four kinds: plus 6, and 2 for the garden');
+  ok(pay(['DXg', 'DXg'], true) === 6, 'a garden: 2 more each');
+  const closed = (a, b) => {
+    const g = fresh(60);
+    lay(g, 0, 0, a, 2); lay(g, 0, 1, b, 0);
+    g.board.rebuild();
+    put(g, 0, 0, 'city', 0);
+    g.m.fire('blue');
+    return { open: g.board.featureOf(0, 0, 0).open, pts: g.players[0].score };
+  };
+  const gg = closed('DEg', 'DEg');
+  ok(gg.open === 0 && gg.pts === 6, `closed, its bonuses whenever blue fires: two gardens, 2 and 4 (${gg.pts})`);
+  const gr = closed('DEg', 'DEr');
+  ok(gr.pts === 5, `two kinds and a garden, 2 and 1 and 2, nothing doubled (${gr.pts})`);
 });
 prove('city-gate', (ok) => {
   const g = fresh(160);
@@ -940,7 +1022,7 @@ prove('flight-claim', (ok) => {
   g.m.flight = g.m.flightPath(at(g, 0, 0));
   g.lastPlaced = at(g, 0, 0); g.phase = 'meeple';
   const t = g.meepleOptions().filter((o) => o.flying);
-  ok(t.some((o) => o.x === 0 && o.y === -1 && o.f.type === 'road'), 'a feature somebody holds');
+  ok(t.some((o) => o.y === -1 && o.f.type === 'field') && !t.some((o) => o.y === -1 && o.f.type === 'road'), 'a feature nobody holds, never one somebody does');
   ok(t.some((o) => o.y === -4), 'on an island');
   ok(!t.some((o) => o.y === -2), 'not a tile with a figure');
   ok(!t.some((o) => o.y === -4 && o.f?.type === 'city'), 'never a wall');
@@ -1036,6 +1118,7 @@ prove('end-last', (ok) => {
   const lines = said(g, () => g.finish());
   ok(lines.some((l) => /^Farm/.test(l)) && lines.some((l) => /Abbazia/.test(l)) && lines.some((l) => /city/.test(l)) && lines.some((l) => /^Road/.test(l)), 'every colour fires');
   ok(lines.findIndex((l) => /island|Nobody is standing/.test(l)) < lines.findIndex((l) => /every colour|last time/.test(l)), 'after the islands are counted');
+  ok(lines.some((l) => /An open city of 2 districts in 1 kind, 2 gardens/.test(l)) && g.m.final === false, 'and blue pays an open city its bonuses this once');
 });
 
 // --- Options. -------------------------------------------------------------------
@@ -1272,35 +1355,6 @@ prove('tower-hole', (ok) => {
   h.m.joinSferas();
   ok(!at(h, -1, 0) && [[2, 0], [3, 0], [3, 1], [2, 1]].every(([x, y]) => at(h, x, y)?.type.id === 'Kqs') && h.m.hues.sun === 1 && h.m.hues.hole === 1, 'but never a quarter of the sun');
 });
-prove('close-unclaimed', (ok) => {
-  const g = fresh(97);
-  lay(g, 0, 0, 'U'); lay(g, 0, -1, 'Kab');
-  g.board.rebuild();
-  g.current = 1;
-  layHand(g, 'Kab', 0, 1);
-  ok(g.players[1].score === 1 && g.players[0].score === 0, `a road closed with nobody in it pays whoever laid its last piece, at once (${g.players[1].score})`);
-  const h = fresh(98);
-  lay(h, 0, 0, 'DEg', 2);
-  h.board.rebuild();
-  layHand(h, 'DEr', 0, 1, 0);
-  ok(h.board.featureOf(0, 0, 0)?.open === 0 && h.players[0].score === 0 && h.players[1].score === 0, `a city closed with nobody in it pays nobody (${h.players[0].score})`);
-  put(h, 0, 0, 'city', 1);
-  h.m.fire('blue');
-  ok(h.players[1].score === 8, `it pays its holders when blue fires (${h.players[1].score})`);
-  const k = fresh(99);
-  lay(k, 0, 0, 'U'); lay(k, 0, -1, 'Kab'); lay(k, -1, 1, 'Kab');
-  k.board.rebuild();
-  blow(k, -1, 1, 1);                        // the Abbazia pushed onto the road's open end
-  ok(k.players[0].score === 1, `or whose blow closes it (${k.players[0].score})`);
-  const m = fresh(100);
-  lay(m, 0, 0, 'U'); lay(m, 0, -1, 'Kab');
-  m.board.rebuild();
-  put(m, 0, 0, 'road', 0);
-  m.current = 1;
-  layHand(m, 'Kab', 0, 1);
-  ok(m.players[1].score === 0, 'one somebody holds pays its closer nothing');
-});
-
 // --- Run them. ------------------------------------------------------------------
 /**
  * Every rule against its test. Returns the failures, so the harness can run it

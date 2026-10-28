@@ -62,8 +62,9 @@
 // feature of that kind.
 //
 //   GREEN  the farms: a point for every two tiles of field
-//   BLUE   the cities: a point a district, plus 1, 3 or 6 for two, three or
-//          four kinds, all doubled once walled all round; plus 2 a garden
+//   BLUE   the cities: a point a district, open or closed; a closed one,
+//          and every city in the last scoring, its bonuses too: 1, 3 or 6
+//          for two, three or four kinds, and 2 a garden
 //   RED    the Abbazias: one a follower HOLDS (flown or blown onto it) pays
 //          its holder a point for every tile round it and a point more for
 //          every follower round it; one nobody holds pays a point a tile
@@ -82,23 +83,26 @@
 // hole swallows the twelve squares round it, shuffled back into the deck,
 // sparing the sun.
 //
-// A feature a tower pays is emptied: its followers come home, or one of the
-// current player's walks on down a road. Nothing pays for being finished,
-// except a windmill, and a road closed with NOBODY in it, which pays whoever
-// closed it what its tower would ("things that go unclaimed are scored by
-// whoever places the last piece of that feature"). A city did too until
-// 2026-10-28; now a city pays only its holders, when blue or the sun fires
-// ("let's make cities not give points but closing, just like normal claiming
-// rules and from towers").
+// A road or farm a tower pays is emptied: its followers come home, or one of
+// the current player's walks on down a road. A CITY KEEPS ITS FOLLOWERS and
+// is paid by every blue tower while they stay, which is a gamble: a closed
+// city the wind blows open costs its holders a point a district (Timothy,
+// 2026-10-28: "you're kind of testing fate, because you could just leave the
+// city if you wanted to"). Nothing pays for being finished, except a
+// windmill, and nothing pays for closing what nobody holds (it did from
+// 2026-10-27 to 2026-10-28: "you can't get points from a road that you don't
+// own when you close it").
 //
 // FOLLOWERS: eight each (2026-10-28: "let's go back to having 8 meeple"; five
-// the day before). A road or city that is still open may be joined even if
-// somebody is already in it ("you can add meeple to finished roads and cities
-// even if other meeple are there, but not if they are closed", read as: not
-// yet closed); a closed one never, nor a tower. An Abbazia is never claimed
-// by laying it: a follower flown onto an empty one, or blown onto it, holds
-// it ("you have to blow or flying machine into them from elsewhere"). Lying
-// a follower flat is gone ("remove laying meeple flat").
+// the day before). A follower goes only where NOBODY is, you included ("we're
+// revoking the rule that says that you can place meeple even on things
+// already claimed by enemy meeple"), never into a closed road or city, nor a
+// tower. An Abbazia is never claimed by laying it: a follower flown onto an
+// empty one, or blown onto it, holds it ("you have to blow or flying machine
+// into them from elsewhere"). Instead of claiming you may MOVE one of yours a
+// square, or down a road it stands on as far as the road goes ("instead of
+// placing a meeple, you can move a meeple instead"; `strideTargets`), which is
+// how a follower leaves a city. Lying a follower flat is gone.
 //
 // THE MAINLAND is whatever piece of country is biggest, and every other piece,
 // down to a single tile, is an ISLAND: it pays double, and you may build onto
@@ -186,7 +190,7 @@ export const SOFFIANDO_WEIGHTS = {
   closeTower: 8,     // …and closing one at all (measured: 8 against 2, even over 24 games; 8 closes more, as people do)
   quarter: 1.5,      // a quarter of a big tower laid against another, per quarter it joins
   parish: 0.6,       // a tile round an Abbazia, to whoever holds its neighbourhood
-  closer: 1,         // a road closed with nobody in it, paid to the closer
+  stride: 1,         // what moving a follower has to be worth over the best claim
   turbineMine: 10,   // a windmill in a feature we hold
   turbineTheirs: -3.4, // …or one somebody else does
   blowLook: 12,      // blows tried for real each turn, of the best guessed
@@ -203,22 +207,24 @@ const ARCHIPELAGO = 10;      // at the end, to whoever stands on the most island
 const FOLLOWERS = 8;         // each (Timothy, 2026-10-28: "let's go back to having 8 meeple"; 5 from the day before)
 const SUPPLY = FOLLOWERS;    // …which is what the panel draws
 const BASE_PUSH = 1;         // everybody's push power with no Abbazia on the board
-const GARDEN = 2;            // blue, per garden district in a city, open or closed
+const GARDEN = 2;            // blue, per garden district in a closed city, and every city at the end
 const MOVE_ON_PAUSE = 260;   // ms between the ring on a tile that no longer fits and its slide
 
 /**
  * What everything pays, on the mainland and out on an island — and everything
  * out on an island pays exactly DOUBLE. Nothing here is paid for finishing
- * (but a road or city nobody holds, which pays its closer); it is all paid
- * by a tower closing, over the whole board at once.
+ * (nor, since 2026-10-28, for closing what nobody holds); it is all paid by
+ * a tower closing, over the whole board at once.
  */
 /**
- * A CITY pays a point a district, plus a VARIETY bonus for how many kinds of
- * district it has (garden, residential, industrial, trade) that compounds:
- * nothing for one kind, then 1, 3, 6. A city WALLED all round pays double
- * that, and 2 more for every garden district open or closed (Timothy,
- * 2026-10-27: "every garden district you have scores the city an extra 2p,
- * closed or open"); out on an island, double the lot.
+ * A CITY pays a point a district, closed or open (Timothy, 2026-10-28:
+ * "towers score cities 1 point per tile, whether it's closed or open"). Its
+ * BONUSES are paid only once it is closed, and to every city in the last
+ * scoring ("bonuses are only for completing the city and at the end when
+ * scored"): a VARIETY bonus for how many kinds of district it has (garden,
+ * residential, industrial, trade) that compounds, nothing for one kind, then
+ * 1, 3, 6; and 2 for every garden district. Out on an island, double the lot.
+ * A closed city paid double for its districts and kinds until then.
  *
  * The bonus was a multiplier first (a point a district, times 1, 2, 3, 5 or 8
  * for the kinds), and in 30 bot games a side that multiplier made cities 62%
@@ -226,7 +232,6 @@ const MOVE_ON_PAUSE = 260;   // ms between the ring on a tile that no longer fit
  * pass. The temple district went on 2026-10-27, so four kinds now, not five.
  */
 const VARIETY = [0, 0, 1, 3, 6];
-const WALLED = 2;
 
 /** The city feature on a tile that is a district, if it has one. */
 const districtOf = (type) => type.feats.find((f) => f.district) || null;
@@ -303,12 +308,6 @@ const quarterKey = (key) => String(key).split('|').some((id) => TILES[id]?.feats
 const sameSides = (a, b) => a.length === b.length && a.every((s) => b.includes(s));
 const key = (c) => `${c.x},${c.y}`;
 
-/** What pays whoever closes it with nobody in it (rule 79): roads, not cities, since 2026-10-28. */
-const CLOSER_PAID = new Set(['road']);
-
-/** What may be joined while it is open, however many are in it already. */
-const SHARED = new Set(['road', 'city']);
-
 export class Soffiando extends Mode {
   /** The kingdom starts with the Plaza, as blowable as anything. */
   seeds() { return [{ x: 0, y: 0, id: 'Kpz', rot: 0 }]; }
@@ -359,11 +358,13 @@ export class Soffiando extends Mode {
     this.caught = false;       // …and whether one has come back to hand this turn
     this.spheres = 0;          // towers closed so far
     this.hues = {};            // …and how many of each colour
-    this.closerPaid = 0;       // points paid for closing what nobody held
     this.blowing = false;
     this.blame = null;         // whose weather is currently running
     this.pending = [];         // followers the tower has paid, waiting to come off
+    this.final = false;        // the last scoring, which pays every city its bonuses
     this.strollers = [];       // followers offered a walk when the scoring settles
+    this.striding = null;      // a follower lifted to move this step, rule 82
+    this.strideFrom = null;    // …and, while one is being picked, which could
     this.stroll = null;        // …and the one being asked about now
     this.balenaMoved = false;  // …and the whale has already swum this turn
     // The whale starts asleep over the Plaza. OUT OF THE DEFAULT RULES
@@ -568,36 +569,44 @@ export class Soffiando extends Mode {
   }
 
   /**
-   * On top of the host's own rule (a feature has to be unclaimed, unless the
-   * mode lets it be shared, `mayShare`):
+   * On top of the host's own rule (a feature has to be unclaimed):
    *
    *   AN ISLAND is somewhere you are blown or flown to, unless you are already
    *     standing on it — the same reach that decides where a tile may go.
-   *   A CLOSED ROAD OR CITY is never claimed (Timothy, 2026-10-27: "not if
-   *     they are closed"). One closed with nobody in it has already paid
-   *     whoever closed it.
-   *   AN OPEN ROAD OR CITY may be joined, by anybody, you too, however many
-   *     are in it (rule 10); the majority is paid.
-   *   A FIELD WITH ANYBODY'S FARMER ON IT is closed to you, yours included.
-   *     Farms are the one thing decided by a majority you cannot un-place.
+   *   and everything `freeToTake` says.
+   *
+   * A follower being MOVED (rule 82) claims nothing on the tile just laid:
+   * its places are the mode's own list (`flightTargets`).
    */
   claimAllowed({ x, y, i, f }) {
+    if (this.striding) return false;
     const board = this.game.board;
     const cell = board.get(x, y);
     if (!cell) return false;
     if (this.onIsland(cell) && !this.reachable().has(key(cell))) return false;
-    // A WALL IS NOT A CITY TO STAND IN. A city is claimed in one of its
-    // districts; the city feature on a wall tile is only there so the wall
-    // closes the city it faces.
-    if (f.type === 'city' && !cell.type.feats[i]?.district) return false;
-    const d = board.featureOf(x, y, i);
-    if (!d) return false;
-    if (SHARED.has(d.type)) return d.open > 0;
-    return d.meeples.length === 0;
+    return this.freeToTake(cell, i, f);
   }
 
-  /** The host asks before offering a feature somebody already holds. */
-  mayShare(d) { return SHARED.has(d.type) && d.open > 0; }
+  /**
+   * May a follower take up feature `i` of this tile, wherever it came from
+   * (a claim, a flight, a move)?
+   *
+   *   A FEATURE ANYBODY IS IN is closed to you, yours included (Timothy,
+   *     2026-10-28: "we're revoking the rule that says that you can place
+   *     meeple even on things already claimed by enemy meeple"; asked, nobody's
+   *     at all). Open roads and cities could be joined from 2026-10-27.
+   *   A CLOSED ROAD OR CITY is never claimed (Timothy, 2026-10-27: "not if
+   *     they are closed").
+   *   A WALL IS NOT A CITY TO STAND IN. A city is claimed in one of its
+   *     districts; the city feature on a wall tile is only there so the wall
+   *     closes the city it faces.
+   */
+  freeToTake(cell, i, f) {
+    if (f.type === 'city' && !f.district) return false;
+    const d = this.game.board.featureOf(cell.x, cell.y, i);
+    if (!d || d.meeples.length) return false;
+    return !((d.type === 'road' || d.type === 'city') && d.open === 0);
+  }
 
   // --- placing --------------------------------------------------------------
 
@@ -628,6 +637,8 @@ export class Soffiando extends Mode {
    */
   holdTurn() {
     const g = this.game;
+    // A follower lifted to move and not set down goes back first.
+    this.settleStride();
     if (this.blown || g.phase === 'over' || !g.board.size) return false;
     // Nowhere to blow from (no tile with open sky on any side): no blow.
     if (![0, 1, 2, 3].some((d) => this.blowTargets(d).length)) return false;
@@ -641,6 +652,8 @@ export class Soffiando extends Mode {
     this.lifted = null;
     this.stroll = null;
     this.strollers.length = 0;
+    this.striding = null;
+    this.strideFrom = null;
     this.balenaMoved = false;
     this.blown = false;
     this.astray = [];
@@ -851,8 +864,8 @@ export class Soffiando extends Mode {
 
   /**
    * BLUE — the cities, by their districts (`cityPoints`). Finishing a city
-   * pays nothing by itself, unless nobody is in it; what walls it in is a
-   * higher rate on every blue tower still to come.
+   * pays nothing by itself; what walls it in is its bonuses on every blue
+   * tower still to come.
    */
   scoreCities() {
     const board = this.game.board;
@@ -866,23 +879,23 @@ export class Soffiando extends Mode {
   }
 
   /**
-   * What blue pays a city: a point a district plus the variety bonus, both
-   * doubled once it is walled all round, plus 2 a garden district; out on an
-   * island double the lot. A city held only by followers LYING FLAT pays as
-   * an open one forever: the retired follower keeps the city but not the
-   * walled rate, which is the trade you make when you lay one down.
+   * What blue pays a city: a point a district; once it is walled all round,
+   * or in the last scoring (`final`), the variety bonus and 2 a garden
+   * district on top; out on an island double the lot.
    */
   cityPoints(d) {
     const board = this.game.board;
     const cells = board.cellsOf(d);
     const { n, kinds, gardens } = this.districtsIn(d);
     const walled = d.open === 0;
+    const bonus = walled || this.final;
     const isle = cells.length > 0 && this.onIsland(cells[0]);
-    const pts = ((n + VARIETY[Math.min(kinds, VARIETY.length - 1)]) * (walled ? WALLED : 1)
-      + GARDEN * gardens) * (isle ? 2 : 1);
+    const pts = (n + (bonus ? VARIETY[Math.min(kinds, VARIETY.length - 1)] + GARDEN * gardens : 0))
+      * (isle ? 2 : 1);
     const line = `${walled ? 'A walled city' : 'An open city'}`
-      + ` of ${n} district${n === 1 ? '' : 's'} in ${kinds} kind${kinds === 1 ? '' : 's'}`
-      + `${gardens ? `, ${gardens} garden${gardens === 1 ? '' : 's'}` : ''}`
+      + ` of ${n} district${n === 1 ? '' : 's'}`
+      + `${bonus ? ` in ${kinds} kind${kinds === 1 ? '' : 's'}` : ''}`
+      + `${bonus && gardens ? `, ${gardens} garden${gardens === 1 ? '' : 's'}` : ''}`
       + `${isle ? ' out on an island' : ''}`;
     return { pts, line };
   }
@@ -1059,20 +1072,23 @@ export class Soffiando extends Mode {
   }
 
   /**
-   * Pay a component's majority, and then take everybody off it.
+   * Pay a component's majority, and then take everybody off it, except in a
+   * city.
    *
-   * SCORING A FEATURE EMPTIES IT. Farms, cities, roads, temples — finished or
-   * not, a colour firing over a thing you are standing in pays you and then
-   * hands the figure back. That is the brake on the whole economy: without it
-   * a figure put down early collects from every tower for the rest of the
-   * game and there is no reason ever to move it, which is a game of who
-   * claimed fastest in the first ten turns. It used to be only FINISHED things
-   * that emptied, which left the farmer — the single biggest income in the
-   * mode — standing in a field nothing could ever finish, for good.
+   * SCORING A FEATURE EMPTIES IT. Farms, roads, temples — finished or not, a
+   * colour firing over a thing you are standing in pays you and then hands
+   * the figure back. That is the brake on the whole economy: without it a
+   * figure put down early collects from every tower for the rest of the game
+   * and there is no reason ever to move it, which is a game of who claimed
+   * fastest in the first ten turns. It used to be only FINISHED things that
+   * emptied, which left the farmer — the single biggest income in the mode —
+   * standing in a field nothing could ever finish, for good.
    *
-   * One figure stays: one LYING FLAT has been retired into its city on purpose
-   * and lives there now, which is the whole of what you bought when you laid
-   * it down.
+   * A CITY is the exception since 2026-10-28, and on purpose: its followers
+   * stay and are paid by every blue tower, and the brake is the wind instead
+   * (a closed city blown open costs its holders a point a district, rule 53)
+   * and the move that walks them out (rule 82). Until then a follower lying
+   * flat was the one figure that stayed.
    */
   payHolders(d, pts, line, cells) {
     const g = this.game;
@@ -1082,6 +1098,11 @@ export class Soffiando extends Mode {
         this.pay(p, pts, `${line} — ${g.players[p].name}`, where);
       }
     }
+    // A CITY KEEPS ITS FOLLOWERS (Timothy, 2026-10-28: staying in a city is
+    // "testing fate", paid by every tower while the wind may blow it open,
+    // "because you could just leave the city if you wanted to"). Everything
+    // else a tower pays hands its followers back.
+    if (d.type === 'city') return;
     for (const m of d.meeples.slice()) this.pending.push({ x: m.x, y: m.y });
   }
 
@@ -1178,9 +1199,7 @@ export class Soffiando extends Mode {
         if (c.meeple) continue;                       // one figure a tile
         for (const o of claimableFeatures(c.type, { fields: g.has('fields') })) {
           if (o.f.type === 'field' || o.f.type === 'road') continue;
-          if (o.f.type === 'city' && !o.f.district) continue;   // a wall, not a district
-          const d = board.featureOf(c.x, c.y, o.i);
-          if (!d || d.meeples.length) continue;
+          if (!this.freeToTake(c, o.i, o.f)) continue;       // held, closed, or a wall
           if (back && board.parent.has(`${c.x},${c.y}#${o.i}`)
             && board.find(`${c.x},${c.y}#${o.i}`) === back) continue;
           out.push({ x: c.x, y: c.y, i: o.i, f: o.f, stroll: true });
@@ -1272,6 +1291,156 @@ export class Soffiando extends Mode {
     if (this.blown || (!g.meepleOptions().length && !this.holdsMeeplePhase())) g.endTurn();
   }
 
+  // --- moving a follower (rule 82) --------------------------------------------
+  //
+  // Instead of claiming, a follower already on the board may MOVE (Timothy,
+  // 2026-10-28: "instead of placing a meeple, you can move a meeple instead.
+  // And meeple can move, they can move one space for their turn. And if they
+  // move using a road, they can move all the way down the road"). It is what
+  // makes staying in a city a choice: a city keeps its followers through
+  // every tower that pays it, and the wind can blow it open under them.
+  //
+  // It goes in two clicks, as the flying machine does: pick the follower,
+  // which lifts it into your hand (`striding`), then pick where it goes from
+  // the same targets a claim uses (`flightTargets`), so the host's own claim
+  // puts it down. Not put down by the end of the step, it goes back.
+
+  /**
+   * Where the follower at (x, y) could move to: the four squares beside it
+   * (across the map's edge too), and every square of a road running across
+   * its tile, and of any road that one hops to (rule 15), unless somebody
+   * else has a follower on it. Never a square with a figure on it or an
+   * Abbazia. On each it keeps what it held, if that runs onto the square (a
+   * road walked down, a city crossed, closed or not), or takes up a feature
+   * nobody holds (`freeToTake`), or, with neither there, stands holding
+   * nothing.
+   *
+   * Asked with the follower still standing, so it is lifted for the asking.
+   */
+  strideTargets(x, y) {
+    const g = this.game;
+    const board = g.board;
+    const cell = board.get(x, y);
+    const m = cell?.meeple;
+    if (!m) return [];
+    const d0 = m.feat != null ? board.featureOf(x, y, m.feat) : null;
+    const idx = d0 ? d0.meeples.findIndex((o) => o.x === x && o.y === y) : -1;
+    const held = idx >= 0 ? d0.meeples.splice(idx, 1)[0] : null;
+    cell.meeple = null;
+    try {
+      const squares = new Map();
+      const add = (c) => {
+        if (!c || c === cell || c.meeple || hasMark(c, 'abbazia')) return;
+        squares.set(key(c), c);
+      };
+      for (const [dx, dy] of SIDE_STEP) {
+        const n = board.norm(x + dx, y + dy);
+        add(board.get(n.x, n.y));
+      }
+      const seen = new Set();
+      cell.type.feats.forEach((f, i) => {
+        if (f.type !== 'road') return;
+        const road = board.featureOf(x, y, i);
+        if (!road) return;
+        const root = board.find(road.parts[0]);
+        if (seen.has(root)) return;
+        seen.add(root);
+        if (road.meeples.some((o) => o.player !== m.player)) return;
+        const reach = [road];
+        for (const other of board.hopsFrom(root)) {
+          if (seen.has(other)) continue;
+          seen.add(other);
+          const d = board.data.get(other);
+          if (d && !d.meeples.some((o) => o.player !== m.player)) reach.push(d);
+        }
+        for (const d of reach) for (const c of board.cellsOf(d)) add(c);
+      });
+      const out = [];
+      for (const c of squares.values()) {
+        const here = claimableFeatures(c.type, { fields: g.has('fields') })
+          .filter(({ i, f }) => (d0 && board.featureOf(c.x, c.y, i) === d0
+            && !(f.type === 'city' && !f.district)) || this.freeToTake(c, i, f))
+          .map(({ i, f }) => ({ x: c.x, y: c.y, i, f, moving: true }));
+        out.push(...(here.length ? here : [{ x: c.x, y: c.y, i: null, f: null, moving: true, what: 'square' }]));
+      }
+      return out;
+    } finally {
+      cell.meeple = m;
+      if (held) d0.meeples.splice(idx, 0, held);
+    }
+  }
+
+  /** Your followers on the board that have somewhere to move to. */
+  striders() {
+    const seat = this.game.current;
+    return this.tiles()
+      .filter((c) => c.meeple?.player === seat && this.strideTargets(c.x, c.y).length)
+      .map((c) => ({ x: c.x, y: c.y }));
+  }
+
+  /** Could a follower move this step? Cheaper than `striders`: the first one will do. */
+  hasStrider() {
+    const seat = this.game.current;
+    return this.tiles().some((c) => c.meeple?.player === seat && this.strideTargets(c.x, c.y).length);
+  }
+
+  canStride() {
+    return this.game.phase === 'meeple' && !this.striding && !this.lifted && this.hasStrider();
+  }
+
+  beginStride() {
+    if (!this.canStride()) return false;
+    this.strideFrom = this.striders();
+    this.game.phase = 'stride';
+    return true;
+  }
+
+  /** The first click: lift the follower at (x, y) into your hand. */
+  pickStrider(x, y) {
+    const g = this.game;
+    if (!this.strideFrom?.some((o) => o.x === x && o.y === y)) return false;
+    const cell = g.board.get(x, y);
+    const m = cell.meeple;
+    const targets = this.strideTargets(x, y);
+    g.sendHome(cell);
+    g.board.rebuild();
+    this.striding = { from: { x, y }, m, targets, seat: g.current, supply: g.players[g.current].meeples };
+    this.strideFrom = null;
+    g.phase = 'meeple';
+    g.say(`${g.player.name} moves the follower at (${x}, ${y}).`);
+    return true;
+  }
+
+  /**
+   * Put a lifted follower back where it stood, if it was not set down: the
+   * step ended (skipped, or put back by the button) with it still in hand.
+   * Placing it takes one out of the supply, so the supply says which.
+   */
+  settleStride() {
+    const s = this.striding;
+    if (!s) return;
+    this.striding = null;
+    const g = this.game;
+    const owner = g.players[s.seat];
+    if (owner.meeples !== s.supply) return;            // it was put down
+    const cell = g.board.get(s.from.x, s.from.y);
+    if (!cell || cell.meeple) return;                  // nowhere to go back to: it stays home
+    if (s.m.feat == null) cell.meeple = { ...s.m };
+    else g.board.addMeeple(s.from.x, s.from.y, s.m.feat, s.seat, { big: s.m.big, kind: s.m.kind });
+    owner.meeples--;
+    if (s.m.big) owner.big--;
+    g.board.rebuild();
+  }
+
+  /** The button: changed your mind, the follower goes back. */
+  unstride() {
+    const g = this.game;
+    if (g.phase === 'stride') { this.strideFrom = null; g.phase = 'meeple'; return true; }
+    if (g.phase !== 'meeple' || !this.striding) return false;
+    this.settleStride();
+    return true;
+  }
+
   // --- the Balena -----------------------------------------------------------
   //
   // A whale the size of a district, and the only brake in the mode. It is not
@@ -1317,7 +1486,7 @@ export class Soffiando extends Mode {
   }
 
   canSwim() {
-    return this.game.phase === 'meeple' && !this.balenaMoved && this.balenaTargets().length > 0;
+    return this.game.phase === 'meeple' && !this.striding && !this.balenaMoved && this.balenaTargets().length > 0;
   }
 
   /**
@@ -1327,8 +1496,9 @@ export class Soffiando extends Mode {
    * as long as there is a whale to send.
    */
   holdsMeeplePhase() {
-    return !!this.lifted || this.flightLifts().length > 0
-      || (!this.balenaMoved && this.balenaTargets().length > 0);
+    return !!this.lifted || !!this.striding || this.flightLifts().length > 0
+      || (!this.balenaMoved && this.balenaTargets().length > 0)
+      || this.hasStrider();
   }
 
   /** Instead of putting a follower down: send the whale somewhere. */
@@ -1341,6 +1511,7 @@ export class Soffiando extends Mode {
 
   onCellClick(x, y) {
     if (this.game.phase === 'stroll') return this.strollTo(x, y);
+    if (this.game.phase === 'stride') return this.pickStrider(x, y);
     if (this.game.phase === 'flight') return this.liftAt(x, y);
     if (this.game.phase === 'blow') return this.blowAt(x, y);
     if (this.game.phase === 'astray') return this.sendAstray(x, y);
@@ -1703,6 +1874,8 @@ export class Soffiando extends Mode {
    * because the machine is flying, not turning round.
    */
   flightTargets() {
+    // A follower being moved goes where the move reaches, not along a flight.
+    if (this.striding) return this.striding.targets;
     if (!this.flight) return [];
     const board = this.game.board;
     const from = this.lifted ? this.lifted.step + 1 : 0;
@@ -1711,12 +1884,10 @@ export class Soffiando extends Mode {
       if (step < from) return;
       if (!board.get(cell.x, cell.y) || cell.meeple) return;
       // An empty Abbazia along the flight is held outright by the follower
-      // set down on it (rule 82); it has no feature to claim.
+      // set down on it (rule 48); it has no feature to claim.
       if (hasMark(cell, 'abbazia')) { out.push({ x: cell.x, y: cell.y, i: null, f: null, flying: true, what: 'Abbazia' }); return; }
       for (const { i, f } of claimableFeatures(cell.type, { fields: this.game.has('fields') })) {
-        if (!board.featureOf(cell.x, cell.y, i)) continue;
-        if (f.type === 'city' && !f.district) continue;          // a wall, not a district
-        out.push({ x: cell.x, y: cell.y, i, f, flying: true });
+        if (this.freeToTake(cell, i, f)) out.push({ x: cell.x, y: cell.y, i, f, flying: true });
       }
     });
     return out;
@@ -1744,7 +1915,7 @@ export class Soffiando extends Mode {
   }
 
   canLift() {
-    return this.game.phase === 'meeple' && this.flightLifts().length > 0;
+    return this.game.phase === 'meeple' && !this.striding && this.flightLifts().length > 0;
   }
 
   beginLift() {
@@ -2038,37 +2209,15 @@ export class Soffiando extends Mode {
   onClosed(d, closer) {
     if (d.type !== 'city' && d.type !== 'road') return;
     this.millsPay(d);
-    if (CLOSER_PAID.has(d.type) && !d.meeples.length && closer != null) this.payCloser(d, closer);
   }
 
   /**
-   * A ROAD CLOSED WITH NOBODY IN IT pays whoever closed it, at once, what its
-   * tower would pay for it (Timothy, 2026-10-27: "things that go unclaimed are
-   * scored by whoever places the last piece of that feature"; asked when, he
-   * chose on the spot). Whoever's turn it is closed it, by laying its last
-   * piece or by their blow. A CITY did too until 2026-10-28 ("let's make
-   * cities not give points but closing, just like normal claiming rules and
-   * from towers"): it was half of every point scored. A city now pays only
-   * its holders, when blue or the sun fires.
-   */
-  payCloser(d, closer) {
-    const g = this.game;
-    const cells = g.board.cellsOf(d);
-    if (!cells.length) return;
-    const { pts, line } = d.type === 'road' ? this.roadPoints(d) : this.cityPoints(d);
-    if (pts <= 0) return;
-    this.closerPaid += pts;
-    this.pay(closer, pts, `${line}, closed with nobody in it — ${g.players[closer].name}`,
-      cells.map((c) => ({ x: c.x, y: c.y })));
-  }
-
-  /**
-   * Finishing something somebody holds pays nothing by itself. What it does
-   * is put a city on the higher rate for the next blue tower, and let a road
-   * be walked away from.
+   * Finishing something pays nothing by itself. What it does is earn a city
+   * its bonuses on every blue tower still to come, and let a road be walked
+   * away from.
    *
    * The WINDMILL is the one exception left in the mode: every turbine standing
-   * in a feature that finishes pays 2, and it pays WHOEVER HOLDS THE FEATURE
+   * in a feature that finishes pays 3, and it pays WHOEVER HOLDS THE FEATURE
    * rather than whoever laid the closing tile. That distinction is the whole
    * point of it — a mill is a thing you own, not a race you win, and paying
    * the closer made the last tile of somebody else's city the most valuable
@@ -2125,7 +2274,13 @@ export class Soffiando extends Mode {
    */
   lastRound() {
     this.game.say('The season turns, and the sky scores everything one last time.');
-    for (const hue of Object.keys(COLOURS)) this.fire(hue);
+    // Every city gets its bonuses in this one, closed or not (rule 51).
+    this.final = true;
+    try {
+      for (const hue of Object.keys(COLOURS)) this.fire(hue);
+    } finally {
+      this.final = false;
+    }
     this.sweep();
   }
 
@@ -2174,8 +2329,6 @@ export class Soffiando extends Mode {
       else value += this.quarterValue(cell) * w.quarter;
       value += this.turbineValue(cell, player);
       value += this.abbaziaValue(cell, player);
-      // A road or city this tile closes with nobody in it pays us now.
-      value += this.closerValue(cell) * w.closer;
     }
     return value;
   }
@@ -2276,23 +2429,6 @@ export class Soffiando extends Mode {
     return value;
   }
 
-  /** What the roads and cities this tile closes with nobody in them pay its layer. */
-  closerValue(cell) {
-    const board = this.game.board;
-    let value = 0;
-    const seen = new Set();
-    cell.type.feats.forEach((f, i) => {
-      if (!CLOSER_PAID.has(f.type)) return;
-      const d = board.featureOf(cell.x, cell.y, i);
-      if (!d || d.open !== 0 || d.scored || d.meeples.length) return;
-      const root = board.find(d.parts[0]);
-      if (seen.has(root)) return;
-      seen.add(root);
-      value += (d.type === 'road' ? this.roadPoints(d) : this.cityPoints(d)).pts;
-    });
-    return value;
-  }
-
   /** A windmill is an annuity plus a bounty, so it's worth more than one gust. */
   turbineValue(cell, player) {
     const t = turbineOn(cell);
@@ -2315,6 +2451,7 @@ export class Soffiando extends Mode {
     const w = weightsFor(this, seat);
     if (g.current === seat && g.phase === 'stroll') return this.botStroll();
     if (g.current !== seat || g.phase !== 'meeple') return false;
+    if (this.botStride(seat)) return true;
     if (!this.canSwim()) return false;
     if (g.meepleOptions().length) return false;
     let best = null;
@@ -2445,18 +2582,13 @@ export class Soffiando extends Mode {
         }
       }
       board.rebuild();
-      // A road or city the blow closed with nobody in it pays us, and a
-      // tower it closed fires (tower halves blow, since 2026-10-27).
+      // A tower the blow closed fires (tower halves blow, since 2026-10-27).
       const w = weightsFor(this, seat);
       for (const d of board.allComponents()) {
-        if (d.type === 'sfera' && d.tiles.size >= 2 && d.open === 0) {
-          const cells = board.cellsOf(d);
-          if (cells.every((c) => c.sphered)) continue;
-          paid += this.towerValue(sferaHue(cells[0]), cells[0], seat) * w.sphere + w.closeTower;
-          continue;
-        }
-        if (!CLOSER_PAID.has(d.type) || d.scored || d.open !== 0 || d.meeples.length) continue;
-        paid += this.roadPoints(d).pts;
+        if (d.type !== 'sfera' || d.tiles.size < 2 || d.open !== 0) continue;
+        const cells = board.cellsOf(d);
+        if (cells.every((c) => c.sphered)) continue;
+        paid += this.towerValue(sferaHue(cells[0]), cells[0], seat) * w.sphere + w.closeTower;
       }
       return this.holding(seat) + paid;
     } finally {
@@ -2503,6 +2635,59 @@ export class Soffiando extends Mode {
       if (isleOf.has(c)) mine.add(isleOf.get(c));
     }
     return value + 2 * mine.size;
+  }
+
+  /**
+   * Moving a follower instead of claiming (rule 82), for a computer player.
+   * Every move it could make and every claim it could make are priced the
+   * same way, by the board they leave (`holding`), a claim less what a
+   * follower out of the supply costs; the move is made if it beats the best
+   * claim by the weight `stride`. Each is tried on the board and taken back.
+   */
+  botStride(seat) {
+    const g = this.game;
+    if (!this.canStride()) return false;
+    const board = g.board;
+    const w = weightsFor(this, seat);
+    const now = this.holding(seat);
+    const put = (c, i, m) => {
+      c.meeple = { ...m, feat: i };
+      if (i != null) board.featureOf(c.x, c.y, i).meeples.push({ ...c.meeple, x: c.x, y: c.y });
+    };
+    const take = (c) => {
+      const m = c.meeple;
+      const d = m.feat != null ? board.featureOf(c.x, c.y, m.feat) : null;
+      if (d) d.meeples = d.meeples.filter((o) => !(o.x === c.x && o.y === c.y));
+      c.meeple = null;
+      return m;
+    };
+    let claim = 0;
+    const cost = 2.2 + 9 / Math.max(1, g.player.meeples);
+    for (const o of g.meepleOptions()) {
+      const c = board.get(o.x, o.y);
+      if (o.i == null || !c || c.meeple) continue;
+      put(c, o.i, { player: seat, big: false, kind: null });
+      claim = Math.max(claim, this.holding(seat) - now - cost);
+      take(c);
+    }
+    let best = null;
+    for (const from of this.striders()) {
+      const c0 = board.get(from.x, from.y);
+      for (const t of this.strideTargets(from.x, from.y)) {
+        const c = board.get(t.x, t.y);
+        const m = take(c0);
+        put(c, t.i, m);
+        const gain = this.holding(seat) - now;
+        take(c);
+        put(c0, m.feat, m);
+        if (!best || gain > best.gain) best = { from, t, gain };
+      }
+    }
+    if (!best || best.gain <= claim + (w.stride ?? SOFFIANDO_WEIGHTS.stride)) return false;
+    if (!this.beginStride() || !this.pickStrider(best.from.x, best.from.y)) return false;
+    if (g.placeMeeple(best.t.i, best.t)) return true;
+    this.settleStride();
+    return false;
   }
 
   /**
@@ -2569,6 +2754,9 @@ export class Soffiando extends Mode {
     if (g.phase === 'flight') {
       return [{ label: 'Leave them where they are', fn: () => this.cancelLift() }];
     }
+    if (g.phase === 'stride') {
+      return [{ label: 'Leave them where they are', fn: () => this.unstride() }];
+    }
     if (g.phase === 'blow') {
       return [
         { label: `Turn your zephyr (blowing ${DIR_NAMES[this.blowDir]}, push ${this.pushPower()})`, key: 'R', fn: () => g.rotate(1), wide: true },
@@ -2582,6 +2770,11 @@ export class Soffiando extends Mode {
     }] : [];
     if (this.canLift()) {
       out.unshift({ label: 'Fly out and pick a follower up', fn: () => this.beginLift() });
+    }
+    if (this.striding) {
+      out.unshift({ label: 'Put the follower back', fn: () => this.unstride(), wide: true });
+    } else if (this.canStride()) {
+      out.unshift({ label: 'Move a follower instead', key: 'M', fn: () => this.beginStride() });
     }
     if (this.lifted) {
       out.unshift({ label: 'Bring the lifted follower home', fn: () => g.skipMeeple(), wide: true });
@@ -2671,10 +2864,10 @@ Soffiando.spec = {
     + 'Too heavy to move, a blow moves no tile but blows the followers it reaches a square downwind, never across a city wall; one blown onto an empty Abbazia holds it. '
     + 'A moved tile that no longer meets all its neighbours MOVES ON: you pick a way, and it slides to the first empty square where it fits. Only one with every way blocked falls, and you lay one more tile. '
     + 'TOWERS are the scoring: a half meets only its own colour, and a closed tower, laid or pushed together, scores its colour over the whole board. '
-    + 'Green the farms (1 per two tiles of field), blue the cities (1 a district, plus 1, 3 or 6 for two, three or four kinds, doubled once walled, plus 2 a garden), red the Abbazias (one you hold, flown or blown onto it: 1 per tile round it and 1 per follower there; otherwise 1 per tile round it to whoever has most followers there), yellow the roads (1 a tile plus 1 or 2 for each city they reach). '
+    + 'Green the farms (1 per two tiles of field), blue the cities (1 a district, open or closed; closed, and every city at the end, plus 1, 3 or 6 for two, three or four kinds and 2 a garden), red the Abbazias (one you hold, flown or blown onto it: 1 per tile round it and 1 per follower there; otherwise 1 per tile round it to whoever has most followers there), yellow the roads (1 a tile plus 1 or 2 for each city they reach). '
     + 'The BIG TOWERS are eight tiles with the SUN on one face and the BLACK HOLE on the other, walled outside, and a game makes one of each: the first quarter laid decides which comes first, and the rest of its 2x2 is kept for the other three, which must go into it; then the other is made. The sun fires every colour; the black hole swallows the ring round it (never the sun) back into the deck. '
-    + 'A road closed with nobody in it pays whoever closed it, on the spot; a city pays only its holders, when blue or the sun fires. '
-    + 'Eight followers each. You may join an open road or city however many are in it, never a closed one. A feature a tower pays hands its followers back, or one of yours walks on down a road. Windmills pay 3 for every push that reaches one and 3 when their road or city closes. City walls take anything, as an Abbazia does. '
+    + 'Closing something pays nobody: things pay their holders when their tower fires. '
+    + 'Eight followers each. You may claim only what nobody is in, yourself included, never a closed road or city. Instead of claiming you may MOVE one of your followers (M): a square, or down a road it stands on as far as the road goes, even out of a closed city. A road or farm a tower pays hands its followers back, or one of yours walks on down a road; a CITY KEEPS ITS FOLLOWERS, and blue pays them every time it fires, until the wind blows it open (a point a district lost) or they move out. Windmills pay 3 for every push that reaches one and 3 when their road or city closes. City walls take anything, as an Abbazia does. '
     + 'The biggest piece of country is the mainland; every other piece is an ISLAND, pays double, and is buildable only by somebody standing on it. At the end, 10 to whoever stands on most islands. '
     + 'The map is 17 squares a side with the Plaza in the middle, and its edges meet: a tile pushed off one side comes on at the other, still joined.',
 };

@@ -15,7 +15,6 @@ const MAX_STEPS = 4000;
 
 /** Which income stream a payout line belongs to, for the strategy report. */
 const STREAM = [
-  [/nobody in it/, 'closers'],
   [/city of/i, 'blue cities'],
   [/^Road of/, 'yellow roads'],
   [/^Farm of/, 'green farms'],

@@ -259,6 +259,7 @@ export class Renderer {
       }
     }
     if (game.phase === 'flight') this.drawCellTargets(game.m.flightLifts(), THEME.teal, '95,191,174');
+    if (game.phase === 'stride') this.drawCellTargets(game.m.strideFrom || [], THEME.teal, '95,191,174');
     if (game.phase === 'stroll') this.drawCellTargets(game.m.stroll?.targets || [], MOVE_OK.line, MOVE_OK.rgb);
     if (game.phase === 'recall') this.drawCellTargets(game.myMeeples(), MOVE_COSTLY.line, MOVE_COSTLY.rgb);
     if (game.phase === 'walk') this.drawCellTargets(game.pendingWalk?.targets || [], MOVE_OK.line, MOVE_OK.rgb);
@@ -1468,7 +1469,7 @@ export class Renderer {
       if (skip && o.x === skip.x && o.y === skip.y) continue;   // the claim panel's
       const cell = game.board.get(o.x, o.y);
       if (!cell || !this.onScreen(o.x, o.y)) continue;
-      const color = o.flying ? THEME.teal : PLAYER_COLORS[game.current];
+      const color = o.flying || o.moving ? THEME.teal : PLAYER_COLORS[game.current];
       const spot = rotPoint(cell.type.spots[o.i] || [0.5, 0.5], cell.rot);
       const [sx, sy] = this.toScreen(cell.x + spot[0], cell.y + spot[1]);
       const r = this.cam.zoom * 0.19 * pulse;

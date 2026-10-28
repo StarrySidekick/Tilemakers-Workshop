@@ -694,6 +694,67 @@ for (const [what, mode, mech, kind] of [
   else console.log('  ✓ soffiando abbazia   a flight lands a follower on an empty Abbazia, by a click on the board');
 }
 
+// Moving a follower instead of claiming (2026-10-28), played as a person
+// does: the button, a click on the follower, a click on where it goes.
+{
+  errors.length = 0;
+  await page.selectOption('#mode', 'soffiando');
+  await page.click('#newGame');
+  await page.waitForTimeout(200);
+  await page.evaluate(async () => {
+    const g = window.LAB.game;
+    const { TILES } = await import('/src/tiles.js');
+    for (const c of [...g.board.cells.values()]) g.board.remove(c.x, c.y);
+    g.board.place(0, 0, TILES.DEg, 2); g.board.place(0, 1, TILES.DEr, 0);   // a closed city
+    g.board.place(-1, 0, TILES.Kt, 0);                                    // a temple beside it
+    const laid = g.board.place(3, 3, TILES.B, 0);
+    g.board.rebuild();
+    g.current = 0; g.tile = null;
+    g.board.addMeeple(0, 0, 0, 0); g.players[0].meeples--;
+    g.lastPlaced = laid; g.phase = 'meeple';
+    window.LAB.renderer.glideTo?.(0, 0);
+  });
+  await page.waitForTimeout(800);
+  const problems = [];
+  const btn = page.locator('#actions button', { hasText: 'Move a follower' });
+  if (!(await btn.count())) problems.push('no Move a follower button in the follower step');
+  else {
+    await btn.first().click();
+    await page.waitForTimeout(150);
+    const cell = await page.evaluate(() => {
+      const r = window.LAB.renderer;
+      const [sx, sy] = r.toScreen(0.5, 0.5);
+      const rect = r.canvas.getBoundingClientRect();
+      return { phase: window.LAB.game.phase, x: rect.left + sx, y: rect.top + sy };
+    });
+    if (cell.phase !== 'stride') problems.push(`the button did not start a move (phase "${cell.phase}")`);
+    await page.mouse.click(cell.x, cell.y);
+    await page.waitForTimeout(300);
+    const t = await page.evaluate(() => {
+      const r = window.LAB.renderer;
+      const s = r.meepleSpots.find((q) => q.x === -1 && q.y === 0 && q.type === 'temple');
+      if (!s) return null;
+      const rect = r.canvas.getBoundingClientRect();
+      return { x: rect.left + s.sx, y: rect.top + s.sy };
+    });
+    if (!t) problems.push('no target on the temple beside the city');
+    else {
+      await page.mouse.click(t.x, t.y);
+      await page.waitForTimeout(200);
+      const after = await page.evaluate(() => {
+        const g = window.LAB.game;
+        return { there: g.board.get(-1, 0)?.meeple?.player, left: !g.board.get(0, 0)?.meeple, phase: g.phase, supply: g.players[0].meeples };
+      });
+      if (after.there !== 0 || !after.left) problems.push('the follower did not move');
+      if (after.supply !== 7) problems.push(`the move spent a follower (${after.supply} in hand)`);
+      if (after.phase !== 'blow') problems.push(`no blow after the move (phase "${after.phase}")`);
+    }
+  }
+  if (errors.length) problems.push(errors[0].split('\n')[0]);
+  if (problems.length) { failures++; console.log(`  ✗ soffiando move: ${problems.join(' · ')}`); }
+  else console.log('  ✓ soffiando move      a follower walked out of a closed city by the button and two clicks, then the blow');
+}
+
 // The endgame tally: many features settle in one frame, and they have to be
 // shown one at a time or the result is a number changing.
 {

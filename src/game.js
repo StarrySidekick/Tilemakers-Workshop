@@ -858,7 +858,9 @@ export class Game {
     const who = phantom ? 'their phantom' : (spend ? `their ${spend.name}` : null);
     this.say(spot.flying
       ? `${this.player.name} flies a follower out to the ${what} at (${spot.x}, ${spot.y}).`
-      : `${this.player.name} claimed the ${what}${who ? ` with ${who}` : ''}.`);
+      : spot.moving
+        ? `${this.player.name}'s follower moves to the ${what} at (${spot.x}, ${spot.y}).`
+        : `${this.player.name} claimed the ${what}${who ? ` with ${who}` : ''}.`);
     this.emit('meeple', { feat: featIdx, player: this.current, at: { x: spot.x + 0.5, y: spot.y + 0.5 } });
 
     // The phantom follows your ordinary follower in the same turn, onto a

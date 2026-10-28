@@ -92,6 +92,13 @@ const MILLS_ON = 'windmills should just be on different kinds of tiles, not be s
 const SMATTERING = 'we can just add a smattering of features';
 const CITIES_HELD = 'let\'s make cities not give points but closing, just like normal claiming rules and from towers';
 const FLIERS_ANY = 'flying machines shouldn\'t be competing with district faces, they should be on all different kinds of tiles';
+// …and later still.
+const STAY = 'when you stay in a city, or because you stay in a city even after you\'ve claimed it, that means that you\'re risking the chance to score continuously from towers, but at risk of losing points because you\'re still in the city and the city could get opened. So you\'re kind of testing fate, because you could just leave the city if you wanted to.';
+const MOVE = 'instead of placing a meeple, you can move a meeple instead. And meeple can move, they can move one space for their turn. And if they move using a road, they can move all the way down the road.';
+const ROADS_TOO = 'the closing rule also applies to roads as well. So you can\'t get points from a road that you don\'t own when you close it.';
+const PER_TILE = 'towers score cities 1 point per tile, whether it\'s closed or open.';
+const NO_JOIN = 'we\'re revoking the rule that says that you can place meeple even on things already claimed by enemy meeple.';
+const BONUSES = 'bonuses are only for completing the city and at the end when scored';
 // …and later on 2026-10-27.
 const HALVES = 'let a blow move tower halves.';
 const INEVITABLE = 'also make it so you must place a sun or black hole attached correctly to another, so there completion is inevitable.';
@@ -102,7 +109,7 @@ const DOUBLE = 'make tiles double sided, and you choose what side to play when y
 export const GROUPS = [
   { id: 'game', name: 'The game', ask: 'Who plays, what is on the table, and the map.' },
   { id: 'turn', name: 'Your turn', ask: 'Laying a tile, and what comes after it.' },
-  { id: 'followers', name: 'Followers', ask: 'Claiming, going home, walking and lying flat.' },
+  { id: 'followers', name: 'Followers', ask: 'Claiming, going home, walking and moving.' },
   { id: 'stick', name: 'Your zephyr', ask: 'The blow every turn ends with, and how hard it pushes.' },
   { id: 'wind', name: 'The wind', ask: 'What a push does to the country.' },
   { id: 'storm', name: 'Zephyrs in a chain', ask: 'How one push sets off the next.' },
@@ -164,8 +171,8 @@ export const RULES = [
     changed: D27,
     was: 'It must touch the mainland (rule 40), or an island you already have a follower standing on.' },
   { n: 8, id: 'turn-step', group: 'turn',
-    text: 'Then your follower step: claim a feature on the tile you laid (rule 10), or not. On a turn you laid a flying machine you may use its flight instead (rules 61 and 62). Then you blow (rule 70), and your turn ends.',
-    from: T(D27, EVERY_TURN, 'The blow last, after the follower step, is Claude\'s reading of the order he listed them in. Lying a follower flat went on 2026-10-28 ("' + NO_FLAT + '").'),
+    text: 'Then your follower step: claim a feature on the tile you laid (rule 10), or move one of your followers already on the board instead (rule 82), or neither. On a turn you laid a flying machine you may use its flight instead (rules 61 and 62). Then you blow (rule 70), and your turn ends.',
+    from: T(D27, EVERY_TURN, 'The blow last, after the follower step, is Claude\'s reading of the order he listed them in. Lying a follower flat went on 2026-10-28 ("' + NO_FLAT + '"), and moving one came in the same day ("' + MOVE + '").'),
     changed: D28,
     was: 'Then your follower step: claim a feature on the tile you laid (rule 10), or not. On a turn you laid a flying machine you may use its flight instead (rules 61 and 62). Before any of that, once a turn, you may lay one of your followers flat (rule 16). Then you blow (rule 70), and your turn ends.' },
   { n: 9, id: 'turn-catch', group: 'turn',
@@ -175,8 +182,8 @@ export const RULES = [
 
   // --- Followers. ------------------------------------------------------------
   { n: 10, id: 'followers-claim', group: 'followers',
-    text: 'To claim, put a follower on a road, a field or a district of the tile you just laid. A road or city that is still open you may join however many followers are in it already, yours too; a field only if nobody has a follower in it. Never on a road or city that is closed, a tower, a wall, or an Abbazia you have just laid: an Abbazia is held by a follower flown onto it (rule 61) or blown onto it (rule 39).',
-    from: T(D28, ABB_SCORE, 'Joining: "' + JOIN + '" (2026-10-27).'),
+    text: 'To claim, put a follower on a road, a field or a district of the tile you just laid, if nobody has a follower in it, you included. Never on a road or city that is closed, a tower, a wall, or an Abbazia you have just laid: an Abbazia is held by a follower flown onto it (rule 61) or blown onto it (rule 39).',
+    from: T(D28, NO_JOIN, 'Asked whether a road or city only you are in may be joined, he chose nobody\'s at all, as before 2026-10-27, when an open one could be joined ("' + JOIN + '"). The Abbazia: "' + ABB_SCORE + '".'),
     changed: D28,
     was: 'To claim, put a follower on a road, a field or a district of the tile you just laid. A road or city that is still open you may join however many followers are in it already, yours too; a field only if nobody has a follower in it. Never on a road or city that is closed, a tower, an Abbazia or a wall.' },
   { n: 11, id: 'followers-island', group: 'followers',
@@ -186,8 +193,8 @@ export const RULES = [
     text: 'A tile holds one figure at most.',
     from: H(null) },
   { n: 13, id: 'followers-home', group: 'followers',
-    text: 'When a tower pays a feature (rule 44), every follower in it goes home, paid or not.',
-    from: H('thirteenth', 'Scoring a feature empties it, finished or not, so a follower put down early does not collect from every tower for the rest of the game.'),
+    text: 'When a tower pays a road or a farm (rule 44), every follower in it goes home, paid or not. A city keeps its followers: blue pays them every time it fires, for as long as they stay, and the wind may blow it open under them (rule 53). They leave by moving (rule 82).',
+    from: T(D28, STAY, 'Staying "to score continuously from towers" read as a city keeping its followers when blue pays it: Claude\'s reading, named to Timothy when it shipped. Roads and farms still empty when paid, as everything did from the thirteenth pass, so that a follower put down early does not collect from every tower for the rest of the game; no wind can open a road or a farm, which is the risk that pays for staying.'),
     changed: D28,
     was: 'When a tower pays a feature (rule 44), every follower in it goes home, paid or not, except one lying flat.' },
   { n: 14, id: 'followers-walk', group: 'followers',
@@ -198,6 +205,10 @@ export const RULES = [
   { n: 15, id: 'followers-hop', group: 'followers',
     text: 'A road that runs off a tile into open sky, and lines up with a road on the next tile along however far away, is one a walker can step across. The two halves still score as two roads.',
     from: H('twelfth', 'There was a sky bridge across a one-square gap at first, and the halves scored as one road; the step, over any distance, is the half that was kept.') },
+  { n: 82, id: 'followers-move', group: 'followers',
+    text: 'Instead of claiming, you may move one of your followers already on the board: one square, to a tile beside it; or, if a road runs across the tile it stands on, down that road as far as it goes, and across any gap a walker may step (rule 15), to any tile of it. Never onto a tile with a figure on it or an Abbazia, and never down a road somebody else has a follower on. Where it stops it keeps what it held, if that runs onto the tile, or takes up a feature there that nobody holds and that may be claimed (rule 10), or, with neither, stands holding nothing. A city wall does not stop it, so it may leave a closed city. It costs no follower from your supply.',
+    from: T(D28, MOVE, 'Onto an Abbazia, asked: no, only blown or flown. Claude\'s calls, named to Timothy when it shipped: the road is one on the tile it stands on, crossed over gaps as a walk is (rule 15); a wall does not stop a move, since a closed city is walled all round and "you could just leave the city if you wanted to"; and where it stops it keeps what it held, takes up a feature or stands holding nothing, as a blown follower does (rule 39).'),
+    added: D28 },
 
   // --- Your zephyr. ------------------------------------------------------------
   { n: 70, id: 'stick-push', group: 'stick',
@@ -354,15 +365,10 @@ export const RULES = [
     text: 'A feature pays whoever has the most followers in it; tied, each of them is paid in full.',
     from: CARC() },
   { n: 46, id: 'sphere-only', group: 'spheres',
-    text: 'Nothing pays for being finished, except windmills (rule 59) and a road closed with nobody in it (rule 79).',
-    from: H('tenth'),
+    text: 'Nothing pays for being finished, or for closing what nobody holds, except windmills (rule 59).',
+    from: T(D28, ROADS_TOO, 'A road or city closed with nobody in it paid whoever closed it from 2026-10-27 ("' + UNCLAIMED + '"); cities stopped earlier on 2026-10-28 ("' + CITIES_HELD + '"), and roads with this. The rest is from the tenth pass.'),
     changed: D28,
     was: 'Nothing pays for being finished, except windmills (rule 59) and a road or city closed with nobody in it (rule 79).' },
-  { n: 79, id: 'close-unclaimed', group: 'spheres',
-    text: 'A road that closes with nobody in it pays whoever\'s turn it is, at once, what yellow would pay for it. It is closed by the tile they laid or by their blow. A city that closes pays nobody for closing: like any feature, it pays its holders when its tower fires (blue, or the sun).',
-    from: T(D28, CITIES_HELD, '"Not give points but closing" read as not BY closing: an unclaimed city pays nobody, and a held one is paid by its tower, as any claim is. Roads, which he did not name, still pay their closer: Claude\'s reading, named to Timothy when it shipped. Before: "' + UNCLAIMED + '" (2026-10-27).'),
-    added: D27, changed: D28,
-    was: 'A road or city that closes with nobody in it pays whoever\'s turn it is, at once, what its tower would pay for it: yellow\'s rate for a road, blue\'s for a city. It is closed by the tile they laid or by their blow.' },
 
   // --- Green, red and yellow. ------------------------------------------------
   { n: 47, id: 'colour-green', group: 'colours',
@@ -386,15 +392,10 @@ export const RULES = [
     changed: D27,
     was: 'A city is made of districts: whole squares of garden, temple, residential, industrial or trade. A district opens onto the sides its city runs on through and is walled on the rest.' },
   { n: 51, id: 'city-blue', group: 'cities',
-    text: 'Blue pays each city a point a district, plus 1, 3 or 6 when its districts are of two, three or four different kinds, and 2 for every garden district in it, open or closed.',
-    from: T(D27, GARDENS, 'The bonus for kinds is from 2026-10-24 ("' + COMPOUND + '"), a bonus that grows by one more with each new kind.'),
-    changed: D27,
-    was: 'Blue pays each city a point a district, plus 1, 3, 6 or 10 when its districts are of two, three, four or five different kinds.' },
-  { n: 52, id: 'city-walled', group: 'cities',
-    text: 'A city closed all round by walls pays double for its districts and their kinds, not for its gardens.',
-    from: T(D27, OPEN_CLOSED, 'That was so already: a point a district open, two closed. The bonus for kinds doubles with it, as it did; the gardens do not ("closed or open").'),
-    changed: D27,
-    was: 'A city closed all round by walls pays double.' },
+    text: 'Blue pays each city a point a district, closed or open. A closed city is paid its bonuses on top: 1, 3 or 6 when its districts are of two, three or four different kinds, and 2 for every garden district in it. In the last scoring (rule 65) every city is paid its bonuses, closed or not.',
+    from: T(D28, PER_TILE, 'Asked whether the bonuses stay: "' + BONUSES + '", read as paid with the point a district whenever blue fires on a closed city, and to every city at the end. Counting the gardens among the bonuses, and a district rather than a tile (a wall pays nothing), are Claude\'s readings, named to Timothy when they shipped. A closed city paid double for its districts and kinds until then ("' + OPEN_CLOSED + '", 2026-10-27). The kinds are from 2026-10-24 ("' + COMPOUND + '"), the gardens from 2026-10-27 ("' + GARDENS + '").'),
+    changed: D28,
+    was: 'Blue pays each city a point a district, plus 1, 3 or 6 when its districts are of two, three or four different kinds, and 2 for every garden district in it, open or closed. A city closed all round by walls pays double for its districts and their kinds, not for its gardens (rule 52).' },
   { n: 68, id: 'city-gate', group: 'cities',
     text: 'A district\'s walls stand on the edge of its tile, and like an Abbazia\'s edges they take anything: farmland stops against a wall; a road runs into one and ends there, at a gate in its middle; a city runs into one and is closed on that side; and two walls may stand back to back.',
     from: T(D28, WALLS_ANY, 'Before, a wall took a field, a road or another wall (2026-10-26, "' + GATES + '").'),
@@ -417,8 +418,8 @@ export const RULES = [
     text: 'A flying machine, on the turn it is laid, flies its way across the board, over open sky too, and turns with any zephyr it crosses; one pointing back at it ends the flight.',
     from: H('second', 'Across open sky since the seventh pass.') },
   { n: 61, id: 'flight-claim', group: 'tiles',
-    text: 'On that follower step you may put a follower on any feature of any tile along the flight, held or not and on an island or not, if the tile has no figure on it, or on an empty Abbazia along it, which it then holds (rule 48). Never on a wall.',
-    from: T(D28, ABB_CLAIM),
+    text: 'On that follower step you may put a follower on any feature of any tile along the flight that nobody has a follower in, on an island or not, if the tile has no figure on it; or on an empty Abbazia along it, which it then holds (rule 48). Never on a road or city that is closed, or a wall.',
+    from: T(D28, NO_JOIN, 'Until then it could go onto a feature somebody held. The Abbazia is from earlier the same day ("' + ABB_CLAIM + '").'),
     changed: D28,
     was: 'On that follower step you may put a follower on any feature of any tile along the flight, held or not and on an island or not, if the tile has no figure on it. Never on a wall.' },
   { n: 62, id: 'flight-lift', group: 'tiles',
@@ -435,8 +436,10 @@ export const RULES = [
     text: 'At the end, 10 points go to whoever has followers on the most separate islands; tied, to each of them.',
     from: H('eighth', 'Counted before the last scoring since the ninth pass.') },
   { n: 65, id: 'end-last', group: 'end',
-    text: 'Then every colour fires once more.',
-    from: H('ninth') },
+    text: 'Then every colour fires once more, and blue pays every city its bonuses, closed or not (rule 51).',
+    from: T(D28, BONUSES, 'The last firing is from the ninth pass.'),
+    changed: D28,
+    was: 'Then every colour fires once more.' },
 
   // --- Options. --------------------------------------------------------------
   { n: 66, id: 'option-balena', group: 'options',
@@ -456,11 +459,13 @@ export const RETIRED = [
   33,   // fall-edge, 2026-10-25: "A tile the wind carries over the edge of the map is gone for good." The map wraps now (rule 67).
   36,   // blown-ride, 2026-10-27: a follower put down on a zephyr went on down its lane. A blown follower goes one square (rule 35).
   42,   // land-tow, 2026-10-27: when the wind moved the Palazzo, every island slid one square with it. Timothy: "i don't want the pallazzo to really do anything anymore".
+  52,   // city-walled, 2026-10-28: "A city closed all round by walls pays double for its districts and their kinds, not for its gardens." Timothy: "towers score cities 1 point per tile, whether it's closed or open".
   55,   // cloud-start, 2026-10-26: "Every player has a cloud of their own, a whole tile of cloud that blows one way. It starts in hand." The stick took its place (rule 70).
   56,   // cloud-set, 2026-10-26: setting the cloud down instead of claiming, beside the country, facing any way; it blew as it landed.
   57,   // cloud-zephyr, 2026-10-26: where it stood, a cloud was a zephyr to every storm, its own gust hardened by the zephyrs it crossed.
   58,   // cloud-fixed, 2026-10-26: the wind never moved a cloud.
   71,   // stick-not-wind, 2026-10-27: "A push is not wind: it wakes no zephyr, pays no windmill, moves no follower but those on the tiles it pushes, and tows no islands." The blow is the wind now (rule 70).
+  79,   // close-unclaimed, 2026-10-28: "A road that closes with nobody in it pays whoever's turn it is, at once, what yellow would pay for it. It is closed by the tile they laid or by their blow. A city that closes pays nobody for closing: like any feature, it pays its holders when its tower fires (blue, or the sun)." Timothy: "the closing rule also applies to roads as well".
 ];
 
 export const RULEBOOK = {

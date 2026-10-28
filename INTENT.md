@@ -130,7 +130,22 @@ built on the thirtieth.
 Then: "ok let's make cities not give points but closing, just like normal
 claiming rules and from towers", and "flying machines shouldn't be competing
 with district faces, they should be on all different kinds of tiles". That
-is the thirty-second pass; all three wait for his word to merge.
+is the thirty-second pass.
+
+Then the idea behind cities: "when you stay in a city ... you're risking the
+chance to score continuously from towers, but at risk of losing points
+because you're still in the city and the city could get opened. So you're
+kind of testing fate, because you could just leave the city if you wanted
+to." And a new move: "instead of placing a meeple, you can move a meeple
+instead ... they can move one space for their turn. And if they move using a
+road, they can move all the way down the road." Also: no points for closing
+a road you do not own; "towers score cities 1 point per tile, whether it's
+closed or open"; and "we're revoking the rule that says that you can place
+meeple even on things already claimed by enemy meeple". Asked, he said the
+city bonuses "are only for completing the city and at the end when scored",
+nobody's feature may be joined (yours included), and a move never goes onto
+an Abbazia. That is the thirty-third pass; all four wait for his word to
+merge.
 
 **Fields: settled 2026-09-06, and Timothy was right.** They are fully built.
 `src/tiles.js` cuts the perimeter into eight half-edges with `halfPartner` as the

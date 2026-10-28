@@ -617,6 +617,8 @@ window.addEventListener('keydown', (e) => {
     else if (game.phase === 'interior-move') game.interiorHold();
   }
   if (e.key === 'e' || e.key === 'E') game.enterCity();
+  // Soffiando: move one of your followers instead of claiming (rule 82).
+  if ((e.key === 'm' || e.key === 'M') && game.phase === 'meeple') game.m.beginStride?.();
   if (e.key === 'l' || e.key === 'L') game.beginLift();
   // Each special follower answers to its own letter.
   for (const f of game.figuresAvailable?.() || []) {
@@ -1422,6 +1424,7 @@ const PHASE_TEXT = {
   astray: 'A tile no longer fits: click where it moves on to',
   blow: 'Blow: click a tile, and it and the tiles in front of it go a square (gold), or its followers do if it is too heavy (violet). R turns your zephyr',
   flight: 'Click one of your followers on the flight to pick it up',
+  stride: 'Click one of your followers to move it: a square, or down its road',
   stroll: 'Walk the follower on down the road, or send it home',
   flat: 'Click one of your followers in a city to lay it flat',
   'interior-place': 'Lay the next piece',
