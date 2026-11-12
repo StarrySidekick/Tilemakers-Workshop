@@ -187,6 +187,14 @@ you permission." The bot aims the stone now (MODES.md, the end of the
 thirty-sixth pass), and the thirtieth to thirty-sixth passes are merged on
 his word.
 
+**Scala, 2026-11-12: a second daily, to experiment with.** After the
+solitaire mode of the first Carcassonne app: "it was like a daily version ...
+you had to make the smallest possible square size", to "experiment with it
+and potentially make it a daily mode, and maybe change some settings". Built
+as `scala`, with its settings as switches and its par measured
+(`MODES.md`, section 14). An experiment he asked for, not a second primary
+game: Soffiando is still the one with depth.
+
 **Fields: settled 2026-09-06, and Timothy was right.** They are fully built.
 `src/tiles.js` cuts the perimeter into eight half-edges with `halfPartner` as the
 joining rule; fields are ordinary components; `allFields`, `citiesFed` and

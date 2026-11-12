@@ -22,11 +22,12 @@ import { Marches } from './marches.js';
 import { Descent } from './descent.js';
 import { Chronicle } from './chronicle.js';
 import { Tesserae } from './tesserae.js';
+import { Scala } from './scala.js';
 import { World } from './world.js';
 
 export const MODES = [
   Classic, World, Duel, Sprawl, Strata, Soffiando,
-  Marches, Expedition, Adventure, Descent, Chronicle, Tesserae,
+  Marches, Expedition, Adventure, Descent, Chronicle, Tesserae, Scala,
 ].map((M) => M.spec);
 
 export const MODE_BY_ID = Object.fromEntries(MODES.map((s) => [s.id, s]));

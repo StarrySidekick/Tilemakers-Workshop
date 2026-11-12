@@ -80,8 +80,9 @@ export class Game {
     else players = Math.max(spec.minPlayers || 1, Math.min(spec.maxPlayers || 5, players));
 
     // A mode may insist on its own seed — Tesserae is the same puzzle for
-    // everyone on a given day, which is the entire point of it.
-    if (seed == null && spec.seedFor) seed = spec.seedFor();
+    // everyone on a given day, which is the entire point of it. It is handed
+    // the options, so a switch can let it go (Scala's practice shuffle).
+    if (seed == null && spec.seedFor) seed = spec.seedFor(options);
     this.rng = seed == null ? Math.random : mulberry32(seed);
     this.seed = seed;
     // The Maps: play within a fixed border rather than out across the table.

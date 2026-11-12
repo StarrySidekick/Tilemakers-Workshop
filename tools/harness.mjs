@@ -24,6 +24,8 @@ import { gust, storm } from '../src/wind.js';
 import { GROUPS } from '../src/tiles.js';
 import { checkRulebook } from './soffiando-rulebook.mjs';
 import { SOFFIANDO_WEIGHTS } from '../src/modes/soffiando.js';
+import { scalaSeed, footprint } from '../src/modes/scala.js';
+import { dailySeed } from '../src/modes/tesserae.js';
 
 const ALL_GROUPS = GROUPS.map((g) => g.id);
 
@@ -1032,6 +1034,69 @@ function checkWind() {
  * assert and expensive to notice missing — the city clawback in particular is
  * invisible until somebody's score goes down for the wrong reason.
  */
+/**
+ * Scala's ladder, on a board laid by hand. Each case is a shape whose answer
+ * you can count off the tiles: a road between two junctions is two tiles, the
+ * start tile's road capped at both ends is three, and a city edge laid on the
+ * start tile's city closes a city of two.
+ */
+function checkScala() {
+  console.log('\nscala, the ladder');
+  const check = (what, got, want) => {
+    if (got === want) console.log(`  ✓ ${what.padEnd(52)} ${got}`);
+    else { failures++; console.log(`  ✗ ${what}: got ${got}, expected ${want}`); }
+  };
+  // Lay tiles and close what they close, the way the host's endTurn does.
+  const lay = (g, list) => {
+    for (const [x, y, id, rot] of list) {
+      g.board.place(x, y, TILES[id], rot);
+      for (const d of g.board.completedBy(x, y)) g.m.onClosed(d, 0);
+    }
+    g.m.endTurn();
+  };
+  const fake = (type, n) => ({ type, tiles: new Set(Array.from({ length: n }, (_, i) => `${100 + i},100`)) });
+
+  let g = new Game({ mode: 'scala', seed: 1 });
+  lay(g, [[1, 0, 'W', 0], [1, 1, 'W', 2]]);
+  check('a two-tile road climbs the first road rung', g.m.next.road, 1);
+  lay(g, [[-1, 0, 'W', 0]]);
+  check('then the start road capped, three tiles, the second', g.m.next.road, 2);
+  lay(g, [[2, 1, 'W', 0]]);
+  check('another two-tile road, wanted four, counts for nothing', g.m.next.road, 2);
+  check('…and the city ladder has not moved', g.m.next.city, 0);
+
+  g = new Game({ mode: 'scala', seed: 1 });
+  lay(g, [[0, -1, 'E', 2]]);
+  check('a city edge on the start tile closes a city of two', g.m.next.city, 1);
+
+  g = new Game({ mode: 'scala', seed: 1 });
+  g.m.pending = [fake('road', 3), fake('road', 2)];
+  g.m.climb();
+  check('a 3 and a 2 closed at once both count, smallest first', g.m.next.road, 2);
+
+  g = new Game({ mode: 'scala', seed: 1 });
+  g.m.next = { road: 4, city: 4 };
+  g.m.pending = [fake('city', 6), fake('road', 6)];
+  g.m.endTurn();
+  check('a six and a six finish the day', g.phase, 'over');
+  check('…with ten rungs on the score', g.players[0].score, 10);
+
+  const morning = new Date('2026-11-12T03:00:00Z'), night = new Date('2026-11-12T22:00:00Z');
+  check("one shuffle for the whole of a day", scalaSeed(morning) === scalaSeed(night), true);
+  check("another the next", scalaSeed(morning) === scalaSeed(new Date('2026-11-13T03:00:00Z')), false);
+  check("and not Tesserae's", scalaSeed(morning) === dailySeed(morning), false);
+  const a = new Game({ mode: 'scala' }), b = new Game({ mode: 'scala' });
+  check("two games today are dealt the same deck", a.deck.join() === b.deck.join(), true);
+  const p = new Game({ mode: 'scala', options: { scalaPractice: true } });
+  check('the practice switch deals another', p.seed === null && p.deck.join() !== a.deck.join(), true);
+
+  g = new Game({ mode: 'scala', seed: 1, options: { scalaFill: true } });
+  check('filling the square deals 35 tiles round the start', g.deck.length + (g.tile ? 1 : 0), 35);
+  g.board.place(1, 0, TILES.W, 0);
+  g.board.place(0, 1, TILES.U, 1);
+  check('the square of an L of three is two', footprint(g.board).side, 2);
+}
+
 function checkSoffiando() {
   console.log('soffiando');
 
@@ -2720,6 +2785,7 @@ async function main() {
   checkPieces();
   checkWind();
   checkSoffiando();
+  checkScala();
 
   // Soffiando's rulebook, every rule played on the engine
   // (tools/soffiando-rulebook.mjs, which also runs on its own).
@@ -2740,6 +2806,8 @@ async function main() {
     if (only && spec.id !== only) continue;
     runMode(spec, games);
   }
+  // Scala's other game, behind a switch.
+  if (!only || only === 'scala') runMode(MODE_OF('scala'), games, { options: { scalaFill: true } }, ' fill');
 
   if (only) {
     if (MODE_OF(only)) runMode(MODE_OF(only), games, { bots: 'all' }, ' +bots');

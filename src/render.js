@@ -237,6 +237,9 @@ export class Renderer {
 
     if (this.pixel) this.drawGates(game);
     if (game.board.wraps) this.drawSeam(game, fog);
+    // A mode's own frame round the board: Scala's smallest square.
+    const frame = game.m.frame?.();
+    if (frame) this.drawFrame(frame);
     // Soffiando's Calcolo: a stone on a square of open sky, no tile's.
     if (game.m.calcolo && this.onScreen(game.m.calcolo.x, game.m.calcolo.y)) this.drawCalcolo(game.m.calcolo);
 
@@ -1206,6 +1209,32 @@ export class Renderer {
   }
 
   /** Pulsing highlights on a list of cells — lifting, recalling, walking on. */
+  /**
+   * A dashed square round part of the board, its size written over the top
+   * left corner. Scala's result is the side of the smallest square round
+   * everything laid, so it is kept in view rather than counted by eye.
+   */
+  drawFrame({ x, y, side, label }) {
+    const ctx = this.ctx, z = this.cam.zoom;
+    const [sx, sy] = this.toScreen(x, y);
+    const size = side * z;
+    ctx.save();
+    ctx.strokeStyle = THEME.gold;
+    ctx.globalAlpha = 0.75;
+    ctx.lineWidth = 2;
+    ctx.setLineDash([8, 6]);
+    ctx.strokeRect(sx - 4, sy - 4, size + 8, size + 8);
+    if (label) {
+      ctx.setLineDash([]);
+      ctx.globalAlpha = 0.95;
+      ctx.fillStyle = THEME.gold;
+      ctx.font = `600 ${Math.max(11, Math.min(18, z * 0.2))}px ui-sans-serif, system-ui, sans-serif`;
+      ctx.textBaseline = 'bottom';
+      ctx.fillText(label, sx - 4, sy - 9);
+    }
+    ctx.restore();
+  }
+
   drawCellTargets(cells, line, rgb) {
     const ctx = this.ctx;
     const pulse = 0.5 + Math.sin(performance.now() / 360) * 0.16;

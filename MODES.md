@@ -6,7 +6,7 @@ mechanically**, what it cost against the engine, and — most importantly —
 **what question it answers**. A prototype that doesn't answer a question isn't
 worth building.
 
-**All twelve are built**, plus a thirteenth — World — and a mechanics menu.
+**All twelve are built**, plus a thirteenth (World), a fourteenth (Scala) and a mechanics menu.
 Eight became modes; four became mechanics, because a rule that works on every
 mode is worth more than one that works on its own. Each section below keeps its
 original design, with a note at the top recording what actually shipped and
@@ -28,6 +28,7 @@ interesting part.
 | 11. Tesserae | mode | Is there a version someone opens every morning? |
 | 12. Two-faced | mechanic | Is a tile a noun, or a state? |
 | 13. World | mode + 4 tile families | What does the countryside still not have? |
+| 14. Scala | mode | Is building to an exact size, in a small footprint, a puzzle worth a daily? |
 
 Play them and the questions answer themselves. What's at the bottom is what the
 engine still can't do.
@@ -1976,6 +1977,83 @@ and they pay a city the way a lake does.
 directions on purpose — one rewards placing with no follower at all, the other
 rewards committing a follower for the whole game. If one of those dominates,
 the fix is the number, not the rule.
+
+## 14. Scala: the ladder, in the smallest square
+
+> **Built**: `src/modes/scala.js`, 2026-11-12, at Timothy's asking. Two
+> switches beside it, and par measured by `tools/scala-par.mjs`.
+
+**Where it came from.** Timothy, 2026-11-12, of the solitaire mode in the
+first Carcassonne app (TheCodingMonkeys, 2010): "it was like a daily version
+... you had to make the smallest possible square size", and he wants to
+"replicate that ... as a mode, just to kind of experiment with it and
+potentially make it a daily mode, and maybe change some settings". What the
+2010 reviews wrote down about that mode is a little different from what he
+remembers, so both are here. TUAW: no followers; "build roads and cities in
+increasing order", starting with two-tile ones; "the game ends when you
+finish a six-tile road and a six-tile city"; the most compact board, "the
+fewest tiles", scores best; and each "town" is a fixed order of the 72
+tiles, so players can compare. 148Apps: each tile laid costs some of 1,000
+points.
+
+**Question it answers:** is building to an exact size, in a small footprint,
+a puzzle someone opens every day? Tesserae asked the daily question with
+points; this asks it with a target you either hit or miss.
+
+**The rules.** Solo, no followers, the base tiles only, one shuffle a day
+for everyone (Tesserae's day number, salted, so the two dailies differ).
+Close a road of **exactly** 2 tiles and a city of exactly 2, then 3, 4, 5,
+6. Roads and cities climb separately; a closure of any other size counts for
+nothing. Done at 6 and 6. The result is the side of the smallest square
+round everything laid, drawn on the board as you go, and then the tiles it
+took. Three calls of Claude's, named to him:
+
+- **Exactly, not at least.** "Increasing order" read as at least would let a
+  six-tile city count as the two, which turns the ladder into a race to close
+  anything. Exact is the puzzle.
+- **The square first, tiles second.** He remembers the square; the original
+  counted tiles. The tiles are the finer measure (40 to 72 on finished bot
+  games against a square of 9 to 12), so they break ties.
+- One tile can close two things at once, a 2 and a 3 road, say. Those are read
+  smallest first, the reading that climbs furthest.
+
+**The switches.** *Fill the square*: no ladder; lay 35 tiles round the start,
+and the result is the square alone. 36 tiles is a 6×6 exactly, so that is a
+perfect day. *Practice shuffle*: a new shuffle every game instead of today's,
+for trying it more than once a day.
+
+**What the bot measured** (`node tools/scala-par.mjs`, 100 shuffles, Sharp):
+
+| | Result |
+|---|---|
+| Ladder finished | 38 of 100 (Steady, which adds noise: 8) |
+| Rungs climbed when not | mostly 8 or 9 of 10; the 6-tile city is what stalls |
+| Finished: tiles | median 60, best 40 |
+| Finished: square | median 10×10 (9 to 12) |
+| Fill the square | 7×7 on 98, 6×6 on 2 |
+
+So par is **10×10 in 60 tiles** for the ladder and **7×7** for the fill. The
+bot plays one tile ahead and no further; a person who plans should beat it.
+
+**The finding worth keeping: the square fights the ladder.** With no weight
+on the square at all the Sharp bot finished 20 ladders in 40; a tiebreak's
+weight (0.2 a row of growth) took that to 11, and a real weight (3) to 6.
+Packing tight leaves a new tile nowhere to go but against features already
+growing, which spoils their sizes. That tension is the mode: sprawl to keep
+your cities clean, or pack and risk them. The bot sprawls; it ignores the
+square on the ladder.
+
+**What to watch at the table.**
+
+- **Whether the ladder finishes often enough.** The bot finishes under half
+  the time. If a person doesn't finish most days, the cheapest fixes are a
+  shorter ladder (2 to 5) or letting a rung take its size or one more.
+- **Whether the square is too coarse.** Most finished days land on 9, 10 or
+  11, and a fill is 7 almost every time. If everyone ties on the square, the
+  tiles (or the empty squares inside it) should lead.
+- **Whether the fill is a puzzle at all.** 7×7 is the bot's every day, and 6×6
+  is very rare. A bounded 6×6 you try to fill, counting what is left over,
+  is the other reading of what he remembered ("fill in like a little square").
 
 ---
 

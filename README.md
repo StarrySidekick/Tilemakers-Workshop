@@ -13,7 +13,7 @@ A sandbox for experimenting with tile mechanics and game modes, built to be
 **fast to iterate on**. No build step, no dependencies, no image assets — plain
 ES modules and a canvas. Edit a file, hit refresh, keep playing.
 
-Twelve modes and a catalogue of 79 Carcassonne rules — 67 of them playable —
+Thirteen modes and a catalogue of 79 Carcassonne rules — 67 of them playable —
 all sharing one board engine. Each mode exists to answer a specific question
 about what makes tile-laying good; [MODES.md](MODES.md) is where that
 reasoning lives, and [docs/EDITIONS.md](docs/EDITIONS.md) is where the printed
@@ -50,6 +50,13 @@ that. Five minutes a game.
 **Tesserae** — the daily puzzle. One seed derived from the date, so everyone
 gets the same thirty tiles on the same 7×7 board on the same day. Solo, against
 par.
+
+**Scala**: the other daily, after the solitaire mode of the first Carcassonne
+app. Solo, no followers, one shuffle a day. Close a road and a city of exactly 2
+tiles, then 3, 4, 5 and 6; any other size counts for nothing. The result is the
+smallest square round everything you laid, drawn on the board, then the tiles
+it took. Switches: *Fill the square* (no ladder, just the square) and *Practice
+shuffle*.
 
 **Sprawl** — pieces of two to four cells, in tetromino shapes. A big piece has
 to satisfy several neighbours at once, so once a single-cell gap exists almost
