@@ -53,16 +53,19 @@ par.
 
 **Starà** — the daily town, in a 5×5 and a 7×7. Solo and without followers:
 everything you build is yours, and the same deal comes to everyone on the same
-day. The square is a walled town: the wall ends roads and closes quarters
-(the tile cities), the middle of each wall is a town gate, and at the end
-every highway (roads joined at crossroads) pays +1 a tile for each gate it
-reaches, the town's charter +2 per finished quarter, and abbeys pay for the
-quiet round them. Fields are gardens and pay nothing. It has its own screen,
-medieval and drawn by hand: a wooden table, the town wall seen from above, one
-tile at a time that pops up off the pile. Touch the tile to turn it, touch a
-lit square to put it there, the red wax seal lays it. The menu in the corner
-brings the workshop back. `index.html?mode=stara` opens the 7×7,
-`?mode=stara5` the 5×5.
+day. The square is a walled town: the wall ends roads and closes districts
+(the tile cities), the middle of each wall is a town gate, and the high
+street between the gates cuts the town into four quarters, each given a trade
+for the day (housing, trade, church, garrison) that pays for what it wants.
+At the end every highway (roads joined at crossroads) pays +1 a tile for each
+gate it reaches, the keep counting as one; the charter pays +2 per finished
+district; abbeys pay for the quiet round them, and each abbey you lay lets you
+hold one more tile in hand. Fields are gardens and pay nothing. It has its own
+screen, medieval and drawn by hand: a wooden table, the town wall seen from
+above, your hand in the tray. Touch a tile to hold it up and again to turn
+it, touch a lit square to put it there, and the red wax seal beside it lays
+it. The menu in the corner brings the workshop back.
+`index.html?mode=stara` opens the 7×7, `?mode=stara5` the 5×5.
 
 **Sprawl** — pieces of two to four cells, in tetromino shapes. A big piece has
 to satisfy several neighbours at once, so once a single-cell gap exists almost

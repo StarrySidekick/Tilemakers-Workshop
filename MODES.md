@@ -1983,7 +1983,7 @@ the fix is the number, not the rule.
 
 ## 14. Starà — the daily square
 
-> **Built 2026-11-18, in three passes** — `src/modes/stara.js` (the rules),
+> **Built 2026-11-18, in four passes** — `src/modes/stara.js` (the rules),
 > `walled` in `src/board.js` (the castle wall's rule), `src/stara-ui.js` (its
 > own screen), `drawTable` and `drawCastle` in `src/render.js`,
 > `src/castle.js` (the castle's picture), `src/sketch.js` (hand-drawn
@@ -2002,8 +2002,67 @@ real wood"*.
 
 **Question:** is Carcassonne a daily puzzle once the table has an edge?
 
-**Where it stands now (the third pass)** comes first; how it got there
-follows, pass by pass.
+**Where it stands now (the fourth pass)** comes first; how it got there
+follows, pass by pass, newest first.
+
+Timothy, the fourth pass: *"once the tile is placed, don't show it in the
+bottone anymore"*, *"move the little seal checkmark near where the tile is to
+make it easier to place and confirm placement"*, *"when a cloister is placed,
+your hand size is now +1 (so two after the first cloister, and so one). you
+can choose any tile from your hand to play, you still draw 1"*, and *"i want a
+keep tile with walls that end feature on each side, and some effect of some
+kind. i also want like different quarters, like housing, trade, military,
+etc. don't know what each would do or how that would work but yea maybe the
+board is split into four smaller sections and like there's a tile that want
+to be in each section, idk"*. Asked two questions, he took the recommendation
+each time.
+
+- **The four quarters.** A *quarter* was literally one of the four parts a
+  town's two main streets cut it into, gate to gate. So the middle row and
+  column of the square are the **high street** (drawn a shade lighter on the
+  floor), and its four corners are the town's quarters. Each day deals each
+  quarter a trade (seeded, so the same for everyone), and each trade wants one
+  thing, paid at the end: **Housing +1 per district tile** in it, **Trade +3 per
+  market cross** (a crossroads tile), **Church +3 per abbey**, **Garrison +6 if
+  the keep stands in it**. A parchment tag at each corner of the square names
+  the trade and shows what it is worth as the town stands. The tile cities are
+  **districts** now, so that "quarter" means the four; the charter pays +2 per
+  finished district.
+- **The keep**, a citadel (`KEEP_TILE` in `tiles.js`): walls on all four sides,
+  as an Abbazia's wildcard edges, so it fits against anything and ends every
+  road and district it touches. **A road that ends at it counts it as a gate**,
+  a fifth, for its highway. One to a deal, dealt within the first third of the
+  square's worth of tiles (Claude's call: a keep dealt after the square is
+  full is a keep you never see). Drawn as a citadel from above: its own
+  curtain wall, round corner turrets, a donjon with a banner.
+- **The hand.** You hold 1 tile, and 1 more for every abbey you have laid. The
+  hand is filled from the pile at the start of a turn, so you still draw one a
+  turn (two, the turn after an abbey), and you play any tile in it: touch a
+  card to hold it up, touch it again to turn it. A tile that fits nowhere is
+  set aside, from the pile or from the hand. The game deals through the mode
+  (`drawNext`), which is the hook Duel's open pool already used.
+- **Placing.** A tile put on a square **leaves the tray**; it is on the board
+  now, and touching it there turns it. **The seal comes to the board**, centred
+  on the staged tile's lower right corner (lower left at the right edge), so
+  the decision and the yes are in the same place.
+
+**What the fourth pass measures** (100 games each; the random player picks
+from its hand at random, the bot plays whatever is held up; neither aims for
+the quarters, so their quarter points are what falls out by chance):
+
+| | mean | range | full | biggest hand (typical) | keep in the garrison | keep on a highway |
+|---|---|---|---|---|---|---|
+| 5×5 random | 96.3 | 63–135 | 53 | 2–3 | 11 | 77 |
+| 5×5 bot | 97.3 | 68–123 | 48 | 2–3 | 10 | 75 |
+| 7×7 random | 168.1 | 122–231 | 5 | 4–5 | 9 | 81 |
+| 7×7 bot | 177.8 | 139–250 | 6 | 4–5 | 11 | 81 |
+
+The bot's 7 × 7: 51.4 districts, 33.7 roads, 20.9 abbeys, 18.5 highways, 10.1
+quarters, 24.8 charter, 18.4 unfinished. The hand fills the square more often
+(the 5 × 5 is full half the time now, from four in ten), because a tile that
+fits nowhere this turn can wait in hand for one where it does.
+
+**The third pass**, before that:
 
 Timothy, the third pass: *"no meeple. it's a solitary game, so you just claim
 stuff simply automatically. so there's no meeple placement stage"*, *"let's
