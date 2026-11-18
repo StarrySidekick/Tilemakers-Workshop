@@ -43,3 +43,12 @@ as the [Soffiando Rulebook](https://claude.ai/artifact/BVoPcDWcuKSphtdZ2WJkXr).
 
 - `node tools/harness.mjs` must pass. It runs the rulebook check too.
 - `node tools/smoke.mjs` must pass: every mode in a real browser.
+
+## Merging is standing permission
+
+Timothy, 2026-11-18: "merge, and auto merge in the future". Once a change is
+finished and both checks above pass, merge the working branch into `main`
+(a `--no-ff` merge commit, as the history does) and push `main`, without
+asking first. Say in the reply that it was merged. If either check fails,
+do not merge: fix it, or report it and leave `main` alone. `main` is what
+GitHub Pages serves, so a merge is a release.
