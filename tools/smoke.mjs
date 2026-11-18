@@ -80,7 +80,7 @@ await page.selectOption('#botCount', '0');
 for (const mode of modes) {
   errors.length = 0;
   // Starà folds the workshop's panel away while it runs; its menu brings it back.
-  if (await page.evaluate(() => document.body.classList.contains('stara'))) await page.click('#staraMenu');
+  if (await page.evaluate(() => document.body.classList.contains('stara') && !document.body.classList.contains('staraPanel'))) await page.click('#staraMenu');
   await page.selectOption('#mode', mode.id);
   await page.click('#newGame');
   await page.waitForTimeout(120);
@@ -1041,11 +1041,11 @@ await page.selectOption('#tilesPerTurn', '1');
 
 // Starà, on a phone: its own screen, one tile at a time, on the table
 // (2026-11-18). Played through the real controls: the card, a lit square on
-// the board, the checkmark, a follower dot, the end card and its replay.
+// the board, the seal, the size switch, the end card and its replay.
 {
   errors.length = 0;
   await page.setViewportSize({ width: 390, height: 844 });
-  if (await page.evaluate(() => document.body.classList.contains('stara'))) await page.click('#staraMenu');
+  if (await page.evaluate(() => document.body.classList.contains('stara') && !document.body.classList.contains('staraPanel'))) await page.click('#staraMenu');
   await page.selectOption('#mode', 'stara');
   await page.click('#newGame');
   await page.waitForTimeout(250);
@@ -1104,22 +1104,18 @@ await page.selectOption('#tilesPerTurn', '1');
   const laid = await page.evaluate((n) => ({ size: window.LAB.game.board.size, phase: window.LAB.game.phase }), size0);
   if (laid.size !== size0 + 1) problems.push('the checkmark did not lay the tile');
 
-  // A follower dot on the card claims; with nothing to claim, the turn moved on.
-  if (laid.phase === 'meeple') {
-    const spot = await page.evaluate(() => {
-      const ui = window.LAB.stara, c = document.getElementById('staraTile');
-      const r = c.getBoundingClientRect(), k = r.width / c.width;
-      const s = ui.spots[0];
-      return s ? { x: r.left + s.sx * k, y: r.top + s.sy * k, before: window.LAB.game.players[0].meeples } : null;
-    });
-    if (!spot) problems.push('no follower dots on the card in the claim step');
-    else {
-      await page.mouse.click(spot.x, spot.y);
-      await page.waitForTimeout(120);
-      const after = await page.evaluate(() => window.LAB.game.players[0].meeples);
-      if (after !== spot.before - 1) problems.push('touching a follower dot did not place a follower');
-    }
-  }
+  // No followers: the seal is the whole turn, and the next tile is in hand.
+  if (laid.phase !== 'place') problems.push(`after the seal the phase is "${laid.phase}", not the next tile`);
+
+  // The size switch: the 5 x 5 comes up, and going back finds the 7 x 7 as it was left.
+  await page.click('#staraSizes button[data-mode="stara5"]');
+  await page.waitForTimeout(150);
+  const five = await page.evaluate(() => ({ mode: window.LAB.game.mode, w: window.LAB.game.board.bounds.maxX - window.LAB.game.board.bounds.minX + 1 }));
+  if (five.mode !== 'stara5' || five.w !== 5) problems.push(`the 5x5 switch gave ${JSON.stringify(five)}`);
+  await page.click('#staraSizes button[data-mode="stara"]');
+  await page.waitForTimeout(150);
+  const seven = await page.evaluate(() => ({ mode: window.LAB.game.mode, size: window.LAB.game.board.size }));
+  if (seven.mode !== 'stara' || seven.size !== laid.size) problems.push(`going back did not find the 7x7 as it was: ${JSON.stringify(seven)}`);
 
   // Play the rest out; the end card adds up, and today's best is kept.
   const end = await page.evaluate(async () => {
@@ -1130,17 +1126,15 @@ await page.selectOption('#tilesPerTurn', '1');
         const s = g.board.legalPlacements(g.tile, g.placeOpts())[0];
         g.rot = s.rot; g.placeAt(s.x, s.y); continue;
       }
-      if (g.phase === 'meeple') { g.skipMeeple(); continue; }
       break;
     }
     await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
-    const t = g.m.tally;
     return {
       over: g.phase === 'over',
       shown: !document.getElementById('staraEnd').hidden,
       card: Number(document.getElementById('staraEndScore').textContent),
       score: g.players[0].score,
-      sum: t.cities + t.roads + t.cloisters + t.farms + t.unfinished,
+      sum: Object.values(g.m.tally).reduce((a, b) => a + b, 0),
       best: Number(localStorage.getItem(`tilemakers-workshop/stara/best/${g.m.day.iso}`)),
     };
   });
@@ -1163,7 +1157,7 @@ await page.selectOption('#tilesPerTurn', '1');
 
   if (errors.length) problems.push(errors[0].split('\n')[0]);
   if (problems.length) { failures++; console.log(`  ✗ starà on a phone: ${problems.join(' · ')}`); }
-  else console.log(`  ✓ starà on a phone     walled, edge to edge at ${screen.tile}px a tile; card, seal, follower, charter, replay`);
+  else console.log(`  ✓ starà on a phone     walled, edge to edge at ${screen.tile}px a tile; card, seal, sizes, charter, replay`);
   await page.setViewportSize({ width: 1280, height: 820 });
 }
 

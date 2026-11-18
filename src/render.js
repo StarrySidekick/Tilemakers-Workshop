@@ -486,11 +486,12 @@ export class Renderer {
     const b = game.board.bounds;
     const z = this.cam.zoom;
     const dpr = window.devicePixelRatio || 1;
-    const gates = gatesOf(game.board);
+    const { gates, towns } = gatesOf(game.board);
     const [bx, by] = this.toScreen(b.minX, b.minY);
     const cols = b.maxX - b.minX + 1, rows = b.maxY - b.minY + 1;
     const pad = (CASTLE.reach + 0.2) * z;
-    const key = [z, dpr, bx, by, cols, rows, gates.map((g) => `${g.s}${g.i}`).join('.')].join('|');
+    const key = [z, dpr, bx, by, cols, rows, gates.map((g) => `${g.s}${g.i}`).join('.'),
+      towns.map(Number).join('')].join('|');
     if (this.castleKey !== key) {
       this.castleKey = key;
       this.castleLayer ||= document.createElement('canvas');
@@ -500,7 +501,7 @@ export class Renderer {
       const k = c.getContext('2d', { willReadFrequently: true });
       k.setTransform(dpr, 0, 0, dpr, 0, 0);
       k.clearRect(0, 0, c.width, c.height);
-      paintCastle(k, { z, x0: pad, y0: pad, cols, rows, gates });
+      paintCastle(k, { z, x0: pad, y0: pad, cols, rows, gates, towns });
       // The nib's wander over the whole wall, then the tooth of the paper.
       roughen(c, { amp: Math.max(0.6, z * dpr * 0.014), grain: (0.42 * z * dpr) / c.width });
       roughen(c, { amp: Math.max(0.3, z * dpr * 0.004), grain: (0.07 * z * dpr) / c.width });

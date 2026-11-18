@@ -10,28 +10,27 @@
 //
 //   top     the menu (the workshop, folded away), the day, your score
 //   middle  the 7 x 7 square, fitted to the screen and held still
-//   bottom  the draw pile, the tile in your hand, and a checkmark
+//   bottom  the draw pile, the tile in your hand, and a wax seal
 //
 // The turn is the same turn the rest of the workshop plays, through the same
 // staging main.js already has: the tile pops up from the pile; touch it to
 // turn it; touch a lit square (or drag the tile onto one) and it sits there;
-// the checkmark lays it. Then the same tile, big, with a dot on each thing
-// you could put a follower on: touch one, or "No follower". When the square
-// is full, a card with the score, where it came from, and today's best.
+// the seal lays it. There are no followers (the third pass: "it's a
+// solitary game, so you just claim stuff simply automatically"), so that is
+// the whole turn. A switch under the title goes between the 5 x 5 and the
+// 7 x 7, keeping a game of each. When the square is full, a charter with the
+// score, where it came from, and today's best.
 //
 // Nothing in here is a rule. It reads the game and calls the same functions
 // a click in the workshop would.
 // ---------------------------------------------------------------------------
 
-import { STARA_SQUARES } from './modes/stara.js';
-import { drawMeeple, PLAYER_COLORS } from './art.js';
-import { rotPoint } from './tiles.js';
-import { sketchCircle, sketchLine, seedOf } from './sketch.js';
-import { RULES } from './game.js';
+import { STARA_KINDS, STARA_SIZES } from './modes/stara.js';
 import { CASTLE } from './castle.js';
 
 const $ = (id) => document.getElementById(id);
-const BEST = (iso) => `tilemakers-workshop/stara/best/${iso}`;
+// Today's best, per size: the 7 x 7 keeps the key it has had since day 1.
+const BEST = (mode, iso) => `tilemakers-workshop/${mode}/best/${iso}`;
 const TAUGHT = 'tilemakers-workshop/stara/taught';
 const DRAG_PX = 10;
 
@@ -74,12 +73,11 @@ export function spreadSpots(spots, r, size) {
 export class StaraUI {
   /**
    * `host` is main.js, as a handful of functions: the game, the staged
-   * placement and the four things that can be done to it, a new game, the
-   * renderer, and how to draw a tile.
+   * placement and the things that can be done to it, a new game, switching
+   * to a game of another size, the renderer, and how to draw a tile.
    */
   constructor(host) {
     this.h = host;
-    this.spots = [];
     this.shown = null;         // {key, rot} — what the card is showing
     this.lastScore = null;
     this.recorded = null;      // the game whose result has been saved
@@ -98,10 +96,16 @@ export class StaraUI {
     window.addEventListener('pointerup', (e) => this.up(e));
     window.addEventListener('pointercancel', () => this.cancelDrag());
     $('staraGo').onclick = () => { if (this.h.pending()) this.h.commit(); };
-    $('staraSkip').onclick = () => this.game.skipMeeple();
     $('staraMenu').onclick = () => this.togglePanel();
-    $('staraAgain').onclick = () => this.h.newGame('stara');
+    $('staraAgain').onclick = () => this.h.newGame(this.game.mode);
     $('staraShare').onclick = () => this.share();
+    // The two sizes: a game of each is kept while you go between them.
+    const sizes = $('staraSizes');
+    sizes.innerHTML = STARA_SIZES.map((s) => `<button data-mode="${s.id}">${s.side}×${s.side}</button>`).join('');
+    sizes.onclick = (e) => {
+      const id = e.target.closest('button')?.dataset.mode;
+      if (id && id !== this.game.mode) this.h.switchTo(id);
+    };
   }
 
   // --- the frame ------------------------------------------------------------
@@ -120,6 +124,7 @@ export class StaraUI {
 
     const g = this.game, p = g.players[0];
     $('staraDay').textContent = `No. ${g.m.day.n}`;
+    for (const b of $('staraSizes').children) b.classList.toggle('on', b.dataset.mode === g.mode);
     const score = $('staraScore');
     score.textContent = p.score;
     if (this.lastScore != null && p.score > this.lastScore) {
@@ -130,7 +135,6 @@ export class StaraUI {
     this.lastScore = p.score;
     $('staraPile').textContent = g.deck.length;
     $('staraPileWrap').title = `${g.deck.length} tiles left in the pile`;
-    this.drawFollowers();
     this.drawCard();
     this.showEnd();
   }
@@ -144,11 +148,11 @@ export class StaraUI {
     const stage = $('stage').getBoundingClientRect();
     const top = $('staraTop').getBoundingClientRect().height;
     const tray = $('staraTray').getBoundingClientRect().height;
-    const key = [stage.width, stage.height, top, tray].join('|');
+    const b = this.game.board.bounds;
+    const key = [stage.width, stage.height, top, tray, b.maxX - b.minX].join('|');
     if (!force && key === this.layoutKey) return;
     this.layoutKey = key;
     const r = this.h.renderer;
-    const b = this.game.board.bounds;
     const across = b.maxX - b.minX + 1, down = b.maxY - b.minY + 1;
     // Edge to edge (2026-11-18: "push the square to the edge of the left and
     // right"): the castle's corner towers touch the sides of the screen.
@@ -175,39 +179,28 @@ export class StaraUI {
 
   // --- the card -------------------------------------------------------------
 
-  /** What the card holds right now: the tile in hand, the tile just laid, or nothing. */
+  /** The tile in your hand, as the card shows it, or nothing between tiles. */
   held() {
     const g = this.game;
-    if (g.phase === 'place' && g.tile) {
-      const p = this.h.pending();
-      return { type: g.tile, rot: p ? p.rot : g.rot, key: `hand:${g.turn}:${g.tileKey}`, hand: true };
-    }
-    if (g.phase === 'meeple' && g.lastPlaced) {
-      const c = g.board.get(g.lastPlaced.x, g.lastPlaced.y);
-      if (c) return { type: c.type, rot: c.rot, key: `laid:${g.turn}`, cell: c };
-    }
-    return null;
+    if (g.phase !== 'place' || !g.tile) return null;
+    const p = this.h.pending();
+    return { type: g.tile, rot: p ? p.rot : g.rot, key: `hand:${g.turn}:${g.tileKey}` };
   }
 
   drawCard() {
-    const g = this.game;
     const canvas = $('staraTile');
     const wrap = $('staraCard');
     const held = this.held();
     const pending = this.h.pending();
     wrap.classList.toggle('empty', !held);
-    wrap.classList.toggle('claiming', !!held?.cell);
     $('staraGo').classList.toggle('shown', !!pending);
-    const claims = held?.cell ? this.claimOptions() : [];
-    $('staraSkip').classList.toggle('shown', g.phase === 'meeple');
-    this.h.renderer.hideMeepleTargets = g.phase === 'meeple';
-    this.caption(held, pending, claims);
-    if (!held) { this.shown = null; this.spots = []; return; }
+    this.caption(held, pending);
+    if (!held) { this.shown = null; return; }
 
     // A new tile pops up off the pile; the same tile turned, turns.
     const fresh = this.shown?.key !== held.key;
-    if (fresh && held.hand) this.pop(wrap);
-    else if (!fresh && this.shown.rot !== held.rot) this.spin(canvas, held.rot - this.shown.rot);
+    if (fresh) this.pop(wrap);
+    else if (this.shown.rot !== held.rot) this.spin(canvas, held.rot - this.shown.rot);
     this.shown = { key: held.key, rot: held.rot };
 
     const ctx = canvas.getContext('2d');
@@ -218,51 +211,8 @@ export class StaraUI {
     ctx.rotate(held.rot * Math.PI / 2);
     ctx.translate(-size / 2, -size / 2);
     ctx.scale(size, size);
-    this.h.drawTile(ctx, held.type, { terrain: 'surface', rot: held.rot, look: held.cell?.seq });
+    this.h.drawTile(ctx, held.type, { terrain: 'surface', rot: held.rot });
     ctx.restore();
-
-    this.spots = [];
-    if (held.cell) this.drawSpots(ctx, held.cell, claims, size);
-  }
-
-  /** The follower options on the tile just laid (the only ones Starà has). */
-  claimOptions() {
-    const g = this.game;
-    if (g.phase !== 'meeple' || !g.lastPlaced) return [];
-    const { x, y } = g.lastPlaced;
-    return g.meepleOptions().filter((o) => o.x === x && o.y === y);
-  }
-
-  drawSpots(ctx, cell, opts, size) {
-    const r = size * 0.12;
-    this.spots = spreadSpots(opts.map((o) => {
-      const [px, py] = rotPoint(cell.type.spots[o.i] || [0.5, 0.5], cell.rot);
-      return { ...o, ax: px * size, ay: py * size, sx: px * size, sy: py * size, r };
-    }), r, size);
-    // Parchment roundels, ringed by hand in ink, a follower on each, and a
-    // pen line back to the spot it really means when it had to move aside.
-    const colour = PLAYER_COLORS[0];
-    ctx.lineCap = 'round';
-    for (const s of this.spots) {
-      if (Math.hypot(s.sx - s.ax, s.sy - s.ay) < 3) continue;
-      ctx.beginPath();
-      sketchLine(ctx, s.ax, s.ay, s.sx, s.sy, { seed: seedOf(s.ax, s.ay), rough: 1.2 });
-      ctx.strokeStyle = 'rgba(43,26,13,0.8)';
-      ctx.lineWidth = 2.2;
-      ctx.stroke();
-    }
-    for (const s of this.spots) {
-      ctx.beginPath();
-      ctx.arc(s.sx, s.sy, s.r, 0, Math.PI * 2);
-      ctx.fillStyle = 'rgba(244,230,198,0.92)';
-      ctx.fill();
-      ctx.beginPath();
-      sketchCircle(ctx, s.sx, s.sy, s.r, { seed: seedOf(s.sx, s.sy, s.i), rough: 1.4 });
-      ctx.lineWidth = 3;
-      ctx.strokeStyle = '#2b1a0d';
-      ctx.stroke();
-      drawMeeple(ctx, s.sx, s.sy, s.r * 1.45, colour, { farmer: s.f?.type === 'field' });
-    }
   }
 
   /** The tile comes up off the pile: a short rise with a little overshoot. */
@@ -290,52 +240,27 @@ export class StaraUI {
    * One quiet line under the card for your first few tiles in Starà, ever,
    * and then nothing: by then the tile and the lit squares say it.
    */
-  caption(held, pending, claims) {
+  caption(held, pending) {
     const el = $('staraCaption');
     const taught = Number(store.get(TAUGHT) || 0);
     let text = '';
     if (taught < 6 && held) {
-      if (held.hand && !pending) text = 'Touch the tile to turn it. Touch a lit square to put it there.';
-      else if (held.hand) text = 'Touch it again to turn it. The seal lays it.';
-      else if (claims.length) text = 'Put a follower on something, or not.';
+      text = pending ? 'Touch it again to turn it. The seal lays it.'
+        : 'Touch the tile to turn it. Touch a lit square to put it there.';
     }
     el.textContent = text;
-    if (held?.cell && this.taughtFor !== held.key) {
+    if (held && this.taughtFor !== held.key) {
       this.taughtFor = held.key;
       store.set(TAUGHT, String(taught + 1));
     }
-  }
-
-  // --- followers --------------------------------------------------------------
-
-  drawFollowers() {
-    const g = this.game, p = g.players[0];
-    const canvas = $('staraFollowers');
-    const max = p.meepleMax || RULES.meeplesPerPlayer;
-    const ctx = canvas.getContext('2d');
-    const w = canvas.width, h = canvas.height;
-    ctx.clearRect(0, 0, w, h);
-    const step = w / max;
-    for (let i = 0; i < max; i++) {
-      ctx.globalAlpha = i < p.meeples ? 1 : 0.22;
-      drawMeeple(ctx, step * (i + 0.5), h / 2, h * 0.86, PLAYER_COLORS[0]);
-    }
-    ctx.globalAlpha = 1;
-    $('staraFollowersWrap').title = `${p.meeples} of ${max} followers in hand`;
   }
 
   // --- touching the card ------------------------------------------------------
 
   down(e) {
     const g = this.game;
-    if (!this.on) return;
+    if (!this.on || g.phase !== 'place' || !g.tile) return;
     e.preventDefault();
-    if (g.phase === 'meeple') {
-      const hit = this.hitSpot(e);
-      if (hit) g.placeMeeple(hit.i, hit);
-      return;
-    }
-    if (g.phase !== 'place' || !g.tile) return;
     this.press = { id: e.pointerId, x: e.clientX, y: e.clientY, dragging: false };
   }
 
@@ -395,14 +320,6 @@ export class StaraUI {
     this.press = null;
   }
 
-  hitSpot(e) {
-    const c = $('staraTile');
-    const r = c.getBoundingClientRect();
-    const k = c.width / r.width;
-    const px = (e.clientX - r.left) * k, py = (e.clientY - r.top) * k;
-    return this.spots.find((s) => Math.hypot(px - s.sx, py - s.sy) <= s.r * 1.4);
-  }
-
   /** Where a laid tile flies in from: the card, so it is seen leaving your hand. */
   entry() {
     const c = $('staraTile').getBoundingClientRect();
@@ -416,22 +333,21 @@ export class StaraUI {
     const end = $('staraEnd');
     if (g.phase !== 'over') { end.hidden = true; return; }
     const score = g.players[0].score;
-    const iso = g.m.day.iso;
-    const before = Number(store.get(BEST(iso)) || NaN);
+    const key = BEST(g.mode, g.m.day.iso);
+    const before = Number(store.get(key) || NaN);
     if (this.recorded !== g) {
       this.recorded = g;
       this.priorBest = Number.isFinite(before) ? before : null;
-      if (!Number.isFinite(before) || score > before) store.set(BEST(iso), String(score));
+      if (!Number.isFinite(before) || score > before) store.set(key, String(score));
     }
     const prior = this.priorBest;
     const t = g.m.tally;
-    const rows = [['Cities', t.cities], ['Roads', t.roads], ['Cloisters', t.cloisters],
-      ['Farms', t.farms], ['Unfinished', t.unfinished]];
-    $('staraEndDay').innerHTML = `Starà<small>No. ${g.m.day.n}</small>`;
+    $('staraEndDay').innerHTML = `Starà<small>No. ${g.m.day.n} · ${g.m.side}×${g.m.side}</small>`;
     $('staraEndScore').textContent = score;
-    $('staraEndRows').innerHTML = rows.map(([k, v]) => `<div><span>${k}</span><i></i><b>${v}</b></div>`).join('');
-    $('staraEndFill').textContent = `${g.board.size} of ${STARA_SQUARES} squares filled`;
-    $('staraEndBest').textContent = prior == null ? 'Your first square today.'
+    $('staraEndRows').innerHTML = STARA_KINDS
+      .map(([k, name]) => `<div><span>${name}</span><i></i><b>${t[k]}</b></div>`).join('');
+    $('staraEndFill').textContent = `${g.board.size} of ${g.m.squares} squares filled`;
+    $('staraEndBest').textContent = prior == null ? 'Your first town today.'
       : score > prior ? `A new best for today (was ${prior}).`
         : score === prior ? 'Level with your best today.'
           : `Your best today: ${prior}.`;
@@ -440,7 +356,7 @@ export class StaraUI {
 
   async share() {
     const g = this.game;
-    const text = `Starà No. ${g.m.day.n}: ${g.players[0].score} points, ${g.board.size}/${STARA_SQUARES} squares.`;
+    const text = `Starà No. ${g.m.day.n} (${g.m.side}×${g.m.side}): ${g.players[0].score} points, ${g.board.size}/${g.m.squares} squares.`;
     const btn = $('staraShare');
     try {
       if (navigator.share) await navigator.share({ text });
