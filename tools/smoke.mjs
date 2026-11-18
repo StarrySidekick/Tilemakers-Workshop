@@ -19,7 +19,10 @@ import { extname, join, normalize } from 'node:path';
 
 const ROOT = new URL('..', import.meta.url).pathname;
 const PORT = 5199;
-const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json' };
+const TYPES = {
+  '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json',
+  '.jpg': 'image/jpeg', '.png': 'image/png', '.woff2': 'font/woff2', '.ttf': 'font/ttf',
+};
 
 const server = createServer(async (req, res) => {
   try {
@@ -76,6 +79,8 @@ await page.selectOption('#botCount', '0');
 
 for (const mode of modes) {
   errors.length = 0;
+  // Starà folds the workshop's panel away while it runs; its menu brings it back.
+  if (await page.evaluate(() => document.body.classList.contains('stara'))) await page.click('#staraMenu');
   await page.selectOption('#mode', mode.id);
   await page.click('#newGame');
   await page.waitForTimeout(120);
@@ -1032,6 +1037,134 @@ await page.selectOption('#tilesPerTurn', '1');
   } else console.log(`  ✓ lean mode            board ${wide} → ${lean.w}px`);
   await page.keyboard.press('Tab');
   await page.waitForTimeout(150);
+}
+
+// Starà, on a phone: its own screen, one tile at a time, on the table
+// (2026-11-18). Played through the real controls: the card, a lit square on
+// the board, the checkmark, a follower dot, the end card and its replay.
+{
+  errors.length = 0;
+  await page.setViewportSize({ width: 390, height: 844 });
+  if (await page.evaluate(() => document.body.classList.contains('stara'))) await page.click('#staraMenu');
+  await page.selectOption('#mode', 'stara');
+  await page.click('#newGame');
+  await page.waitForTimeout(250);
+  const problems = [];
+  const screen = await page.evaluate(() => {
+    const g = window.LAB.game, r = window.LAB.renderer;
+    const cv = r.canvas.getBoundingClientRect();
+    const top = document.getElementById('staraTop').getBoundingClientRect().bottom;
+    const tray = document.getElementById('staraTray').getBoundingClientRect().top;
+    const [x0, y0] = r.toScreen(-3, -3), [x1, y1] = r.toScreen(4, 4);
+    return {
+      on: document.body.classList.contains('stara') && !document.getElementById('stara').hidden,
+      panel: getComputedStyle(document.getElementById('panel')).display,
+      fits: x0 >= 0 && x1 <= cv.width && y0 + cv.top >= top && y1 + cv.top <= tray,
+      tile: Math.round(r.cam.zoom),
+    };
+  });
+  // The castle is drawn round it, and the medieval faces have arrived.
+  const look = await page.evaluate(async () => {
+    await document.fonts.ready;
+    const r = window.LAB.renderer;
+    return {
+      walled: window.LAB.game.board.walled,
+      castle: !!r.castleLayer && r.castleLayer.width > 0,
+      fonts: ['34px Fraktur', '16px Fell', '16px Cinzel'].filter((f) => !document.fonts.check(f)),
+      edge: Math.round(r.toScreen(-3, 0)[0] - (0.5 * r.cam.zoom)),
+    };
+  });
+  if (!look.walled || !look.castle) problems.push('no castle wall round the square');
+  if (look.fonts.length) problems.push(`fonts did not load: ${look.fonts.join(', ')}`);
+  if (look.edge > 4) problems.push(`the square is not edge to edge (${look.edge}px spare)`);
+  if (!screen.on) problems.push('the Starà screen did not come up');
+  if (screen.panel !== 'none') problems.push('the workshop panel is still showing');
+  if (!screen.fits) problems.push('the 7x7 square does not fit between the top bar and the tray');
+
+  // Touching the card turns the tile in hand.
+  const rot0 = await page.evaluate(() => window.LAB.game.rot);
+  const card = await page.locator('#staraTile').boundingBox();
+  await page.mouse.click(card.x + card.width / 2, card.y + card.height / 2);
+  if (await page.evaluate((r0) => window.LAB.game.rot === r0, rot0)) problems.push('touching the card did not turn the tile');
+
+  // A lit square stages it; the checkmark lays it.
+  const lit = await page.evaluate(() => {
+    const g = window.LAB.game, r = window.LAB.renderer;
+    const s = g.board.legalPlacements(g.tile, g.placeOpts())[0];
+    const [sx, sy] = r.toScreen(s.x + 0.5, s.y + 0.5);
+    const cv = r.canvas.getBoundingClientRect();
+    return { x: sx + cv.left, y: sy + cv.top };
+  });
+  await page.mouse.click(lit.x, lit.y);
+  await page.waitForTimeout(120);
+  if (!(await page.evaluate(() => document.querySelector('#staraGo.shown')))) problems.push('a lit square did not stage the tile');
+  const size0 = await page.evaluate(() => window.LAB.game.board.size);
+  await page.click('#staraGo');
+  await page.waitForTimeout(120);
+  const laid = await page.evaluate((n) => ({ size: window.LAB.game.board.size, phase: window.LAB.game.phase }), size0);
+  if (laid.size !== size0 + 1) problems.push('the checkmark did not lay the tile');
+
+  // A follower dot on the card claims; with nothing to claim, the turn moved on.
+  if (laid.phase === 'meeple') {
+    const spot = await page.evaluate(() => {
+      const ui = window.LAB.stara, c = document.getElementById('staraTile');
+      const r = c.getBoundingClientRect(), k = r.width / c.width;
+      const s = ui.spots[0];
+      return s ? { x: r.left + s.sx * k, y: r.top + s.sy * k, before: window.LAB.game.players[0].meeples } : null;
+    });
+    if (!spot) problems.push('no follower dots on the card in the claim step');
+    else {
+      await page.mouse.click(spot.x, spot.y);
+      await page.waitForTimeout(120);
+      const after = await page.evaluate(() => window.LAB.game.players[0].meeples);
+      if (after !== spot.before - 1) problems.push('touching a follower dot did not place a follower');
+    }
+  }
+
+  // Play the rest out; the end card adds up, and today's best is kept.
+  const end = await page.evaluate(async () => {
+    const g = window.LAB.game;
+    let guard = 0;
+    while (g.phase !== 'over' && guard++ < 400) {
+      if (g.phase === 'place') {
+        const s = g.board.legalPlacements(g.tile, g.placeOpts())[0];
+        g.rot = s.rot; g.placeAt(s.x, s.y); continue;
+      }
+      if (g.phase === 'meeple') { g.skipMeeple(); continue; }
+      break;
+    }
+    await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+    const t = g.m.tally;
+    return {
+      over: g.phase === 'over',
+      shown: !document.getElementById('staraEnd').hidden,
+      card: Number(document.getElementById('staraEndScore').textContent),
+      score: g.players[0].score,
+      sum: t.cities + t.roads + t.cloisters + t.farms + t.unfinished,
+      best: Number(localStorage.getItem(`tilemakers-workshop/stara/best/${g.m.day.iso}`)),
+    };
+  });
+  if (!end.over || !end.shown) problems.push('no end card at the end of the day');
+  else if (end.card !== end.score || end.sum !== end.score) problems.push(`the end card does not add up: ${JSON.stringify(end)}`);
+  else if (end.best !== end.score) problems.push('today\'s best was not kept');
+
+  await page.click('#staraAgain');
+  await page.waitForTimeout(150);
+  const again = await page.evaluate(() => ({ phase: window.LAB.game.phase, end: document.getElementById('staraEnd').hidden }));
+  if (again.phase !== 'place' || !again.end) problems.push('Play again did not deal the day again');
+
+  // The menu brings the workshop back, and leaving Starà gives it back for good.
+  await page.click('#staraMenu');
+  await page.selectOption('#mode', 'classic');
+  await page.click('#newGame');
+  await page.waitForTimeout(150);
+  const left = await page.evaluate(() => !document.body.classList.contains('stara') && document.getElementById('stara').hidden);
+  if (!left) problems.push('leaving Starà left its screen up');
+
+  if (errors.length) problems.push(errors[0].split('\n')[0]);
+  if (problems.length) { failures++; console.log(`  ✗ starà on a phone: ${problems.join(' · ')}`); }
+  else console.log(`  ✓ starà on a phone     walled, edge to edge at ${screen.tile}px a tile; card, seal, follower, charter, replay`);
+  await page.setViewportSize({ width: 1280, height: 820 });
 }
 
 await browser.close();

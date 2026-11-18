@@ -29,6 +29,7 @@ import { TILE_TYPES, TILES, GROUPS, rotPoint, faceOf, otherFace } from './tiles.
 import { Sfx, SOUND_NAMES } from './audio.js';
 import { Effects } from './fx.js';
 import { VERSION } from './version.js';
+import { StaraUI, spreadSpots } from './stara-ui.js';
 
 const canvas = document.getElementById('board');
 const renderer = new Renderer(canvas);
@@ -150,6 +151,13 @@ const MOVES = new Set(['place', 'step', 'warp']);
  * thing you were looking at is where the thing you played comes from.
  */
 fx.entryAt = () => {
+  // Starà's tile leaves from the card it was held up on.
+  if (stara.on) {
+    const cv = canvas.getBoundingClientRect();
+    const at = stara.entry();
+    const [x, y] = renderer.toWorld(at.x - cv.left, at.y - cv.top);
+    return { x, y };
+  }
   const pv = $('preview').getBoundingClientRect();
   const cv = canvas.getBoundingClientRect();
   const [x, y] = renderer.toWorld(pv.left + pv.width / 2 - cv.left, pv.top + pv.height / 2 - cv.top);
@@ -242,7 +250,10 @@ function driveBots(now) {
 
 // --- new game ---------------------------------------------------------------
 
-function newGame() {
+function newGame(only) {
+  // Starà's "Play again" names its mode, whatever the dropdown has been
+  // turned to since; the New game button passes a click event, not a name.
+  if (typeof only === 'string' && $('mode').value !== only) { $('mode').value = only; onModeChange(); }
   const mode = $('mode').value;
   const players = Number($('playerCount').value);
   const seedRaw = $('seed').value.trim();
@@ -271,6 +282,7 @@ function newGame() {
   const b = spec(mode)?.bounds;
   renderer.cam.zoom = b && b.maxX - b.minX < 12 ? 78 : 96;
   startTileList();
+  stara.refit();
   syncPanel();
 }
 
@@ -333,7 +345,8 @@ function legalRotationsAt(x, y) {
   return out;
 }
 
-const confirming = () => $('confirmPlace').checked && game.phase === 'place' && !game.m.piece;
+// Starà always stages: its checkmark is the only thing that lays a tile.
+const confirming = () => ($('confirmPlace').checked || stara.on) && game.phase === 'place' && !game.m.piece;
 
 /** Stage a placement at (x, y), preferring the rotation already in hand. */
 function stagePending(x, y) {
@@ -390,6 +403,27 @@ function commitPending() {
   if (!done) sfx.play('deny');
   return done;
 }
+
+/** A square the tile cannot go on: a buzz, and a shake where it was tried. */
+function deny(c) {
+  sfx.play('deny');
+  if (c) fx.on('deny', { at: { x: c.x + 0.5, y: c.y + 0.5 } }, game);
+}
+
+// Starà's own screen (src/stara-ui.js). It plays through exactly the staging
+// above; it only asks for it through a different, smaller set of controls.
+const stara = new StaraUI({
+  game: () => game,
+  renderer,
+  pending: () => pending,
+  stage: stagePending,
+  legal: legalRotationsAt,
+  turn: turnPending,
+  commit: commitPending,
+  deny,
+  newGame,
+  drawTile: (ctx2, type, opts) => drawTileInked(ctx2, type, opts),
+});
 
 // --- pointer ----------------------------------------------------------------
 //
@@ -452,7 +486,7 @@ canvas.addEventListener('pointermove', (e) => {
   // what keeps the board stuck to your fingers instead of sliding under them.
   if (pinch && pointers.size >= 2) {
     const now = spread();
-    if (now && pinch.dist > 0 && !game.interior) {
+    if (now && pinch.dist > 0 && !game.interior && !stara.on) {
       renderer.zoomAt(now.x, now.y, now.dist / pinch.dist);
       renderer.cam.x -= (now.x - pinch.x) / renderer.cam.zoom;
       renderer.cam.y -= (now.y - pinch.y) / renderer.cam.zoom;
@@ -465,7 +499,7 @@ canvas.addEventListener('pointermove', (e) => {
   if (drag) {
     const dx = p.x - drag.x, dy = p.y - drag.y;
     drag.moved = Math.max(drag.moved, Math.hypot(dx, dy));
-    if (drag.moved > 4 && !game.interior) {
+    if (drag.moved > 4 && !game.interior && !stara.on) {
       renderer.cam.x = drag.camX - dx / renderer.cam.zoom;
       renderer.cam.y = drag.camY - dy / renderer.cam.zoom;
     }
@@ -541,6 +575,9 @@ canvas.addEventListener('pointerup', (e) => {
       return;
     }
     if (stagePending(c.x, c.y)) return;
+    // In Starà a touch anywhere that is not a lit square puts the tile back
+    // in your hand, which is the only way to take it back there is.
+    if (stara.on && pending) { clearPending(); return; }
     if (!game.board.get(c.x, c.y) && nearBoard(c)) {
       sfx.play('deny');
       fx.on('deny', { at: { x: c.x + 0.5, y: c.y + 0.5 } }, game);
@@ -584,7 +621,7 @@ canvas.addEventListener('wheel', (e) => {
     if (pending) turnPending(e.deltaY > 0 ? 1 : -1); else game.rotate(e.deltaY > 0 ? 1 : -1);
     return;
   }
-  if (game.interior) return;
+  if (game.interior || stara.on) return;      // Starà's square is held still
   renderer.glide = null;
   renderer.zoomAt(e.offsetX, e.offsetY, e.deltaY > 0 ? 0.9 : 1.1);
 }, { passive: false });
@@ -598,7 +635,7 @@ window.addEventListener('keydown', (e) => {
   // Shift+D opens the design console; plain d is still the debug overlay.
   if (e.key === 'D' && e.shiftKey) { e.preventDefault(); return void designer.toggle(); }
   if (e.key === 'd' || e.key === 'D') { renderer.showDebug = !renderer.showDebug; $('debug').checked = renderer.showDebug; }
-  if (e.key === 'c' || e.key === 'C') {
+  if ((e.key === 'c' || e.key === 'C') && !stara.on) {
     if (game.lastPlaced) renderer.centerOn(game.lastPlaced.x, game.lastPlaced.y);
   }
   if (botTurn()) return;
@@ -633,7 +670,7 @@ window.addEventListener('keydown', (e) => {
   }
 });
 
-window.addEventListener('resize', () => renderer.resize());
+window.addEventListener('resize', () => { renderer.resize(); stara.refit(); stara.sync(); });
 
 // --- controls ---------------------------------------------------------------
 
@@ -1054,6 +1091,8 @@ function claimOptions() {
 }
 
 function renderClaim() {
+  // Starà confirms and claims on its own card.
+  if (stara.on) { $('claim').hidden = true; claimSpots = []; return; }
   if (pending && !botTurn()) return renderConfirm();
   const host = $('claim');
   const opts = $('zoomClaim').checked ? claimOptions() : [];
@@ -1088,28 +1127,7 @@ function renderClaim() {
     const [px, py] = rotPoint(anchor, cell.rot);
     return { ...o, ax: px * size, ay: py * size, sx: px * size, sy: py * size, r };
   });
-  for (let pass = 0; pass < 60; pass++) {
-    let moved = false;
-    for (let a = 0; a < claimSpots.length; a++) {
-      for (let b = a + 1; b < claimSpots.length; b++) {
-        const A = claimSpots[a], B = claimSpots[b];
-        let dx = B.sx - A.sx, dy = B.sy - A.sy;
-        let d = Math.hypot(dx, dy);
-        if (d > r * 2.25) continue;
-        if (d < 0.01) { dx = (a - b) || 1; dy = 1; d = Math.hypot(dx, dy); }
-        const push = (r * 2.25 - d) / 2;
-        const ux = dx / d * push, uy = dy / d * push;
-        A.sx -= ux; A.sy -= uy; B.sx += ux; B.sy += uy;
-        moved = true;
-      }
-    }
-    // Keep them all on the tile.
-    for (const sp of claimSpots) {
-      sp.sx = Math.max(r * 1.1, Math.min(size - r * 1.1, sp.sx));
-      sp.sy = Math.max(r * 1.1, Math.min(size - r * 1.1, sp.sy));
-    }
-    if (!moved) break;
-  }
+  spreadSpots(claimSpots, r, size);
 
   const colour = PLAYER_COLORS[game.current];
   for (const spot of claimSpots) {
@@ -1395,7 +1413,9 @@ function drawTileInked(ctx2, type, opts = {}) {
     ctx2.restore();
     return;
   }
-  if (!document.body.classList.contains('parchment')) return drawTile(ctx2, type, opts);
+  // Starà's tiles are inked too, whatever the dropdown has been turned to.
+  const inked = document.body.classList.contains('parchment') || document.body.classList.contains('stara');
+  if (!inked) return drawTile(ctx2, type, opts);
   drawTile(ctx2, type, { ...opts, only: 'ground' });
   roughen(ctx2.canvas, WOBBLE(ctx2.canvas.width));
   drawTile(ctx2, type, { ...opts, only: 'built' });
@@ -1655,6 +1675,7 @@ function syncPanel() {
   drawPreview();
   renderHud(doing, status);
   renderClaim();
+  stara.sync();
   bumpScores();
 }
 
@@ -1840,11 +1861,16 @@ showVersion();
 // Settings first: the panel, the mode dropdown and the first game should all
 // come up the way you left them.
 const restored = loadSettings();
+// A link may name the mode to open in: index.html?mode=stara is Starà's
+// front door, for a phone's home screen.
+const askedMode = new URLSearchParams(location.search).get('mode');
+const linked = !!askedMode && !!spec(askedMode) && askedMode !== $('mode').value;
+if (linked) $('mode').value = askedMode;
 setRuleset(ruleset);
 renderMechanics();
 renderGroups();
 onModeChange();
-if (restored) {
+if (restored && !linked) {
   // onModeChange resets the tile pool to the mode's default, which is right
   // for a mode you just picked and wrong for one you are coming back to.
   try {
@@ -1887,6 +1913,7 @@ window.LAB = {
   get bots() { return bots; },
   renderer, newGame, THEME, sfx, fx, MODES, MECHANICS, LIVE_MECHANICS, VERSION,
   claimSpots: () => claimSpots,
+  stara,
   setLean, designer, DESIGN,
   get mechanics() { return mechanics; },
   get ruleset() { return ruleset; },

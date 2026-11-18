@@ -62,6 +62,15 @@ export class Game {
     groups = null, options = {}, tilesPerTurn = 1, ruleset = DEFAULT_RULESET,
   } = {}) {
     const spec = MODE_BY_ID[mode] || MODE_BY_ID.classic;
+    // A PURE mode plays the base game as printed, whatever the workshop has
+    // bolted on for the others: Starà is a daily puzzle, and a puzzle is only
+    // the same puzzle for everyone if nobody's settings can change it.
+    if (spec.pure) {
+      options = {};
+      ruleset = DEFAULT_RULESET;
+      tilesPerTurn = 1;
+      meeples = true;
+    }
     this.mode = spec.id;
     this.spec = spec;
     this.options = options;
@@ -88,7 +97,11 @@ export class Game {
     // A mode with its own bounds keeps them; the mechanic only fills silence.
     const mapBounds = this.has('maps') && !spec.bounds
       ? { minX: -5, maxX: 5, minY: -5, maxY: 5 } : null;
-    this.board = new Board({ bounds: spec.bounds || mapBounds || null, wrap: !!spec.wrap && !!spec.bounds });
+    this.board = new Board({
+      bounds: spec.bounds || mapBounds || null,
+      wrap: !!spec.wrap && !!spec.bounds,
+      walled: !!spec.walled && !!spec.bounds,
+    });
     this.players = Array.from({ length: players }, (_, i) => ({
       id: i,
       name: spec.playerName ? spec.playerName(i) : PLAYER_NAMES[i],
@@ -1683,7 +1696,7 @@ export class Game {
     const d = this.board.featureOf(cell.x, cell.y, cell.meeple.feat);
     if (!d) return false;
 
-    const pts = 1 + this.board.surroundCount(cell.x, cell.y);
+    const pts = 1 + this.board.enclosure(cell.x, cell.y);
     this.player.score += pts;
     this.player.meeples++;
     this.player.abbots++;

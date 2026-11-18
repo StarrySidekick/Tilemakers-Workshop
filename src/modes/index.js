@@ -8,7 +8,7 @@
 // renderer asks the mode what to draw.
 //
 // Ordered roughly as: the classics, then the placement experiments, then the
-// long-form ones.
+// long-form ones. Starà, the daily square, sits second so it is easy to find.
 // ---------------------------------------------------------------------------
 
 import { Classic } from './classic.js';
@@ -23,9 +23,10 @@ import { Descent } from './descent.js';
 import { Chronicle } from './chronicle.js';
 import { Tesserae } from './tesserae.js';
 import { World } from './world.js';
+import { Stara } from './stara.js';
 
 export const MODES = [
-  Classic, World, Duel, Sprawl, Strata, Soffiando,
+  Classic, Stara, World, Duel, Sprawl, Strata, Soffiando,
   Marches, Expedition, Adventure, Descent, Chronicle, Tesserae,
 ].map((M) => M.spec);
 

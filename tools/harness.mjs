@@ -14,7 +14,7 @@
 // down to play it.
 // ---------------------------------------------------------------------------
 
-import { Game, MODES, MECHANICS, LIVE_MECHANICS } from '../src/game.js';
+import { Game, MODES, MECHANICS, LIVE_MECHANICS, DEFAULT_RULESET } from '../src/game.js';
 import { Bot, BOT_LEVELS } from '../src/ai.js';
 import { makePiece, rotatePiece, validatePiece } from '../src/pieces.js';
 import { Board } from '../src/board.js';
@@ -24,6 +24,7 @@ import { gust, storm } from '../src/wind.js';
 import { GROUPS } from '../src/tiles.js';
 import { checkRulebook } from './soffiando-rulebook.mjs';
 import { SOFFIANDO_WEIGHTS } from '../src/modes/soffiando.js';
+import { staraDay } from '../src/modes/stara.js';
 
 const ALL_GROUPS = GROUPS.map((g) => g.id);
 
@@ -68,6 +69,7 @@ function playOut(opts) {
     tiles: game.board.size,
     scores: game.players.map((p) => p.score),
     stuck: [...bots.values()].reduce((n, b) => n + b.stuck, 0),
+    game,
   };
 }
 
@@ -2710,6 +2712,94 @@ function botVsRandom(rounds) {
   if (bad) failures += bad;
 }
 
+/**
+ * Starà, the daily square (2026-11-18). The things a daily puzzle has to get
+ * right that random play would not notice: everybody gets the same deal on
+ * the same day and a new one the next; the workshop's bolted-on rules cannot
+ * reach it; nothing goes outside the 7 x 7; the day ends when the square is
+ * full or nothing left fits; and the end card's breakdown adds up to the
+ * score, with the farms paid once.
+ */
+function checkStara() {
+  console.log('\nstarà, the daily square');
+  const ok = (what, pass, detail = '') => {
+    if (pass) console.log(`  ✓ ${what.padEnd(50)} ${detail}`);
+    else { failures++; console.log(`  ✗ ${what} ${detail}`); }
+  };
+
+  const a = new Game({ mode: 'stara' }), b = new Game({ mode: 'stara' });
+  ok('the same deal for everyone today', a.deck.join() === b.deck.join() && a.tile.id === b.tile.id,
+    `${a.deck.length + 1} tiles`);
+  const t = new Game({ mode: 'tesserae' });
+  ok('…and not the same deal as Tesserae', a.seed !== t.seed);
+
+  const day = (y, m, d, h = 12) => staraDay(new Date(y, m, d, h));
+  ok('18 November 2026 is No. 1, the next day No. 2',
+    day(2026, 10, 18).n === 1 && day(2026, 10, 19).n === 2 && day(2027, 0, 1).n === 45,
+    `No. ${day(2027, 0, 1).n} on 1 January`);
+  ok('a day turns over at local midnight, not before',
+    day(2026, 10, 18, 0).n === 1 && day(2026, 10, 18, 23).n === 1
+    && day(2026, 10, 18, 23).seed !== day(2026, 10, 19, 0).seed);
+
+  const bolted = new Game({
+    mode: 'stara', seed: 7, players: 4, tilesPerTurn: 3, meeples: false,
+    options: { market: true, fields: false, builder: true }, ruleset: 'c1',
+  });
+  ok('the workshop\'s own rules cannot reach it',
+    bolted.players.length === 1 && bolted.useMeeples && bolted.has('fields') && !bolted.has('market')
+    && bolted.tilesPerTurn === 1 && bolted.rules.id === DEFAULT_RULESET && bolted.phase === 'place',
+    `${bolted.players[0].meeples} followers, farms on, no market`);
+  ok('a 7 x 7 border', JSON.stringify(bolted.board.bounds) === JSON.stringify({ minX: -3, maxX: 3, minY: -3, maxY: 3 }));
+
+  // The castle walls round the square end what runs into them.
+  {
+    const B = { minX: -3, maxX: 3, minY: -3, maxY: 3 };
+    const facing = (type, side, edge) => [0, 1, 2, 3].find((r) => new Board({}).edgeAt({ type, rot: r }, side) === edge);
+    const closes = (walled, build) => {
+      const b = new Board({ bounds: B, walled });
+      return build(b).map((d) => `${d.type}:${b.value(d)}`).join(' ');
+    };
+    const cap = (b) => { b.place(0, -3, TILES.E, facing(TILES.E, 0, 'c')); return b.completedBy(0, -3); };
+    ok('a city cap against the wall is a finished city', closes(true, cap) === 'city:2' && closes(false, cap) === '',
+      closes(true, cap));
+    const road = (b) => {
+      b.place(1, 0, TILES.X, 0);
+      const r = facing(TILES.U, 1, 'r');
+      b.place(2, 0, TILES.U, r); b.completedBy(2, 0);
+      b.place(3, 0, TILES.U, r); return b.completedBy(3, 0);
+    };
+    ok('a road that runs into the wall ends there', closes(true, road) === 'road:3' && closes(false, road) === '',
+      closes(true, road));
+    const cloister = (b) => {
+      b.place(-3, -3, TILES.B, 0);
+      return [[-2, -3], [-3, -2], [-2, -2]].flatMap(([x, y]) => (b.place(x, y, TILES.B, 0), b.completedBy(x, y)))
+        .filter((d) => d.at.x === -3 && d.at.y === -3);
+    };
+    ok('a cloister in the corner counts the wall round it', closes(true, cloister) === 'monastery:9'
+      && closes(false, cloister) === '', closes(true, cloister));
+    ok('Starà has the walls; Tesserae does not', new Game({ mode: 'stara' }).board.walled
+      && !new Game({ mode: 'tesserae' }).board.walled);
+  }
+
+  let full = 0, sumsUp = 0, inside = 0, ended = 0, farms = 0;
+  const N = 40;
+  for (let seed = 1; seed <= N; seed++) {
+    const r = playOut({ mode: 'stara', seed, bots: seed % 2 ? 'all' : null });
+    const g = r.game;
+    const tl = g.m.tally;
+    const total = tl.cities + tl.roads + tl.cloisters + tl.farms + tl.unfinished;
+    if (total === g.players[0].score) sumsUp++;
+    if ([...g.board.cells.values()].every((c) => g.board.inBounds(c.x, c.y))) inside++;
+    if (g.board.size === 49) full++;
+    if (g.phase === 'over' && (g.deck.length === 0 || g.board.size === 49)) ended++;
+    if (tl.farms > 0) farms++;
+  }
+  ok('every tile lands inside the square', inside === N, `${inside}/${N} games`);
+  ok('it ends only when the square is full or nothing fits', ended === N, `${full}/${N} filled every square`);
+  ok('the breakdown adds up to the score', sumsUp === N, `${sumsUp}/${N} games`);
+  ok('the farms pay at the end, once', farms > 0, `${farms}/${N} games had a paying farm`);
+}
+
 const avg = (l) => l.reduce((a, b) => a + b, 0) / (l.length || 1);
 
 async function main() {
@@ -2734,6 +2824,8 @@ async function main() {
   if (!only || only === 'soffiando') {
     runMode(MODE_OF('soffiando'), Math.max(2, games / 4), { bots: 'all' }, ' +bots');
   }
+
+  checkStara();
 
   console.log('\nmodes');
   for (const spec of MODES) {

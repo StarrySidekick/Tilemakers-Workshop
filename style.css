@@ -827,3 +827,343 @@ footer { font-size: 10.5px; line-height: 1.6; }
 .welcomeHow b { color: var(--accent); font-weight: 600; }
 .welcomeDim { margin: 0; font-size: 11.5px; color: var(--dim); }
 #welcomePlay { align-self: flex-start; margin-top: 4px; }
+
+/* --- Starà: the daily square, on a wooden table -----------------------------
+   2026-11-18: "very minimalist. the background should be real wood", and then
+   "make all the ui and everything medival themes and cool. when you are using
+   vector lines try to make it look more handrawn". The board's canvas paints
+   the oak, the inked tiles and the castle (src/render.js, src/castle.js);
+   everything here floats over it as things you would find on a medieval
+   table: a blackletter title, the score on a shield, a red wax seal to lay a
+   tile, a banner, parchment, and a charter at the end of the day. Every drawn
+   border and shape goes through the #staraHand filter (index.html), which
+   displaces it by smooth noise the way a nib wanders. Text never does: a
+   wobbled letter is a misprint, not a hand.
+
+   The fonts are self-hosted (assets/fonts, SIL Open Font License), so it all
+   still works offline: IM Fell English, cut from the Fell types of the 1670s,
+   for the words, UnifrakturMaguntia, a blackletter, for the title, and
+   Cinzel's Roman capitals for the numbers. */
+
+@font-face { font-family: 'Fell'; src: url('assets/fonts/im-fell-english.woff2') format('woff2'); font-display: swap; }
+@font-face { font-family: 'Fell'; font-style: italic; src: url('assets/fonts/im-fell-english-italic.woff2') format('woff2'); font-display: swap; }
+@font-face { font-family: 'Fell SC'; src: url('assets/fonts/im-fell-english-sc.woff2') format('woff2'); font-display: swap; }
+@font-face { font-family: 'Fraktur'; src: url('assets/fonts/UnifrakturMaguntia-Book.ttf') format('truetype'); font-display: swap; }
+/* Fell's figures are old-style, so a 0 reads as an o; numbers that have to be
+   read at a glance are cut in Cinzel, Roman inscriptional capitals. */
+@font-face { font-family: 'Cinzel'; src: url('assets/fonts/cinzel.woff2') format('woff2'); font-weight: 400 900; font-display: swap; }
+
+body.stara {
+  --bg: #3a2414;
+  --s-ink: #2b1a0d;
+  --s-parch: #f0e2c0;
+  --s-parch-2: #dcc597;
+  --s-gules: #9e2b1f;
+  --s-gules-dark: #631711;
+  --s-or: #d6a43e;
+  --s-cream: #f7ebd2;
+  background: #3a2414;
+}
+body.stara:not(.staraPanel) main { grid-template-columns: 1fr; grid-template-rows: 1fr; }
+body.stara:not(.staraPanel) #panel { display: none; }
+body.stara #hud, body.stara #claim, body.stara #welcome { display: none !important; }
+body.stara #board { cursor: pointer; }
+.staraDefs { position: absolute; width: 0; height: 0; overflow: hidden; }
+
+#stara {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  pointer-events: none;            /* the board between the bars takes the taps */
+  color: var(--s-cream);
+  font-family: 'Fell', ui-serif, Georgia, serif;
+}
+#stara[hidden] { display: none; }
+#stara .staraTop, #stara .staraTray > *, #stara .staraEnd { pointer-events: auto; }
+#stara button { font-family: 'Fell', ui-serif, Georgia, serif; touch-action: manipulation; }
+
+/* --- the top: a roundel, the title, a shield ---------------------------- */
+
+.staraTop {
+  display: grid;
+  grid-template-columns: 58px 1fr 58px;
+  align-items: center;
+  padding: max(8px, env(safe-area-inset-top)) 12px 2px;
+}
+.staraTitle {
+  text-align: center;
+  line-height: 1;
+  text-shadow: 0 1px 2px rgba(20, 8, 0, 0.85), 0 0 12px rgba(20, 8, 0, 0.35);
+}
+.staraName {
+  display: block;
+  font: 34px/1 'Fraktur', 'Fell', ui-serif, serif;
+  color: var(--s-cream);
+}
+.staraTitle small {
+  display: block;
+  margin-top: 2px;
+  font: 600 12px/1 'Cinzel', 'Fell SC', ui-serif, serif;
+  letter-spacing: 0.14em;
+  color: #ead6ad;
+}
+.staraTitle small::before, .staraTitle small::after { content: '❧'; margin: 0 0.4em; opacity: 0.7; font-family: 'Fell', serif; }
+.staraTitle small::before { display: inline-block; transform: scaleX(-1); }
+
+#stara .staraRoundel {
+  width: 46px; height: 46px;
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: pointer;
+  filter: drop-shadow(0 3px 4px rgba(20, 8, 0, 0.55));
+}
+.staraRoundel svg { width: 100%; height: 100%; overflow: visible; filter: url(#staraHand); }
+.staraRoundel .ring { fill: var(--s-parch); stroke: var(--s-ink); stroke-width: 2.2; }
+.staraRoundel .glyph { fill: none; stroke: var(--s-ink); stroke-width: 2.4; stroke-linecap: round; }
+#stara .staraRoundel:active { transform: translateY(1px); }
+
+.staraShield {
+  position: relative;
+  justify-self: end;
+  width: 50px; height: 58px;
+  display: grid; place-items: center;
+  filter: drop-shadow(0 4px 5px rgba(20, 8, 0, 0.6));
+}
+.staraShield svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; filter: url(#staraHand); }
+.staraShield .field { fill: var(--s-gules); }
+.staraShield .chief { fill: var(--s-or); opacity: 0.9; }
+.staraShield .edge { fill: none; stroke: var(--s-ink); stroke-width: 2.6; stroke-linejoin: round; }
+.staraScore {
+  position: relative;
+  margin-top: 9px;
+  font: 700 19px/1 'Cinzel', ui-serif, serif;
+  font-variant-numeric: lining-nums tabular-nums;
+  color: var(--s-cream);
+  text-shadow: 0 1px 1px rgba(40, 6, 0, 0.9);
+}
+.staraScore.bump { animation: staraBump 640ms cubic-bezier(0.2, 1.4, 0.4, 1); }
+@keyframes staraBump { 0%, 100% { transform: none; } 35% { transform: scale(1.35); color: #ffe3a0; } }
+
+/* --- the tray ------------------------------------------------------------ */
+
+.staraTray {
+  height: 258px;                   /* fixed, so the square never moves under you */
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 7px;
+  padding: 4px 16px max(12px, env(safe-area-inset-bottom));
+}
+.staraHand {
+  display: grid;
+  grid-template-columns: 62px auto 62px;
+  align-items: center;
+  gap: 20px;
+}
+
+/* The draw pile: tile backs of parchment, ruled round in ink, the count
+   written on the top one. The ruling is a pseudo-element so the filter can
+   bend it without bending the number. */
+.staraPile {
+  position: relative;
+  width: 48px; height: 48px;
+  justify-self: center;
+  display: grid; place-items: center;
+  font: 700 16px/1 'Cinzel', ui-serif, serif;
+  color: var(--s-ink);
+}
+.staraPile::before {
+  content: '';
+  position: absolute; inset: 0;
+  background: var(--s-parch) url('assets/paper.png') center / 120px;
+  border: 2px solid var(--s-ink);
+  border-radius: 3px;
+  box-shadow:
+    3px 3px 0 -1px var(--s-parch-2), 3px 3px 0 1px var(--s-ink),
+    6px 6px 0 -1px #cdb282, 6px 6px 0 1px var(--s-ink);
+  filter: url(#staraHand) drop-shadow(5px 7px 6px rgba(20, 8, 0, 0.45));
+}
+.staraPile span { position: relative; }
+
+.staraCard { width: 150px; height: 150px; position: relative; }
+.staraCard.empty { visibility: hidden; }
+#staraTile {
+  width: 150px; height: 150px;
+  display: block;
+  border-radius: 3px;
+  touch-action: none;
+  cursor: grab;
+  box-shadow: 0 16px 30px rgba(18, 7, 0, 0.55), 0 3px 6px rgba(18, 7, 0, 0.5);
+  transition: transform 260ms cubic-bezier(0.3, 1.25, 0.5, 1);
+}
+.staraCard.claiming #staraTile { cursor: default; }
+.staraCard.lifted { z-index: 5; pointer-events: none; }
+.staraCard.lifted #staraTile { cursor: grabbing; box-shadow: 0 10px 18px rgba(18, 7, 0, 0.5); }
+.staraCard.snapped #staraTile { opacity: 0; }
+.staraCard.pop { animation: staraPop 440ms cubic-bezier(0.2, 1.3, 0.45, 1) both; }
+@keyframes staraPop {
+  from { transform: translate(-70px, 40px) scale(0.35) rotate(-8deg); opacity: 0; }
+  to { transform: none; opacity: 1; }
+}
+
+/* The seal: red wax, pressed with a tick. It is what lays the tile. */
+#stara .staraGo {
+  width: 64px; height: 64px;
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: pointer;
+  opacity: 0;
+  transform: scale(0.5) rotate(-20deg);
+  pointer-events: none;
+  filter: drop-shadow(0 5px 6px rgba(20, 8, 0, 0.55));
+  transition: opacity 160ms ease, transform 240ms cubic-bezier(0.2, 1.5, 0.4, 1);
+}
+#stara .staraGo.shown { opacity: 1; transform: none; pointer-events: auto; }
+#stara .staraGo:active { transform: scale(0.92); }
+.staraGo svg { width: 100%; height: 100%; overflow: visible; filter: url(#staraHand); }
+.staraGo .wax { fill: var(--s-gules); stroke: var(--s-gules-dark); stroke-width: 1.5; }
+.staraGo .rim { fill: none; stroke: var(--s-gules-dark); stroke-width: 2.5; opacity: 0.7; }
+.staraGo .mark { fill: none; stroke: #e8b49a; stroke-width: 4.5; stroke-linecap: round; stroke-linejoin: round; }
+
+/* A banner with forked tails: "No follower". */
+#stara .staraBanner {
+  position: relative;
+  padding: 5px 30px 6px;
+  border: none;
+  background: none;
+  font: 16px/1.1 'Fell', ui-serif, serif;
+  color: var(--s-ink);
+  cursor: pointer;
+  visibility: hidden;
+}
+#stara .staraBanner::before {
+  content: '';
+  position: absolute; inset: 0;
+  background: var(--s-parch) url('assets/paper.png') center / 140px;
+  border-top: 2px solid var(--s-ink);
+  border-bottom: 2px solid var(--s-ink);
+  clip-path: polygon(0 0, 100% 0, 92% 50%, 100% 100%, 0 100%, 8% 50%);
+  filter: url(#staraHand) drop-shadow(0 3px 3px rgba(20, 8, 0, 0.45));
+}
+#stara .staraBanner span { position: relative; }
+#stara .staraBanner.shown { visibility: visible; }
+#stara .staraBanner:active { transform: translateY(1px); }
+
+.staraFollowers canvas { display: block; width: 126px; height: 20px; }
+.staraCaption {
+  min-height: 1.3em;
+  font: italic 15px/1.3 'Fell', ui-serif, serif;
+  text-align: center;
+  color: #f1e2c2;
+  text-shadow: 0 1px 2px rgba(20, 8, 0, 0.9);
+}
+
+/* --- the end of the day: a charter, sealed ------------------------------ */
+
+.staraEnd {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  background: rgba(24, 10, 0, 0.45);
+  animation: staraFade 300ms ease both;
+}
+.staraEnd[hidden] { display: none; }
+@keyframes staraFade { from { opacity: 0; } to { opacity: 1; } }
+.staraCharter {
+  position: relative;
+  width: min(330px, 100%);
+  padding: 26px 26px 30px;
+  text-align: center;
+  color: var(--s-ink);
+  animation: staraPop 480ms cubic-bezier(0.2, 1.3, 0.45, 1) both;
+}
+/* The sheet, with a deckled edge, and a double rule inked inside it. */
+.staraCharter::before, .staraCharter::after { content: ''; position: absolute; pointer-events: none; }
+.staraCharter::before {
+  inset: 0;
+  background:
+    radial-gradient(120% 90% at 50% 10%, rgba(255, 250, 235, 0.55), rgba(160, 120, 60, 0.18) 90%),
+    var(--s-parch) url('assets/paper.png') center / 220px;
+  filter: url(#staraDeckle) drop-shadow(0 22px 30px rgba(18, 7, 0, 0.6));
+}
+.staraCharter::after {
+  inset: 10px;
+  border: 2px solid var(--s-ink);
+  outline: 1px solid var(--s-ink);
+  outline-offset: -6px;
+  opacity: 0.8;
+  filter: url(#staraHand);
+}
+.staraCharter > * { position: relative; z-index: 1; }
+.staraEndDay { font: 38px/1 'Fraktur', 'Fell', serif; color: #5b1810; }
+.staraEndDay small {
+  display: block;
+  margin-top: 6px;
+  font: 600 13px/1 'Cinzel', serif;
+  letter-spacing: 0.18em;
+  color: var(--s-ink);
+}
+.staraEndRule {
+  height: 10px; margin: 6px 30px 2px;
+  border-bottom: 1.5px solid var(--s-ink);
+  filter: url(#staraHand);
+  opacity: 0.7;
+}
+.staraEndScore {
+  font: 700 58px/1.1 'Cinzel', ui-serif, serif;
+  margin: 4px 0 8px;
+  color: var(--s-gules);
+}
+.staraEndRows { display: grid; gap: 4px; margin: 0 4px 10px; font-size: 17px; }
+.staraEndRows div { display: flex; align-items: baseline; gap: 6px; }
+.staraEndRows div::after { content: none; }
+.staraEndRows span { white-space: nowrap; }
+.staraEndRows i {
+  flex: 1;
+  border-bottom: 1.5px dotted rgba(43, 26, 13, 0.55);
+  transform: translateY(-4px);
+}
+.staraEndRows b { font: 700 15px/1 'Cinzel', serif; font-variant-numeric: tabular-nums; }
+.staraEndDim { font: italic 14px/1.3 'Fell', serif; color: #6b4a2a; }
+.staraEndBest { font: 18px/1.35 'Fell SC', 'Fell', serif; margin: 6px 0 16px; }
+.staraEndBtns { display: flex; gap: 12px; justify-content: center; align-items: center; }
+#stara .staraEndBtns button {
+  position: relative;
+  padding: 10px 18px 11px;
+  border: none;
+  background: none;
+  font: 17px/1 'Fell', ui-serif, serif;
+  cursor: pointer;
+}
+#stara .staraEndBtns button::before {
+  content: '';
+  position: absolute; inset: 0;
+  border-radius: 999px;
+  filter: url(#staraHand);
+  z-index: -1;
+}
+#stara .staraEndBtns button { isolation: isolate; }
+#stara .staraWax { color: #fbe8d6; }
+#stara .staraWax::before { background: var(--s-gules); box-shadow: inset 0 -3px 0 var(--s-gules-dark), 0 3px 5px rgba(20, 8, 0, 0.35); border: 1.5px solid var(--s-gules-dark); }
+#stara .staraInk { color: var(--s-ink); }
+#stara .staraInk::before { border: 2px solid var(--s-ink); background: rgba(255, 250, 235, 0.5); }
+
+/* A short phone: the tray gives up its caption first, then some height. */
+@media (max-height: 640px) {
+  .staraTray { height: 206px; gap: 4px; }
+  .staraCard, #staraTile { width: 128px; height: 128px; }
+  .staraCaption { display: none; }
+  .staraName { font-size: 28px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .staraCard.pop, .staraCharter, .staraEnd, .staraScore.bump { animation: none; }
+  #staraTile, #stara .staraGo { transition: none; }
+}

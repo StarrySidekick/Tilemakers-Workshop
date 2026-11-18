@@ -187,6 +187,17 @@ you permission." The bot aims the stone now (MODES.md, the end of the
 thirty-sixth pass), and the thirtieth to thirty-sixth passes are merged on
 his word.
 
+**Starà, the daily square: asked for 2026-11-18.** "new mode, going to be
+daily, and based around the idea of fitting tiles into the area of your phone
+screen ... a square area of say 7x7 tiles ... regular carcassone rules but
+there's this border", with a "very minimalist" placement interface of its own
+and "real wood" behind it. Built as `stara`; what was decided and what it
+measures is section 14 of `MODES.md`. The same day: the square edge to edge,
+"top down castle walls" round it that "end features for the sake of scoring
+and finishing", and everything "medival themes and cool" and hand-drawn. The
+open question it raised: the square is almost never filled, and plain
+Carcassonne pays nothing for filling it.
+
 **Fields: settled 2026-09-06, and Timothy was right.** They are fully built.
 `src/tiles.js` cuts the perimeter into eight half-edges with `halfPartner` as the
 joining rule; fields are ordinary components; `allFields`, `citiesFed` and
