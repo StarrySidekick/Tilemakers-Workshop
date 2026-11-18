@@ -282,6 +282,9 @@ function newGame(only) {
   const b = spec(mode)?.bounds;
   renderer.cam.zoom = b && b.maxX - b.minX < 12 ? 78 : 96;
   startTileList();
+  // Starting a game from the panel means you want to play it: Starà folds
+  // the panel back away (it is only open because its menu opened it).
+  document.body.classList.remove('staraPanel');
   stara.refit();
   syncPanel();
 }
@@ -404,6 +407,31 @@ function commitPending() {
   return done;
 }
 
+/**
+ * Starà's size switch: keep the game you are in, and go to the other size's,
+ * picking up where you left it if there is one to pick up, so a tap on the
+ * other size never throws a day's town away.
+ */
+const kept = new Map();
+function switchTo(mode) {
+  if (game.phase !== 'over') kept.set(game.mode, game);
+  const back = kept.get(mode);
+  kept.delete(mode);
+  if (!back || back.phase === 'over') return newGame(mode);
+  game = back;
+  if ($('mode').value !== mode) { $('mode').value = mode; onModeChange(); }
+  pending = null;
+  renderer.pending = null;
+  buildBots();
+  fx.clear();
+  shownScores = [];
+  bumping.clear();
+  startTileList();
+  stara.refit();
+  syncPanel();
+  return game;
+}
+
 /** A square the tile cannot go on: a buzz, and a shake where it was tried. */
 function deny(c) {
   sfx.play('deny');
@@ -422,6 +450,7 @@ const stara = new StaraUI({
   commit: commitPending,
   deny,
   newGame,
+  switchTo,
   drawTile: (ctx2, type, opts) => drawTileInked(ctx2, type, opts),
 });
 

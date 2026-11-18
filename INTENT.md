@@ -196,7 +196,11 @@ measures is section 14 of `MODES.md`. The same day: the square edge to edge,
 "top down castle walls" round it that "end features for the sake of scoring
 and finishing", and everything "medival themes and cool" and hand-drawn. The
 open question it raised: the square is almost never filled, and plain
-Carcassonne pays nothing for filling it.
+Carcassonne pays nothing for filling it. Then the third pass: no followers
+("it's a solitary game"), a 5x5 and a 7x7, a town gate in the middle of each
+wall paying highways that reach them, the cities rethemed as quarters of one
+walled town with a charter, abbeys that want quiet, and fields as gardens.
+Asked, he took each recommendation.
 
 **Fields: settled 2026-09-06, and Timothy was right.** They are fully built.
 `src/tiles.js` cuts the perimeter into eight half-edges with `halfPartner` as the

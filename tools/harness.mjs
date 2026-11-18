@@ -24,7 +24,7 @@ import { gust, storm } from '../src/wind.js';
 import { GROUPS } from '../src/tiles.js';
 import { checkRulebook } from './soffiando-rulebook.mjs';
 import { SOFFIANDO_WEIGHTS } from '../src/modes/soffiando.js';
-import { staraDay } from '../src/modes/stara.js';
+import { staraDay, quietOf, highways, gateRoads } from '../src/modes/stara.js';
 
 const ALL_GROUPS = GROUPS.map((g) => g.id);
 
@@ -2746,10 +2746,38 @@ function checkStara() {
     options: { market: true, fields: false, builder: true }, ruleset: 'c1',
   });
   ok('the workshop\'s own rules cannot reach it',
-    bolted.players.length === 1 && bolted.useMeeples && bolted.has('fields') && !bolted.has('market')
+    bolted.players.length === 1 && !bolted.useMeeples && !bolted.has('market')
     && bolted.tilesPerTurn === 1 && bolted.rules.id === DEFAULT_RULESET && bolted.phase === 'place',
-    `${bolted.players[0].meeples} followers, farms on, no market`);
-  ok('a 7 x 7 border', JSON.stringify(bolted.board.bounds) === JSON.stringify({ minX: -3, maxX: 3, minY: -3, maxY: 3 }));
+    'solo, no followers, no market');
+  ok('a 7 x 7 and a 5 x 5', JSON.stringify(bolted.board.bounds) === JSON.stringify({ minX: -3, maxX: 3, minY: -3, maxY: 3 })
+    && JSON.stringify(new Game({ mode: 'stara5' }).board.bounds) === JSON.stringify({ minX: -2, maxX: 2, minY: -2, maxY: 2 }));
+  ok('…each with a deal of its own', new Game({ mode: 'stara5' }).seed !== a.seed);
+
+  // The third pass: abbeys want quiet, highways through the town gates.
+  {
+    const B5 = { minX: -2, maxX: 2, minY: -2, maxY: 2 };
+    const facing = (type, side, edge) => [0, 1, 2, 3].find((r) => new Board({}).edgeAt({ type, rot: r }, side) === edge);
+    const q = new Board({ bounds: B5, walled: true });
+    q.place(0, 0, TILES.B, 0);                            // the abbey
+    q.place(1, 0, TILES.B, 0);                            // all fields: 2
+    q.place(-1, 0, TILES.U, facing(TILES.U, 1, 'r'));     // a road: 1
+    q.place(0, 1, TILES.E, 0);                            // a quarter: 0
+    ok('an abbey pays 1, then 2 / 1 / 0 for fields / road / quarter round it', quietOf(q, 0, 0) === 4, `${quietOf(q, 0, 0)}`);
+
+    // A crossroads in the middle of a 5 x 5, a road from it out through the
+    // north gate and one out through the east: one highway, two gates.
+    const h = new Board({ bounds: B5, walled: true });
+    h.place(0, 0, TILES.X, 0);
+    const ns = facing(TILES.U, 0, 'r'), ew = facing(TILES.U, 1, 'r');
+    h.place(0, -1, TILES.U, ns); h.place(0, -2, TILES.U, ns);
+    h.place(1, 0, TILES.U, ew); h.place(2, 0, TILES.U, ew);
+    const ways = highways(h).filter((w) => w.gates.size);
+    ok('roads joined at a crossroads are one highway, gates stacking',
+      ways.length === 1 && ways[0].gates.size === 2 && ways[0].tiles.size === 5,
+      ways.map((w) => `${w.tiles.size} tiles, ${w.gates.size} gates`).join(' '));
+    ok('the town gates see the roads out through them, and only those',
+      gateRoads(h).map(Boolean).join() === 'true,true,false,false');
+  }
 
   // The castle walls round the square end what runs into them.
   {
@@ -2781,23 +2809,25 @@ function checkStara() {
       && !new Game({ mode: 'tesserae' }).board.walled);
   }
 
-  let full = 0, sumsUp = 0, inside = 0, ended = 0, farms = 0;
+  let full = 0, sumsUp = 0, inside = 0, ended = 0, gates = 0, claimed = 0;
   const N = 40;
   for (let seed = 1; seed <= N; seed++) {
     const r = playOut({ mode: 'stara', seed, bots: seed % 2 ? 'all' : null });
     const g = r.game;
     const tl = g.m.tally;
-    const total = tl.cities + tl.roads + tl.cloisters + tl.farms + tl.unfinished;
+    const total = Object.values(tl).reduce((x, y) => x + y, 0);
     if (total === g.players[0].score) sumsUp++;
+    if (g.log.some((l) => /claimed|follower/i.test(l))) claimed++;
     if ([...g.board.cells.values()].every((c) => g.board.inBounds(c.x, c.y))) inside++;
     if (g.board.size === 49) full++;
     if (g.phase === 'over' && (g.deck.length === 0 || g.board.size === 49)) ended++;
-    if (tl.farms > 0) farms++;
+    if (tl.gates > 0) gates++;
   }
   ok('every tile lands inside the square', inside === N, `${inside}/${N} games`);
   ok('it ends only when the square is full or nothing fits', ended === N, `${full}/${N} filled every square`);
   ok('the breakdown adds up to the score', sumsUp === N, `${sumsUp}/${N} games`);
-  ok('the farms pay at the end, once', farms > 0, `${farms}/${N} games had a paying farm`);
+  ok('no followers: nothing is ever claimed by hand', claimed === 0, `${claimed}/${N} games`);
+  ok('highways through the gates pay at the end', gates > 0, `${gates}/${N} games had one`);
 }
 
 const avg = (l) => l.reduce((a, b) => a + b, 0) / (l.length || 1);

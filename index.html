@@ -59,7 +59,7 @@
            (src/stara-ui.js). Shown only while a Starà game is running; the
            workshop's panel, HUD and claim box step aside for it. Medieval
            throughout (2026-11-18): a blackletter title, a shield for the
-           score, a wax seal to lay a tile, a banner, a charter at the end,
+           score, a wax seal to lay a tile, a charter at the end,
            and every drawn line passed through #staraHand to waver. -->
       <svg class="staraDefs" width="0" height="0" aria-hidden="true" focusable="false">
         <!-- The hand: a line displaced by smooth noise, the way a nib wanders.
@@ -83,7 +83,8 @@
               <path class="glyph" d="M13 15.5c6 -1 12 1 18 0M13 22c6 1 12 -1 18 0M13 28.5c6 -1 12 1 18 0"/>
             </svg>
           </button>
-          <div class="staraTitle"><span class="staraName">Starà</span><small id="staraDay">No. 1</small></div>
+          <div class="staraTitle"><span class="staraName">Starà</span><small id="staraDay">No. 1</small>
+            <div id="staraSizes" class="staraSizes" role="group" aria-label="Size"></div></div>
           <div class="staraShield" title="Your score">
             <svg viewBox="0 0 60 70" aria-hidden="true">
               <path class="field" d="M5 6 H55 V30 C55 50 42 60 30 66 C18 60 5 50 5 30 Z"/>
@@ -108,8 +109,6 @@
               </svg>
             </button>
           </div>
-          <button id="staraSkip" class="staraBanner"><span>No follower</span></button>
-          <div id="staraFollowersWrap" class="staraFollowers"><canvas id="staraFollowers" width="252" height="40"></canvas></div>
           <div id="staraCaption" class="staraCaption"></div>
         </div>
 

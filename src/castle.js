@@ -9,8 +9,11 @@
 // of merlons along the outside, a round tower with a conical roof at each
 // corner, two square turrets with pyramid roofs along each side (on the seams
 // between squares, so they never sit where a road could meet the wall), and a
-// GATEHOUSE wherever a laid road runs into the wall, because that is where
-// the road ends. The lamp is up and to the left, so every shadow falls down
+// gatehouse wherever a laid road runs into the wall, because that is where
+// the road ends. And in the middle of each wall, a TOWN GATE (the third pass,
+// 2026-11-18: "the middle top left right and bottom castle wall is a special
+// gate"): a bigger gatehouse between two round towers, which raises its
+// banners once a road runs out through it. The lamp is up and to the left, so every shadow falls down
 // and to the right, the same way the tiles' do.
 //
 // Drawn with hand-drawn strokes (sketch.js) and then, being drawn once and
@@ -18,6 +21,7 @@
 // ---------------------------------------------------------------------------
 
 import { sketchLine, sketchRect, sketchCircle, seedOf } from './sketch.js';
+import { gateRoads } from './modes/stara.js';
 
 /**
  * In tiles: how thick the wall is, and how far past the square the whole
@@ -37,28 +41,33 @@ const ROOF_DARK = '#76351f';
 const ROAD = '#d1bb8f';
 
 /**
- * Where laid roads meet the wall: one gate per road edge that faces out of
- * the square, as {s, i}: the wall's side (0 N, 1 E, 2 S, 3 W) and which
- * square along it, counted from the top or the left.
+ * Where laid roads meet the wall: one small gate per road edge that faces
+ * out of the square away from the middle, as {s, i}: the wall's side (0 N,
+ * 1 E, 2 S, 3 W) and which square along it, from the top or the left. And
+ * `towns`, for the four town gates in the middle: whether a road runs out
+ * through each.
  */
 export function gatesOf(board) {
-  const out = [];
+  const gates = [];
   const b = board.bounds;
-  if (!board.walled || !b) return out;
+  if (!board.walled || !b) return { gates, towns: [false, false, false, false] };
+  const mid = (b.maxX - b.minX) / 2;
   for (const cell of board.cells.values()) {
     for (const s of board.wallSidesAt(cell.x, cell.y)) {
       if (board.edgeAt(cell, s) !== 'r') continue;
-      out.push({ s, i: s % 2 === 0 ? cell.x - b.minX : cell.y - b.minY });
+      const i = s % 2 === 0 ? cell.x - b.minX : cell.y - b.minY;
+      if (i !== mid) gates.push({ s, i });
     }
   }
-  return out.sort((p, q) => p.s - q.s || p.i - q.i);
+  gates.sort((p, q) => p.s - q.s || p.i - q.i);
+  return { gates, towns: gateRoads(board).map(Boolean) };
 }
 
 /**
  * Paint the castle round a square whose top-left corner is (x0, y0), `cols`
  * by `rows` squares of `z` pixels, with gates where `gates` says.
  */
-export function paintCastle(ctx, { z, x0, y0, cols, rows, gates = [] }) {
+export function paintCastle(ctx, { z, x0, y0, cols, rows, gates = [], towns = [false, false, false, false] }) {
   const T = CASTLE.band * z;
   const w = cols * z, h = rows * z;
   const lw = Math.max(1.1, z * 0.03);
@@ -93,11 +102,16 @@ export function paintCastle(ctx, { z, x0, y0, cols, rows, gates = [] }) {
   };
 
   // What interrupts the run of merlons along a side: the gates and turrets.
-  const turretsAt = [2 * z, (cols - 2) * z];
-  const turretsDown = [2 * z, (rows - 2) * z];
-  const gateHalf = 0.27 * z, turretHalf = 0.21 * z;
+  // Turrets on the seams one square in from the town gate on either side:
+  // seams 2 and 5 on a 7 x 7, 1 and 4 on a 5 x 5.
+  const seams = (n) => { const k = Math.floor(n / 2) - 1; return [k * z, (n - k) * z]; };
+  const turretsAt = seams(cols);
+  const turretsDown = seams(rows);
+  const gateHalf = 0.27 * z, turretHalf = 0.21 * z, townHalf = 0.42 * z;
+  const middle = (s) => (s % 2 === 0 ? cols : rows) * z / 2;
   const busy = (s, a) => (s % 2 === 0 ? turretsAt : turretsDown).some((t) => Math.abs(a - t) < turretHalf + 0.05 * z)
-    || gates.some((g) => g.s === s && Math.abs(a - (g.i + 0.5) * z) < gateHalf + 0.05 * z);
+    || gates.some((g) => g.s === s && Math.abs(a - (g.i + 0.5) * z) < gateHalf + 0.05 * z)
+    || Math.abs(a - middle(s)) < townHalf + 0.05 * z;
 
   // 1. The wall's shadow, on the tiles inside and the table outside.
   ctx.save();
@@ -164,6 +178,7 @@ export function paintCastle(ctx, { z, x0, y0, cols, rows, gates = [] }) {
 
   // 6. Gatehouses, where a road ends at the wall.
   for (const g of gates) gate(ctx, at, box, g, z, T, lw, ink);
+  for (let s = 0; s < 4; s++) townGate(ctx, at, box, s, middle(s), towns[s], z, T, lw, ink);
 
   // 7. Square turrets on the seams along each side.
   for (let s = 0; s < 4; s++) {
@@ -269,6 +284,101 @@ function roundTower(ctx, cx, cy, z, lw, ink, seed) {
   ctx.fillStyle = '#d9a640';
   ctx.fill();
   ink(0.9, lw * 0.7);
+}
+
+/**
+ * A TOWN GATE in the middle of a wall: a broad gatehouse between two round
+ * towers, its passage open to the road, and on each tower a banner that is
+ * raised (gules, swallow-tailed) once a road runs out through it. A gate no
+ * road has reached yet stands shut, its passage dark.
+ */
+function townGate(ctx, at, box, s, mid, open, z, T, lw, ink) {
+  const half = 0.42 * z, pass = 0.1 * z;
+  const [gx, gy, gw, gh] = box(s, mid - half * 0.62, mid + half * 0.62, -0.01 * z, T + 0.1 * z);
+  ctx.save();
+  ctx.shadowColor = 'rgba(22,9,0,0.5)';
+  ctx.shadowBlur = z * 0.12;
+  ctx.shadowOffsetX = z * 0.05;
+  ctx.shadowOffsetY = z * 0.08;
+  ctx.fillStyle = STONE;
+  ctx.fillRect(gx, gy, gw, gh);
+  ctx.restore();
+  // The passage: open, the road's colour; shut, the timber of the doors.
+  const [px, py, pw, ph] = box(s, mid - pass, mid + pass, -0.01 * z, T + 0.1 * z);
+  ctx.fillStyle = open ? ROAD : '#5a3a1c';
+  ctx.fillRect(px, py, pw, ph);
+  ctx.beginPath();
+  if (open) {
+    for (const f of [0.7, 0.88, 1.06]) {
+      const [a0, a1] = [at(s, mid - pass, T * f), at(s, mid + pass, T * f)];
+      sketchLine(ctx, a0[0], a0[1], a1[0], a1[1], { seed: seedOf(s, f, 21), rough: 0.3, passes: 1 });
+    }
+  } else {
+    // The doors' planks, and the seam where they meet.
+    for (const f of [-0.5, 0, 0.5]) {
+      const [a0, a1] = [at(s, mid + pass * f, 0), at(s, mid + pass * f, T + 0.1 * z)];
+      sketchLine(ctx, a0[0], a0[1], a1[0], a1[1], { seed: seedOf(s, f, 22), rough: 0.3, passes: 1 });
+    }
+  }
+  ink(0.8, lw * 0.75);
+  ctx.beginPath();
+  sketchRect(ctx, gx, gy, gw, gh, { seed: seedOf(s, 31), rough: 0.6 });
+  sketchRect(ctx, px, py, pw, ph, { seed: seedOf(s, 32), rough: 0.5, passes: 1 });
+  ink(0.95, lw);
+  // The two round towers, and their banners.
+  for (const side of [-1, 1]) {
+    const [cx, cy] = at(s, mid + side * half * 0.66, T * 0.58);
+    const R = 0.17 * z;
+    ctx.save();
+    ctx.shadowColor = 'rgba(22,9,0,0.5)';
+    ctx.shadowBlur = z * 0.1;
+    ctx.shadowOffsetX = z * 0.04;
+    ctx.shadowOffsetY = z * 0.07;
+    ctx.beginPath();
+    ctx.arc(cx, cy, R, 0, Math.PI * 2);
+    ctx.fillStyle = STONE;
+    ctx.fill();
+    ctx.restore();
+    const roof = R * 0.72;
+    const lit = ctx.createRadialGradient(cx - roof * 0.45, cy - roof * 0.5, roof * 0.1, cx, cy, roof * 1.05);
+    lit.addColorStop(0, ROOF_LIT);
+    lit.addColorStop(0.55, ROOF);
+    lit.addColorStop(1, ROOF_DARK);
+    ctx.beginPath();
+    ctx.arc(cx, cy, roof, 0, Math.PI * 2);
+    ctx.fillStyle = lit;
+    ctx.fill();
+    ctx.beginPath();
+    sketchCircle(ctx, cx, cy, R, { seed: seedOf(s, side, 41), rough: 0.6 });
+    sketchCircle(ctx, cx, cy, roof, { seed: seedOf(s, side, 42), rough: 0.5, passes: 1 });
+    ink(0.95, lw * 0.9);
+    if (open) banner(ctx, cx, cy, z, lw, ink, seedOf(s, side, 43));
+  }
+}
+
+/** A swallow-tailed banner, gules, flying from a tower top, seen from above. */
+function banner(ctx, cx, cy, z, lw, ink, seed) {
+  const L = 0.34 * z, H = 0.12 * z;
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.rotate(-0.35);
+  ctx.beginPath();
+  ctx.moveTo(0, -H / 2);
+  ctx.quadraticCurveTo(L * 0.5, -H * 0.8, L, -H / 2);
+  ctx.lineTo(L * 0.78, 0);
+  ctx.lineTo(L, H / 2);
+  ctx.quadraticCurveTo(L * 0.5, H * 0.2, 0, H / 2);
+  ctx.closePath();
+  ctx.fillStyle = '#a32a1d';
+  ctx.fill();
+  ctx.strokeStyle = INK;
+  ctx.lineWidth = lw * 0.8;
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.arc(0, 0, z * 0.025, 0, Math.PI * 2);
+  ctx.fillStyle = '#d9a640';
+  ctx.fill();
+  ctx.restore();
 }
 
 /**

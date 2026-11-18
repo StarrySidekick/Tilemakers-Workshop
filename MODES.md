@@ -29,7 +29,7 @@ interesting part.
 | 11. Tesserae | mode | Is there a version someone opens every morning? |
 | 12. Two-faced | mechanic | Is a tile a noun, or a state? |
 | 13. World | mode + 4 tile families | What does the countryside still not have? |
-| 14. Starà | mode + its own interface | Is plain Carcassonne a daily puzzle once the table has an edge? |
+| 14. Starà | two modes (5×5, 7×7) + their own interface | Is Carcassonne a daily puzzle once the table has an edge? |
 
 Play them and the questions answer themselves. What's at the bottom is what the
 engine still can't do.
@@ -1983,7 +1983,7 @@ the fix is the number, not the rule.
 
 ## 14. Starà — the daily square
 
-> **Built 2026-11-18, in two passes** — `src/modes/stara.js` (the rules),
+> **Built 2026-11-18, in three passes** — `src/modes/stara.js` (the rules),
 > `walled` in `src/board.js` (the castle wall's rule), `src/stara-ui.js` (its
 > own screen), `drawTable` and `drawCastle` in `src/render.js`,
 > `src/castle.js` (the castle's picture), `src/sketch.js` (hand-drawn
@@ -2000,7 +2000,75 @@ interface much simpler and more intuitive, with just like the tile itself pop
 up and then you place it and stuff, very minimalist. the background should be
 real wood"*.
 
-**Question:** is plain Carcassonne a daily puzzle once the table has an edge?
+**Question:** is Carcassonne a daily puzzle once the table has an edge?
+
+**Where it stands now (the third pass)** comes first; how it got there
+follows, pass by pass.
+
+Timothy, the third pass: *"no meeple. it's a solitary game, so you just claim
+stuff simply automatically. so there's no meeple placement stage"*, *"let's
+make a 5x5 and 7x7 version"*, *"the middle top left right and bottom castle
+wall is a special gate, and if a road is connected to it scores +1 per tile.
+this can stack if the road connects two three or all four gates"*, *"cities
+need to be rethemed in some way now that the out kingdom border walls are the
+city walls ... you tell me what makes sense historically"*, and *"cloisters
+need to have a new function now that there a guarantee you'll fill the board
+up"*. Asked four questions, he took the recommendation each time:
+
+- **A walled town of quarters.** The square is one town inside one wall, the
+  way Carcassonne's own Cité grew from several cores within a single wall, so
+  a tile city is a **quarter** of it. Quarters pay as cities (2 a tile and 2 a
+  pennant when finished), and at the end the town is granted a **charter: +2
+  for every finished quarter**, so many small quarters can beat one big one.
+- **Highways.** Roads end at a crossroads, so one road can only ever reach
+  two gates. To let three and four stack, roads joined at a crossroads (a
+  tile with more than one road on it: the three- and four-way junctions) are
+  one **highway**, and at the end every highway pays **+1 per tile for each of
+  the four town gates it reaches**. The town gates are the middle of each
+  wall; a road out through any other part of the wall still just ends there.
+- **Abbeys want quiet.** An abbey pays 1, and for each tile round it: **2 if
+  it is all fields, 1 if a road runs through it, 0 if a quarter stands on
+  it.** He chose "+1 for each square that is only field"; in the base deck the
+  only all-field tile is the abbey itself (4 of 72), so that would almost never
+  pay. The grading is Claude's call to keep his order of quiet and make it
+  score, named to him. An abbey still finishes (and pays) when every square
+  round it is filled, the wall counting as filled; otherwise it pays at the
+  end on what is round it then. Historically the point: the Cistercians built
+  away from towns.
+- **Fields are the town's gardens** and score nothing. With no followers every
+  field would otherwise pay: measured, about 40 points a game, most of it out
+  of your hands.
+
+**No followers.** Everything you build is yours. A road, a quarter or an abbey
+pays when it is finished; whatever is unfinished pays at the end (a road 1 a
+tile, a quarter 1 a tile and 1 a pennant, an abbey its quiet). There is no
+claim step: the seal is the whole turn.
+
+**Two sizes**, `stara` (7 × 7) and `stara5` (5 × 5), each its own daily deal
+(the 7 × 7 keeps the seed it has had since day 1). A switch under the title
+goes between them and keeps a game of each, so a tap on the other size never
+throws a day away. The town gates sit in the middle square of each side on
+either size, and the turrets on the seams one square in from them.
+
+**What the third pass measures** (100 games each; the bot is `src/ai.js`,
+which does not know about highways, the charter or quiet, so it barely beats
+random play, and these numbers say little about what a player who plans for
+the gates can reach):
+
+| | mean | range | squares filled | square full | best highway, gates 0/1/2/3/4 |
+|---|---|---|---|---|---|
+| 5×5 random | 87.7 | 54–129 | 24.3 of 25 | 39 games | 19/68/12/1/0 |
+| 5×5 bot | 89.5 | 61–127 | 24.3 of 25 | 46 games | 15/72/13/0/0 |
+| 7×7 random | 148.2 | 105–197 | 46.2 of 49 | 2 games | 20/75/5/0/0 |
+| 7×7 bot | 157.8 | 108–209 | 46.5 of 49 | 4 games | 18/78/4/0/0 |
+
+The bot's 7 × 7 is 48.3 quarters, 33.7 roads, 20.3 abbeys, 11.1 highways,
+23.6 charter and 20.8 unfinished. Three gates on one highway happened once in
+400 games and four never: **stacking the gates is a skill, not something that
+happens to you**, which is what it should be. The 5 × 5 fills nearly half the
+time; the 7 × 7 still almost never does.
+
+**The earlier passes**, as they were built:
 
 The same day, the second pass: *"push the sqaure to the edge os the left and
 right to allow space"*, *"make all the ui and everything medival themes and
@@ -2104,8 +2172,9 @@ Bottom: the draw pile with its count, the tile in your hand, and the seal.
 - Dragged, the tile shrinks to its size on the board and follows your finger;
   over a square it hands over to the board's ghost, turned to fit if it fits
   that square another way, which is what dropping it there does anyway.
-- Laid, the same tile stays big on the card with **a dot on each thing you
-  could put a follower on**, and a "No follower" under it.
+- (Second pass) Laid, the same tile stayed big on the card with a ring on each
+  thing you could put a follower on, and a banner for "No follower". Gone in
+  the third pass with the followers.
 - One line of instructions under the card for your first six tiles ever, and
   then nothing.
 - At the end, a card: the score, where it came from, how many squares were
