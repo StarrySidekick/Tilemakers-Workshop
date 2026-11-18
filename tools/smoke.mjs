@@ -21,7 +21,7 @@ const ROOT = new URL('..', import.meta.url).pathname;
 const PORT = 5199;
 const TYPES = {
   '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json',
-  '.jpg': 'image/jpeg', '.png': 'image/png',
+  '.jpg': 'image/jpeg', '.png': 'image/png', '.woff2': 'font/woff2', '.ttf': 'font/ttf',
 };
 
 const server = createServer(async (req, res) => {
@@ -1063,6 +1063,20 @@ await page.selectOption('#tilesPerTurn', '1');
       tile: Math.round(r.cam.zoom),
     };
   });
+  // The castle is drawn round it, and the medieval faces have arrived.
+  const look = await page.evaluate(async () => {
+    await document.fonts.ready;
+    const r = window.LAB.renderer;
+    return {
+      walled: window.LAB.game.board.walled,
+      castle: !!r.castleLayer && r.castleLayer.width > 0,
+      fonts: ['34px Fraktur', '16px Fell', '16px Cinzel'].filter((f) => !document.fonts.check(f)),
+      edge: Math.round(r.toScreen(-3, 0)[0] - (0.5 * r.cam.zoom)),
+    };
+  });
+  if (!look.walled || !look.castle) problems.push('no castle wall round the square');
+  if (look.fonts.length) problems.push(`fonts did not load: ${look.fonts.join(', ')}`);
+  if (look.edge > 4) problems.push(`the square is not edge to edge (${look.edge}px spare)`);
   if (!screen.on) problems.push('the Starà screen did not come up');
   if (screen.panel !== 'none') problems.push('the workshop panel is still showing');
   if (!screen.fits) problems.push('the 7x7 square does not fit between the top bar and the tray');
@@ -1149,7 +1163,7 @@ await page.selectOption('#tilesPerTurn', '1');
 
   if (errors.length) problems.push(errors[0].split('\n')[0]);
   if (problems.length) { failures++; console.log(`  ✗ starà on a phone: ${problems.join(' · ')}`); }
-  else console.log(`  ✓ starà on a phone     the square at ${screen.tile}px a tile, card, checkmark, follower, end card, replay`);
+  else console.log(`  ✓ starà on a phone     walled, edge to edge at ${screen.tile}px a tile; card, seal, follower, charter, replay`);
   await page.setViewportSize({ width: 1280, height: 820 });
 }
 

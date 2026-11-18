@@ -26,7 +26,9 @@
 import { STARA_SQUARES } from './modes/stara.js';
 import { drawMeeple, PLAYER_COLORS } from './art.js';
 import { rotPoint } from './tiles.js';
+import { sketchCircle, sketchLine, seedOf } from './sketch.js';
 import { RULES } from './game.js';
+import { CASTLE } from './castle.js';
 
 const $ = (id) => document.getElementById(id);
 const BEST = (iso) => `tilemakers-workshop/stara/best/${iso}`;
@@ -148,13 +150,15 @@ export class StaraUI {
     const r = this.h.renderer;
     const b = this.game.board.bounds;
     const across = b.maxX - b.minX + 1, down = b.maxY - b.minY + 1;
-    const gutter = 16;
-    const availW = stage.width - gutter * 2;
-    const availH = stage.height - top - tray - gutter;
-    // A third of a tile spare, for the lip of the well and the shadows.
-    const zoom = Math.floor(Math.min(availW / (across + 0.34), availH / (down + 0.34)));
+    // Edge to edge (2026-11-18: "push the square to the edge of the left and
+    // right"): the castle's corner towers touch the sides of the screen.
+    const gutter = 6;
+    const reach = CASTLE.reach * 2;
+    const availW = stage.width;
+    const availH = stage.height - top - tray - gutter * 2;
+    const zoom = Math.floor(Math.min(availW / (across + reach), availH / (down + reach)));
     r.cam.zoom = Math.max(24, Math.min(150, zoom));
-    const midY = top + gutter / 2 + availH / 2;
+    const midY = top + gutter + availH / 2;
     r.cam.x = (b.minX + b.maxX + 1) / 2;
     r.cam.y = (b.minY + b.maxY + 1) / 2 - (midY - stage.height / 2) / r.cam.zoom;
     r.glide = null;
@@ -235,23 +239,27 @@ export class StaraUI {
       const [px, py] = rotPoint(cell.type.spots[o.i] || [0.5, 0.5], cell.rot);
       return { ...o, ax: px * size, ay: py * size, sx: px * size, sy: py * size, r };
     }), r, size);
+    // Parchment roundels, ringed by hand in ink, a follower on each, and a
+    // pen line back to the spot it really means when it had to move aside.
     const colour = PLAYER_COLORS[0];
+    ctx.lineCap = 'round';
     for (const s of this.spots) {
       if (Math.hypot(s.sx - s.ax, s.sy - s.ay) < 3) continue;
       ctx.beginPath();
-      ctx.moveTo(s.ax, s.ay);
-      ctx.lineTo(s.sx, s.sy);
-      ctx.strokeStyle = 'rgba(255,246,228,0.75)';
-      ctx.lineWidth = 2;
+      sketchLine(ctx, s.ax, s.ay, s.sx, s.sy, { seed: seedOf(s.ax, s.ay), rough: 1.2 });
+      ctx.strokeStyle = 'rgba(43,26,13,0.8)';
+      ctx.lineWidth = 2.2;
       ctx.stroke();
     }
     for (const s of this.spots) {
       ctx.beginPath();
       ctx.arc(s.sx, s.sy, s.r, 0, Math.PI * 2);
-      ctx.fillStyle = 'rgba(255,246,228,0.82)';
+      ctx.fillStyle = 'rgba(244,230,198,0.92)';
       ctx.fill();
+      ctx.beginPath();
+      sketchCircle(ctx, s.sx, s.sy, s.r, { seed: seedOf(s.sx, s.sy, s.i), rough: 1.4 });
       ctx.lineWidth = 3;
-      ctx.strokeStyle = colour;
+      ctx.strokeStyle = '#2b1a0d';
       ctx.stroke();
       drawMeeple(ctx, s.sx, s.sy, s.r * 1.45, colour, { farmer: s.f?.type === 'field' });
     }
@@ -288,7 +296,7 @@ export class StaraUI {
     let text = '';
     if (taught < 6 && held) {
       if (held.hand && !pending) text = 'Touch the tile to turn it. Touch a lit square to put it there.';
-      else if (held.hand) text = 'Touch it again to turn it. ✓ lays it.';
+      else if (held.hand) text = 'Touch it again to turn it. The seal lays it.';
       else if (claims.length) text = 'Put a follower on something, or not.';
     }
     el.textContent = text;
@@ -419,9 +427,9 @@ export class StaraUI {
     const t = g.m.tally;
     const rows = [['Cities', t.cities], ['Roads', t.roads], ['Cloisters', t.cloisters],
       ['Farms', t.farms], ['Unfinished', t.unfinished]];
-    $('staraEndDay').textContent = `Starà No. ${g.m.day.n}`;
+    $('staraEndDay').innerHTML = `Starà<small>No. ${g.m.day.n}</small>`;
     $('staraEndScore').textContent = score;
-    $('staraEndRows').innerHTML = rows.map(([k, v]) => `<div><span>${k}</span><b>${v}</b></div>`).join('');
+    $('staraEndRows').innerHTML = rows.map(([k, v]) => `<div><span>${k}</span><i></i><b>${v}</b></div>`).join('');
     $('staraEndFill').textContent = `${g.board.size} of ${STARA_SQUARES} squares filled`;
     $('staraEndBest').textContent = prior == null ? 'Your first square today.'
       : score > prior ? `A new best for today (was ${prior}).`

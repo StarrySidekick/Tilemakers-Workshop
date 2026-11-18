@@ -1983,10 +1983,13 @@ the fix is the number, not the rule.
 
 ## 14. Starà — the daily square
 
-> **Built 2026-11-18** — `src/modes/stara.js` (the rules), `src/stara-ui.js`
-> (its own screen), `drawTable` in `src/render.js` (the table), and
-> `assets/table-oak.jpg` (the wood; see `assets/CREDITS.md`). Checked by
-> `checkStara` in the harness and "starà on a phone" in the smoke test.
+> **Built 2026-11-18, in two passes** — `src/modes/stara.js` (the rules),
+> `walled` in `src/board.js` (the castle wall's rule), `src/stara-ui.js` (its
+> own screen), `drawTable` and `drawCastle` in `src/render.js`,
+> `src/castle.js` (the castle's picture), `src/sketch.js` (hand-drawn
+> strokes), `assets/table-oak.jpg` and `assets/fonts/` (see
+> `assets/CREDITS.md`). Checked by `checkStara` in the harness and "starà on a
+> phone" in the smoke test.
 
 Timothy, 2026-11-18: *"new mode, going to be daily, and based around the idea
 of fitting tiles into the area of your phone screen. so like let's define a
@@ -1999,11 +2002,28 @@ real wood"*.
 
 **Question:** is plain Carcassonne a daily puzzle once the table has an edge?
 
+The same day, the second pass: *"push the sqaure to the edge os the left and
+right to allow space"*, *"make all the ui and everything medival themes and
+cool. when you are using vector lines try to make it look more handrawn using
+whatever technique you have access to"*, and *"the perimeter of the square
+should be top down castle walls. they also end features for the sake of
+scoring and finishing."*
+
 **The rules** are the base game as printed: the 72-tile base deck, seven
 followers, farms scored at the end, unfinished features at half, solo, on a
-7 x 7 border with the start tile in the middle. Calls of Claude's, each with
-why:
+7 x 7 square with the start tile in the middle, **walled round**. The wall is
+his rule: a road that runs into it ends there (at a gatehouse, in the
+picture), and a city that runs into it is closed by it, so a single city cap
+laid against the wall is a finished two-point city. It is `walled` on the
+board: as a tile is wired, every road or city edge facing off the square
+loses its open slot, the way an Abbazia or a city wall caps one in Soffiando.
+Calls of Claude's, each with why:
 
+- **A cloister counts the wall round it as tiles.** He said the walls end
+  features "for the sake of scoring and finishing"; a cloister is finished by
+  being surrounded, and the wall surrounds. So a cloister on the edge needs
+  only its inside neighbours, five of them, and one in a corner three. It is
+  `Board.enclosure`, which is `surroundCount` everywhere else.
 - **The whole deck, not 48 tiles.** The square has 48 free squares and the
   deck has 71 tiles, so most days the deck outlasts the square. Dealing
   exactly 48 would leave a hole for every tile that fits nowhere; dealing the
@@ -2027,20 +2047,60 @@ why:
 **The table.** A photograph: Poly Haven's "Oak Wood Planks" (CC0), which
 covers 1.2 m of table, drawn to scale against a 45 mm tile so its planks are
 about three tiles wide, as they would be under a real box. A warm lamp in the
-middle falling off to the corners; the 7 x 7 sunk into the wood as a shallow
-well with its squares scored faintly into the floor; and a soft shadow under
-each tile, because cardboard on a table casts one. All of the table is baked
-into one canvas and blitted, since Starà's camera never moves.
+middle falling off to the corners; the floor of the square a shade darker with
+its squares ruled across it by hand; and a soft shadow under each tile,
+because cardboard on a table casts one. All of the table is baked into one
+canvas and blitted, since Starà's camera never moves. The square runs **edge
+to edge**: the castle's corner towers touch the sides of the screen.
+
+**The castle**, seen from above: a stone wall-walk with its flagstones, a
+parapet of merlons along the outside, a round tower with a conical roof of
+tiles at each corner, two square turrets with pyramid roofs along each side
+(on the seams between squares, so a road can never meet the wall where one
+stands), and a **gatehouse wherever a laid road meets the wall**, with a
+portcullis, because that is where the road ends. The lamp is up and to the
+left, so every shadow falls down and to the right, and the castle stands over
+the tiles, its shadow falling across the squares along the edge. It is its
+own layer, re-made only when a road reaches the wall (about 85 ms, once);
+every other frame it is one blit.
+
+**Drawn by hand.** Two techniques, both already in the repo or built on it:
+
+- Anything drawn once and kept is drawn clean and then **bent as a picture**
+  by `ink.js`: every pixel looked up a small, smoothly varying distance away,
+  which makes every line in it waver like a nib's. The tiles get it by being
+  drawn in the chart's inks (`spec.inked`), as the cloud kingdom's were; the
+  castle gets it after it is painted, a wander and then the tooth of the paper.
+- Anything drawn live, every frame, is **drawn as a hand draws it**
+  (`sketch.js`, the method rough.js uses): a straight line is a shallow curve,
+  its ends land a hair off and run a touch long, and it is gone over twice.
+  Seeded from where it is, so it wavers the same way every frame instead of
+  crawling. The lit squares, the ring round a tile you are about to lay, the
+  ruled floor and the follower rings on the card are drawn this way.
+- The page's own shapes (the roundel, the shield, the seal, the banner, the
+  charter's rules and deckled edge) go through an SVG **displacement filter**
+  (`#staraHand`, `#staraDeckle` in `index.html`): smooth noise pushing the
+  outline about. Never the text: a wobbled letter is a misprint, not a hand.
+
+**Medieval.** A blackletter title (UnifrakturMaguntia); words in IM Fell
+English, cut from the Fell types of the 1670s; numbers in Cinzel's Roman
+capitals, because Fell's old-style figures make a 0 read as an o. The score
+on a heraldic shield, gules with a chief or; a red **wax seal** that lays the
+tile; a forked banner for "No follower"; parchment tile backs on the pile;
+and at the end of the day a **charter** on deckled parchment, ruled twice in
+ink, with dotted leaders to the points. The fonts are self-hosted under the
+SIL Open Font License, so the game still runs offline. The workshop's panel,
+when the menu brings it back, is on parchment too (`spec.antique`).
 
 **The interface.** While a Starà game runs, the workshop's panel, HUD and claim
 box step aside. Top: a menu (which brings the panel back), the day, the score.
 Middle: the square, fitted to the screen and held still (no pan, no zoom).
-Bottom: the draw pile with its count, the tile in your hand, and a checkmark.
+Bottom: the draw pile with its count, the tile in your hand, and the seal.
 
 - The tile pops up off the pile. **Touch it to turn it**; it is seen to turn.
 - **Touch a lit square** (or drag the tile onto one) and it sits there; touch
   it again, or the card, to turn it through only the ways it fits there. The
-  **checkmark** lays it. Touching anywhere else puts it back in your hand.
+  **seal** lays it. Touching anywhere else puts it back in your hand.
 - Dragged, the tile shrinks to its size on the board and follows your finger;
   over a square it hands over to the board's ghost, turned to fit if it fits
   that square another way, which is what dropping it there does anyway.
@@ -2055,18 +2115,23 @@ Bottom: the draw pile with its count, the tile in your hand, and a checkmark.
 
 | | mean score | range | squares filled | square full |
 |---|---|---|---|---|
-| random | 45.1 | 21–84 | 46.2 of 49 | 5 games |
-| the bot | 59.4 | 29–92 | 46.6 of 49 | 3 games |
+| random, open border | 45.1 | 21–84 | 46.2 of 49 | 5 games |
+| the bot, open border | 59.4 | 29–92 | 46.6 of 49 | 3 games |
+| random, walled | 72.2 | 28–116 | 46.4 of 49 | 3 games |
+| the bot, walled | 92.1 | 46–151 | 46.5 of 49 | 5 games |
 
-The bot's 59 is 9.7 cities, 3.0 roads, 6.6 cloisters, 11.5 farms and 28.7
-unfinished. **Half its score is unfinished work**, because on a 7 x 7 a city
-or road that runs into the border can never close: the edge is the real
-opponent. And **the square is almost never filled**: about two and a half
-holes a day are left that nothing in the deck fits. Fitting the shape is
-harder than it looks, and plain Carcassonne does not reward it, so if
-"fitting tiles into the area" is meant to be the point, a bonus for a full
-square (or for each square filled) is the obvious lever. Not built; it is
-Timothy's call.
+With an open border the bot's 59 was 9.7 cities, 3.0 roads, 6.6 cloisters,
+11.5 farms and 28.7 unfinished: half its score was work that could never
+close, because anything that ran into the edge was dead. **The walls turned
+that round.** Walled, its 92 is 30.3 cities, 6.2 roads, 15.2 cloisters, 24.1
+farms (more closed cities to feed them) and 16.3 unfinished. The edge went
+from the thing that ruins a feature to the cheapest way to finish one.
+
+What has not changed: **the square is almost never filled**, about two and a
+half holes a day that nothing in the deck fits. Fitting the shape is harder
+than it looks and still pays nothing in itself, so if "fitting tiles into the
+area" is meant to be the point, a bonus for a full square (or for each square
+filled) is the obvious lever. Not built; it is Timothy's call.
 
 ---
 

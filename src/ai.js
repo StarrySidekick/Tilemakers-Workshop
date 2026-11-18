@@ -428,7 +428,7 @@ export class Bot {
     // A monastery is the clearest case of the distinction: an empty one
     // already pays 1 and will pay 9 if the country fills in around it.
     if (d.type === 'monastery') {
-      const filled = board.surroundCount(d.at.x, d.at.y);
+      const filled = board.enclosure(d.at.x, d.at.y);
       if (filled === 8) return board.value(d);
       const odds = room * (0.3 + 0.7 * filled / 8);
       return odds * 9 + (1 - odds) * (1 + filled);

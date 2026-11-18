@@ -43,7 +43,7 @@ export function meepleWeight(m, d) {
 }
 
 export class Board {
-  constructor({ bounds = null, wrap = false } = {}) {
+  constructor({ bounds = null, wrap = false, walled = false } = {}) {
     this.cells = new Map();       // "x,y" -> cell (the TOP cell, if stacked)
     this.parent = new Map();      // "x,y#i" -> parent id
     this.data = new Map();        // root id -> component data
@@ -60,6 +60,15 @@ export class Board {
      * board what is there gets the far side without knowing it.
      */
     this.wrap = wrap;
+    /**
+     * A WALLED board has castle walls round its edge (Starà, 2026-11-18: "the
+     * perimeter of the square should be top down castle walls. they also end
+     * features for the sake of scoring and finishing"). A road that runs into
+     * the wall ends at it, a city that runs into it is closed by it, and a
+     * cloister counts the wall as tiles round it. Only a bounded board that
+     * does not wrap can have one.
+     */
+    this.walled = walled && !wrap && !!bounds;
     this.seq = 0;                 // placement counter, for replay order
     /**
      * Bumped by every mutation — placing, shifting, removing, replacing. It
@@ -381,6 +390,18 @@ export class Board {
       if (!wired) continue;
       const root = this.union(`${k}#${mine}`, id);
       this.data.get(root).open -= 2; // both halves of the seam are now closed
+    }
+
+    // The castle wall round a walled board caps every road and city that runs
+    // off the square, once per side, as the tile is wired. A rebuild wires
+    // every tile afresh, so it is applied exactly once whatever the order.
+    if (this.walled) {
+      for (let s = 0; s < 4; s++) {
+        const [dx, dy] = SIDE_STEP[s];
+        if (this.inBounds(x + dx, y + dy)) continue;
+        const mine = this.featAt(cell, s);
+        if (mine != null) this.data.get(this.find(`${k}#${mine}`)).open -= 1;
+      }
     }
 
     this.linkFields(cell);
@@ -832,6 +853,36 @@ export class Board {
     return n;
   }
 
+  /**
+   * What stands round a cloister: the tiles in its 3x3, and on a walled board
+   * the wall as well, so a cloister against the wall is finished by the
+   * squares inside it. Everywhere else this is just `surroundCount`.
+   */
+  enclosure(x, y) {
+    let n = this.surroundCount(x, y);
+    if (!this.walled) return n;
+    for (let dx = -1; dx <= 1; dx++) {
+      for (let dy = -1; dy <= 1; dy++) {
+        if ((dx || dy) && !this.inBounds(x + dx, y + dy)) n++;
+      }
+    }
+    return n;
+  }
+
+  /**
+   * Which sides of the square at (x, y) face the castle wall, as world sides.
+   * The renderer asks, to put a gate where a road meets it.
+   */
+  wallSidesAt(x, y) {
+    const out = [];
+    if (!this.walled) return out;
+    for (let s = 0; s < 4; s++) {
+      const [dx, dy] = SIDE_STEP[s];
+      if (!this.inBounds(x + dx, y + dy)) out.push(s);
+    }
+    return out;
+  }
+
   markScored(d) {
     d.scored = true;
     for (const p of d.parts) this.scoredParts.add(p);
@@ -872,7 +923,7 @@ export class Board {
         c.type.feats.forEach((f, i) => {
           if (!CENTRE_FEATURES.has(f.type)) return;
           const d = this.data.get(this.find(`${keyOf(c.x, c.y)}#${i}`));
-          if (d && !d.scored && this.surroundCount(c.x, c.y) === 8) { this.markScored(d); done.push(d); }
+          if (d && !d.scored && this.enclosure(c.x, c.y) === 8) { this.markScored(d); done.push(d); }
         });
       }
     }
@@ -907,7 +958,7 @@ export class Board {
     const shields = pennants ? d.shields : 0;
     if (d.type === 'city') return final ? n + shields : 2 * n + 2 * shields;
     if (d.type === 'road') return n;
-    if (d.type === 'monastery' || d.type === 'garden') return 1 + this.surroundCount(d.at.x, d.at.y);
+    if (d.type === 'monastery' || d.type === 'garden') return 1 + this.enclosure(d.at.x, d.at.y);
     if (d.type === 'forest') return n + d.shields;
     return 0;
   }

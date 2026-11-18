@@ -1413,7 +1413,9 @@ function drawTileInked(ctx2, type, opts = {}) {
     ctx2.restore();
     return;
   }
-  if (!document.body.classList.contains('parchment')) return drawTile(ctx2, type, opts);
+  // Starà's tiles are inked too, whatever the dropdown has been turned to.
+  const inked = document.body.classList.contains('parchment') || document.body.classList.contains('stara');
+  if (!inked) return drawTile(ctx2, type, opts);
   drawTile(ctx2, type, { ...opts, only: 'ground' });
   roughen(ctx2.canvas, WOBBLE(ctx2.canvas.width));
   drawTile(ctx2, type, { ...opts, only: 'built' });

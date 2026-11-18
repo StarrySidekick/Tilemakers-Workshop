@@ -1,8 +1,8 @@
 // Written by tools/stamp.mjs. Don't edit by hand — run the tool, or the
 // copy in version.json goes out of step and the page starts crying wolf.
 export const VERSION = {
-  "version": "0.38.0",
-  "build": 49,
+  "version": "0.39.0",
+  "build": 50,
   "date": "2026-11-18",
-  "label": "Starà, the daily square on a wooden table"
+  "label": "Starà walled, medieval and drawn by hand"
 };

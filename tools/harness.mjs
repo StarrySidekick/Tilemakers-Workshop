@@ -2751,6 +2751,36 @@ function checkStara() {
     `${bolted.players[0].meeples} followers, farms on, no market`);
   ok('a 7 x 7 border', JSON.stringify(bolted.board.bounds) === JSON.stringify({ minX: -3, maxX: 3, minY: -3, maxY: 3 }));
 
+  // The castle walls round the square end what runs into them.
+  {
+    const B = { minX: -3, maxX: 3, minY: -3, maxY: 3 };
+    const facing = (type, side, edge) => [0, 1, 2, 3].find((r) => new Board({}).edgeAt({ type, rot: r }, side) === edge);
+    const closes = (walled, build) => {
+      const b = new Board({ bounds: B, walled });
+      return build(b).map((d) => `${d.type}:${b.value(d)}`).join(' ');
+    };
+    const cap = (b) => { b.place(0, -3, TILES.E, facing(TILES.E, 0, 'c')); return b.completedBy(0, -3); };
+    ok('a city cap against the wall is a finished city', closes(true, cap) === 'city:2' && closes(false, cap) === '',
+      closes(true, cap));
+    const road = (b) => {
+      b.place(1, 0, TILES.X, 0);
+      const r = facing(TILES.U, 1, 'r');
+      b.place(2, 0, TILES.U, r); b.completedBy(2, 0);
+      b.place(3, 0, TILES.U, r); return b.completedBy(3, 0);
+    };
+    ok('a road that runs into the wall ends there', closes(true, road) === 'road:3' && closes(false, road) === '',
+      closes(true, road));
+    const cloister = (b) => {
+      b.place(-3, -3, TILES.B, 0);
+      return [[-2, -3], [-3, -2], [-2, -2]].flatMap(([x, y]) => (b.place(x, y, TILES.B, 0), b.completedBy(x, y)))
+        .filter((d) => d.at.x === -3 && d.at.y === -3);
+    };
+    ok('a cloister in the corner counts the wall round it', closes(true, cloister) === 'monastery:9'
+      && closes(false, cloister) === '', closes(true, cloister));
+    ok('Starà has the walls; Tesserae does not', new Game({ mode: 'stara' }).board.walled
+      && !new Game({ mode: 'tesserae' }).board.walled);
+  }
+
   let full = 0, sumsUp = 0, inside = 0, ended = 0, farms = 0;
   const N = 40;
   for (let seed = 1; seed <= N; seed++) {

@@ -17,6 +17,9 @@ import { THEME, applyDusk, usePalette } from './theme.js';
 import { DESIGN, rgba } from './design.js';
 import { rotPoint, wallSides, opposite } from './tiles.js';
 import { liftableCells } from './mechanics.js';
+import { roughen } from './ink.js';
+import { paintCastle, gatesOf, CASTLE } from './castle.js';
+import { sketchLine, sketchRect, seedOf } from './sketch.js';
 
 // Move targets, in the order you want to notice them. Green is the plain "you
 // can go here"; teal is a special move (a road dash, a warp, a fight); red is
@@ -56,6 +59,9 @@ const FOXING = [
  */
 const WOOD_TILES = 1200 / 45;
 
+/** The face a floating score rises in, everywhere but Starà. */
+const FLOAT_FACE = 'ui-sans-serif, system-ui, sans-serif';
+
 /** Fast then slow — the shape almost everything transient here moves on. */
 const ease = (t) => 1 - (1 - t) ** 3;
 
@@ -81,6 +87,7 @@ export class Renderer {
     this.moveSpots = [];
     this.caveView = null;
     this.fx = null;         // an Effects list, if anyone has given us one
+    this.floatFace = FLOAT_FACE;
     this.glide = null;      // a camera easing somewhere
     this.shownWater = null; // where the sea has got to, chasing the waterline
     this.resize();
@@ -226,12 +233,16 @@ export class Renderer {
     this.pixel = !!game.spec?.pixel;
     setPixelFigures(this.pixel);
     const antique = !this.pixel && game.m?.backdrop === 'sky';
-    usePalette(antique ? 'chart' : 'twilight');
+    // Starà's tiles are inked too (spec.inked): the chart's colours and its
+    // hand-drawn line, on a table instead of a sky.
+    usePalette(antique || (!this.pixel && game.spec?.inked) ? 'chart' : 'twilight');
     if (this.pixel) this.drawCoasts(game, fog);
     // On a table the tiles are cardboard lying on wood, and cast a shadow on
     // it. All the shadows go down first, so none falls across a neighbour.
     const table = !!game.spec?.table;
     if (table) this.drawTileShadows(game);
+    // Starà's scores rise in the same Roman capitals as its shield.
+    this.floatFace = table ? "'Cinzel', ui-serif, Georgia, serif" : FLOAT_FACE;
 
     for (const cell of game.board.cells.values()) {
       if (!this.onScreen(cell.x, cell.y)) continue;
@@ -249,6 +260,8 @@ export class Renderer {
 
     if (this.pixel) this.drawGates(game);
     if (game.board.wraps) this.drawSeam(game, fog);
+    // Starà's castle stands taller than the tiles, so it goes over them.
+    if (table && game.board.walled) this.drawCastle(game);
     // Soffiando's Calcolo: a stone on a square of open sky, no tile's.
     if (game.m.calcolo && this.onScreen(game.m.calcolo.x, game.m.calcolo.y)) this.drawCalcolo(game.m.calcolo);
 
@@ -287,12 +300,16 @@ export class Renderer {
     // is being claimed on — otherwise the two read as unrelated things.
     if (game.phase === 'meeple' && this.hideMeepleTargets && game.lastPlaced) {
       const { x, y } = game.lastPlaced;
-      if (this.onScreen(x, y)) {
+      if (this.onScreen(x, y) && table) {
+        const [sx, sy] = this.toScreen(x, y);
+        const a = 0.75 + Math.sin(performance.now() / 300) * 0.2;
+        this.sketchBox(sx + 1, sy + 1, this.cam.zoom - 2, `rgba(255,242,214,${a})`, seedOf(x, y, 9), 2.6);
+      } else if (this.onScreen(x, y)) {
         const [sx, sy] = this.toScreen(x, y);
         const z = this.cam.zoom;
         this.ctx.save();
         this.ctx.lineWidth = 3;
-        this.ctx.strokeStyle = table ? '#fff1d6' : THEME.gold;
+        this.ctx.strokeStyle = THEME.gold;
         this.ctx.setLineDash([z * 0.12, z * 0.08]);
         this.ctx.lineDashOffset = (performance.now() / 70) % (z * 0.2);
         this.ctx.strokeRect(sx + 2, sy + 2, z - 4, z - 4);
@@ -375,8 +392,9 @@ export class Renderer {
   /**
    * STARÀ'S TABLE (2026-11-18: "the background should be real wood"). A
    * photograph of oak planks, drawn to scale (WOOD_TILES), lit from above
-   * like a lamp over a kitchen table, with the 7 x 7 square the day is played
-   * in sunk a little into it so its edge reads before a single tile is down.
+   * like a lamp over a kitchen table, with the floor of the 7 x 7 square a
+   * shade darker and its squares ruled across it by hand. The castle round it
+   * is a layer of its own (drawCastle), because it stands over the tiles.
    *
    * All of it is the same picture until the window, the camera or the board's
    * bounds change, and Starà's camera does not move, so it is baked into one
@@ -435,59 +453,61 @@ export class Renderer {
     t.fillRect(0, 0, w, h);
     if (!b) return;
 
-    // The well: the square sunk a couple of millimetres into the wood. Darker
-    // inside; a shadow along the top and left lips, where the lamp cannot
-    // reach, and a catch of light along the bottom and right.
+    // The floor inside the walls: the table a shade darker, the squares
+    // ruled faintly across it by hand, so you can count what is left to fill.
     const [x0, y0] = this.toScreen(b.minX, b.minY);
     const [x1, y1] = this.toScreen(b.maxX + 1, b.maxY + 1);
-    const pad = Math.max(3, z * 0.06);
-    const L = x0 - pad, T = y0 - pad, R = x1 + pad, B = y1 + pad;
+    t.fillStyle = 'rgba(38,18,4,0.24)';
+    t.fillRect(x0, y0, x1 - x0, y1 - y0);
     t.save();
-    t.fillStyle = 'rgba(38,18,4,0.26)';
-    t.fillRect(L, T, R - L, B - T);
-    t.beginPath();
-    t.rect(L, T, R - L, B - T);
-    t.clip();
-    t.shadowColor = 'rgba(20,8,0,0.55)';
-    t.shadowBlur = z * 0.22;
-    t.shadowOffsetX = z * 0.05;
-    t.shadowOffsetY = z * 0.07;
-    t.lineWidth = z * 0.3;
-    t.strokeStyle = 'rgba(20,8,0,0.6)';
-    t.strokeRect(L - z * 0.15, T - z * 0.15, R - L + z * 0.3, B - T + z * 0.3);
-    t.restore();
-
-    // The squares, scored faintly into the floor of the well, so you can
-    // count what is left to fill.
-    t.save();
-    t.strokeStyle = 'rgba(30,14,2,0.22)';
+    t.strokeStyle = 'rgba(40,20,4,0.30)';
     t.lineWidth = 1;
+    t.lineCap = 'round';
     t.beginPath();
     for (let x = b.minX + 1; x <= b.maxX; x++) {
       const [sx] = this.toScreen(x, 0);
-      t.moveTo(Math.round(sx) + 0.5, y0);
-      t.lineTo(Math.round(sx) + 0.5, y1);
+      sketchLine(t, sx, y0 + 2, sx, y1 - 2, { seed: seedOf(x, 1), rough: 0.8, passes: 1 });
     }
     for (let y = b.minY + 1; y <= b.maxY; y++) {
       const [, sy] = this.toScreen(0, y);
-      t.moveTo(x0, Math.round(sy) + 0.5);
-      t.lineTo(x1, Math.round(sy) + 0.5);
+      sketchLine(t, x0 + 2, sy, x1 - 2, sy, { seed: seedOf(y, 2), rough: 0.8, passes: 1 });
     }
     t.stroke();
     t.restore();
+  }
 
-    // The lips of the well: dark on the top and left, lit on the bottom and right.
-    t.save();
-    t.lineWidth = 1.5;
-    t.strokeStyle = 'rgba(18,8,0,0.55)';
-    t.beginPath();
-    t.moveTo(L, B); t.lineTo(L, T); t.lineTo(R, T);
-    t.stroke();
-    t.strokeStyle = 'rgba(255,226,180,0.30)';
-    t.beginPath();
-    t.moveTo(R + 0.5, T); t.lineTo(R + 0.5, B + 0.5); t.lineTo(L, B + 0.5);
-    t.stroke();
-    t.restore();
+  /**
+   * THE CASTLE round Starà's square (castle.js), baked into a layer of its
+   * own with the gates as they stand, and inked by hand: drawn in sketched
+   * strokes, then the whole picture bent by ink.js, the pass the inked tiles
+   * get. Remade only when the camera moves or a road reaches the wall.
+   */
+  drawCastle(game) {
+    const b = game.board.bounds;
+    const z = this.cam.zoom;
+    const dpr = window.devicePixelRatio || 1;
+    const gates = gatesOf(game.board);
+    const [bx, by] = this.toScreen(b.minX, b.minY);
+    const cols = b.maxX - b.minX + 1, rows = b.maxY - b.minY + 1;
+    const pad = (CASTLE.reach + 0.2) * z;
+    const key = [z, dpr, bx, by, cols, rows, gates.map((g) => `${g.s}${g.i}`).join('.')].join('|');
+    if (this.castleKey !== key) {
+      this.castleKey = key;
+      this.castleLayer ||= document.createElement('canvas');
+      const c = this.castleLayer;
+      c.width = Math.ceil((cols * z + pad * 2) * dpr);
+      c.height = Math.ceil((rows * z + pad * 2) * dpr);
+      const k = c.getContext('2d', { willReadFrequently: true });
+      k.setTransform(dpr, 0, 0, dpr, 0, 0);
+      k.clearRect(0, 0, c.width, c.height);
+      paintCastle(k, { z, x0: pad, y0: pad, cols, rows, gates });
+      // The nib's wander over the whole wall, then the tooth of the paper.
+      roughen(c, { amp: Math.max(0.6, z * dpr * 0.014), grain: (0.42 * z * dpr) / c.width });
+      roughen(c, { amp: Math.max(0.3, z * dpr * 0.004), grain: (0.07 * z * dpr) / c.width });
+      this.castlePad = pad;
+    }
+    const c = this.castleLayer;
+    this.ctx.drawImage(c, bx - this.castlePad, by - this.castlePad, c.width / dpr, c.height / dpr);
   }
 
   /**
@@ -520,6 +540,19 @@ export class Renderer {
       const [sx, sy] = this.toScreen(cell.x, cell.y);
       this.ctx.drawImage(c, sx - m + z * 0.035, sy - m + z * 0.06, size, size);
     }
+  }
+
+  /** A square drawn round by hand: Starà's outlines (sketch.js). */
+  sketchBox(x, y, size, color, seed, width = 2) {
+    const ctx = this.ctx;
+    ctx.save();
+    ctx.strokeStyle = color;
+    ctx.lineWidth = width;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    sketchRect(ctx, x, y, size, size, { seed, rough: 1.1 });
+    ctx.stroke();
+    ctx.restore();
   }
 
   onScreen(x, y) {
@@ -1458,12 +1491,10 @@ export class Renderer {
       const chart = game.m?.backdrop === 'sky';
       // On the table, a square of lamplight: gold is lost in oak.
       if (game.spec?.table) {
-        const glow = 0.20 + Math.sin(performance.now() / 520) * 0.05;
-        ctx.fillStyle = `rgba(255,240,206,${glow})`;
-        ctx.fillRect(sx + z * 0.05, sy + z * 0.05, z * 0.9, z * 0.9);
-        ctx.strokeStyle = 'rgba(255,244,220,0.62)';
-        ctx.lineWidth = 1.5;
-        ctx.strokeRect(sx + z * 0.05, sy + z * 0.05, z * 0.9, z * 0.9);
+        const glow = 0.18 + Math.sin(performance.now() / 520) * 0.05;
+        ctx.fillStyle = `rgba(255,236,196,${glow})`;
+        ctx.fillRect(sx + z * 0.07, sy + z * 0.07, z * 0.86, z * 0.86);
+        this.sketchBox(sx + z * 0.08, sy + z * 0.08, z * 0.84, 'rgba(255,240,212,0.78)', seedOf(x, y, 5), 1.4);
         continue;
       }
       ctx.fillStyle = chart ? 'rgba(126,46,32,0.07)' : 'rgba(212,175,95,0.07)';
@@ -1481,6 +1512,12 @@ export class Renderer {
       const [px, py] = this.toScreen(p.x, p.y);
       const z = this.cam.zoom;
       this.paintTile(p.x, p.y, p.rot, game.tile, 'surface', this.cam.zoom, null, game.board.seq);
+      // On the table, a ring drawn round it by hand, breathing, not marching.
+      if (game.spec?.table) {
+        const a = 0.75 + Math.sin(performance.now() / 300) * 0.2;
+        this.sketchBox(px + 1, py + 1, z - 2, `rgba(255,242,214,${a})`, seedOf(p.x, p.y, p.rot), 2.6);
+        return;
+      }
       ctx.save();
       ctx.lineWidth = 3.5;
       ctx.strokeStyle = game.spec?.table ? '#fff1d6' : THEME.gold;
@@ -2009,12 +2046,12 @@ export class Renderer {
           const pop = t < 0.16 ? 0.55 + 0.45 * (t / 0.16) : 1;
           const size = Math.max(15, z * 0.34) * pop;
           ctx.globalAlpha = t < 0.1 ? t / 0.1 : Math.min(1, (1 - t) / 0.34);
-          ctx.font = `700 ${size}px ui-sans-serif, system-ui, sans-serif`;
+          ctx.font = `700 ${size}px ${this.floatFace}`;
           ctx.textAlign = 'center';
           ctx.textBaseline = 'middle';
           ctx.lineJoin = 'round';
           ctx.lineWidth = Math.max(3, size * 0.24);
-          ctx.strokeStyle = 'rgba(13,11,17,0.9)';
+          ctx.strokeStyle = this.floatFace === FLOAT_FACE ? 'rgba(13,11,17,0.9)' : 'rgba(43,26,13,0.92)';
           ctx.strokeText(e.text, sx, sy);
           ctx.fillStyle = e.color;
           ctx.fillText(e.text, sx, sy);

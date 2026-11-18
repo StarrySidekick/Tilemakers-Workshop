@@ -14,6 +14,12 @@
 // when nothing left in the deck fits it. A tile that fits nowhere is set
 // aside, as in Carcassonne.
 //
+// The same day: "the perimeter of the square should be top down castle walls.
+// they also end features for the sake of scoring and finishing." So the
+// square is `walled` (board.js): a road that runs into the wall ends there, a
+// city that runs into it is closed by it, and a cloister counts the wall
+// round it as tiles (that last one Claude's call: the wall surrounds it).
+//
 // It is `pure`: whatever rules the workshop has bolted on for the other modes
 // are left off here, because a daily puzzle has to be the same puzzle for
 // everyone who opens it.
@@ -109,7 +115,7 @@ export class Stara extends Mode {
     return `
       <div class="advTop"><span>Starà No. ${this.day.n}</span><span>Score <b>${p.score}</b></span></div>
       <div class="advTop"><span>${g.board.size}/${STARA_SQUARES} squares</span><span>${p.meeples} followers in hand</span></div>
-      <p class="hint">Today's square: the base game, solo, on a ${STARA_SIDE}×${STARA_SIDE} border. Same deal for everyone today.</p>`;
+      <p class="hint">Today's square: the base game, solo, ${STARA_SIDE}×${STARA_SIDE} and walled round: the wall ends roads and closes cities. Same deal for everyone today.</p>`;
   }
 }
 
@@ -127,6 +133,14 @@ Stara.spec = {
   seedFor: () => staraDay().seed,
   playerName: () => 'You',
   bounds: { minX: -STARA_RADIUS, maxX: STARA_RADIUS, minY: -STARA_RADIUS, maxY: STARA_RADIUS },
+  // Castle walls round the square (2026-11-18): they end every road and city
+  // that runs into them, and stand round a cloister like tiles (board.js).
+  walled: true,
+  // Medieval (2026-11-18: "make all the ui and everything medival themes and
+  // cool"): tiles drawn in the chart's inks with a hand-drawn line, and the
+  // workshop's panel, when the menu brings it back, on parchment.
+  inked: true,
+  antique: true,
   opening: "Today's square. Fill it as well as you can.",
-  hint: 'Daily and solo: the base game with followers and farms, on a 7×7 border. Ends when the square is full or nothing fits.',
+  hint: 'Daily and solo: the base game with followers and farms, on a 7×7 square walled round. The wall ends roads and closes cities. Ends when the square is full or nothing fits.',
 };
