@@ -68,10 +68,36 @@ export function gatesOf(board) {
  * Paint the castle round a square whose top-left corner is (x0, y0), `cols`
  * by `rows` squares of `z` pixels, with gates where `gates` says.
  */
-export function paintCastle(ctx, { z, x0, y0, cols, rows, gates = [], towns = [false, false, false, false] }) {
+export function paintCastle(ctx, { z, x0, y0, cols, rows, gates = [], towns = [false, false, false, false], quarters = null }) {
   const T = CASTLE.band * z;
   const w = cols * z, h = rows * z;
   const lw = Math.max(1.1, z * 0.03);
+
+  // The four quarters' bounds, ruled in their tinctures OVER the tiles (the
+  // castle layer is drawn above them), so the quarters still read once the
+  // floor's wash is covered: {NW: color, ...}, the high street left between.
+  if (quarters) {
+    const mc = Math.floor(cols / 2), mr = Math.floor(rows / 2);
+    const rects = {
+      NW: [x0, y0, mc * z, mr * z], NE: [x0 + (mc + 1) * z, y0, (cols - mc - 1) * z, mr * z],
+      SE: [x0 + (mc + 1) * z, y0 + (mr + 1) * z, (cols - mc - 1) * z, (rows - mr - 1) * z],
+      SW: [x0, y0 + (mr + 1) * z, mc * z, (rows - mr - 1) * z],
+    };
+    ctx.save();
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    for (const [q, [qx, qy, qw, qh]] of Object.entries(rects)) {
+      if (!quarters[q]) continue;
+      ctx.strokeStyle = quarters[q];
+      ctx.globalAlpha = 0.9;
+      ctx.lineWidth = Math.max(1.6, z * 0.045);
+      ctx.beginPath();
+      const i = Math.max(1.5, z * 0.035);
+      sketchRect(ctx, qx + i, qy + i, qw - 2 * i, qh - 2 * i, { seed: seedOf(qx, qy, 13), rough: 1.1 });
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
 
   // A point on side s: `a` along it from its top or left end, `d` out from
   // the square's edge. The wall's frame, so every side is drawn the same way.

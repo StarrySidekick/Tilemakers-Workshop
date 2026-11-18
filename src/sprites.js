@@ -23,7 +23,7 @@
 // ---------------------------------------------------------------------------
 
 import { drawTile } from './art.js';
-import { THEME } from './theme.js';
+import { THEME, isInked } from './theme.js';
 import { roughen, WOBBLE, TOOTH } from './ink.js';
 
 // Sprites are rendered at whichever bucket is the first one big enough, so
@@ -171,7 +171,7 @@ export function tileSprite(type, rot, terrain, px) {
     build = BUCKETS[0] < size ? BUCKETS[0] : size;
   }
 
-  const chart = THEME.paletteName === 'chart';
+  const chart = isInked();
   const canvas = surface(build);
   // On the chart the art is drawn on the workbench, where it can be read back
   // without costing anything, and copied over at the end. Everywhere else

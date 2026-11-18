@@ -2003,7 +2003,23 @@ real wood"*.
 **Question:** is Carcassonne a daily puzzle once the table has an edge?
 
 **Where it stands now (the fourth pass)** comes first; how it got there
-follows, pass by pass, newest first.
+follows, pass by pass, newest first. One look-only pass sits on top of it:
+
+*"move the seal checkmark more out from the tile itself so that i don't
+accidentally press it"*, *"make quarters have like color coded sections on the
+wood background so we know what's going on"*, and *"make districts look more
+like a bunch of wattle and daub houses bunched up together"*. So: the seal sits
+off the staged tile's lower right corner with a gap, never over it (left or
+above where it would leave the screen or reach the tray). Each quarter is
+washed on the floor in its trade's heraldic tincture (Housing purpure, Trade
+or, Church azure, Garrison gules), ruled round in the same colour over the
+tiles so it still reads as the square fills, and its corner tag carries the
+colour. And Starà draws in a palette of its own, `town` (the chart's inks;
+`isInked()` in `theme.js` covers both), in which a district is a press of
+timber-framed cottages, cream daub between dark oak posts and braces under
+thatch or clay-tile roofs, along narrow lanes, ringed by a woven wattle fence
+where it meets the gardens, with no stone walls: a district sits inside the
+town wall, which is the only wall a town had round it. No rule changed.
 
 Timothy, the fourth pass: *"once the tile is placed, don't show it in the
 bottone anymore"*, *"move the little seal checkmark near where the tile is to

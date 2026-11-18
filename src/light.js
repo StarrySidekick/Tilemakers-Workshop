@@ -13,7 +13,7 @@
 // direction and the two helpers that need it.
 // ---------------------------------------------------------------------------
 
-import { THEME } from './theme.js';
+import { THEME, isInked } from './theme.js';
 
 /**
  * Unit vector pointing TOWARD the light, in tile space (y grows downward, so
@@ -64,7 +64,7 @@ export function shadow(ctx, L, dist = 0.05, blur = 0.05, color = THEME.cast) {
   // follower was the last of it left. Shading on the chart, when it comes
   // back, will be dither and hatching — drawn, not calculated. Gating it here
   // rather than at forty call sites means no caller can forget.
-  if (THEME.paletteName === 'chart') return noShadow(ctx);
+  if (isInked()) return noShadow(ctx);
   const s = pixelScale(ctx);
   ctx.shadowColor = color;
   ctx.shadowOffsetX = -L.x * dist * s;

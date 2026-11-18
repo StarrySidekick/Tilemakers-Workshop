@@ -8,7 +8,7 @@
 
 import { SIDE_MID, SIDE_VEC } from './tiles.js';
 import { pixelFigures, drawPixelMeeple } from './pixel.js';
-import { THEME, PLAYER_COLORS, PLAYER_NAMES } from './theme.js';
+import { THEME, PLAYER_COLORS, PLAYER_NAMES, isInked } from './theme.js';
 import { LIGHT, spin, shadow, noShadow } from './light.js';
 import { featureShape } from './shape.js';
 import { DESIGN, rgba } from './design.js';
@@ -269,6 +269,181 @@ function drawCity(ctx, f, L) {
 
   drawWall(ctx, sh, L);
   for (const p of sh.towers) drawBastion(ctx, p, L);
+}
+
+// --- Starà's districts: wattle and daub ------------------------------------
+//
+// Timothy, 2026-11-18: "make districts look more like a bunch of wattle and
+// daub houses bunched up together". In Starà a tile city is a DISTRICT of one
+// walled town, inside the town wall, so it has no walls of its own: it is a
+// press of small timber-framed houses along narrow lanes, ringed by a woven
+// wattle fence where the district gives way to gardens.
+//
+// Each house is seen from above and a little from the front, so its daub
+// wall shows under the eaves: cream infill between dark oak posts, a beam and
+// a brace, a door, a window. Roofs are thatch (straw, combed in strokes) or
+// clay tile (in courses). The front is always the world's south, whichever way
+// the tile is turned, and the houses are drawn back to front so the near ones
+// stand in front of the far ones.
+
+const DAUB = '#efe3c6', DAUB_SHADE = '#d9c8a2', TIMBER = '#4a2f1c';
+const THATCH = ['#c8a35a', '#e0c07a', '#9c7a3c'];          // body, lit straw, shade
+const TILE = ['#a9533a', '#c76f4f', '#7a3524'];
+const LANE = '#b49b74', LANE_DARK = '#9a7f5a';
+const FENCE = '#7a5634', FENCE_LIT = '#a37a4c';
+
+// A loose lattice, jittered by fixed amounts so the same district is always
+// drawn the same: [x, y, width, depth, tilt, roof (0 thatch / 1 tile)].
+const COTTAGES = (() => {
+  const out = [];
+  let k = 7;
+  const r = () => { k = (k * 16807) % 2147483647; return k / 2147483647; };
+  // Five to a row, big enough to read at the size a tile is on the board.
+  for (let row = 0; row < 6; row++) {
+    for (let col = 0; col < 6; col++) {
+      const x = 0.06 + col * 0.19 + (row % 2) * 0.095 + (r() - 0.5) * 0.05;
+      const y = 0.08 + row * 0.18 + (r() - 0.5) * 0.04;
+      if (r() < 0.1) continue;                                // a yard, a well, a gap
+      out.push([x, y, 0.15 + r() * 0.05, 0.14 + r() * 0.035, (r() - 0.5) * 0.3, r() < 0.55 ? 0 : 1]);
+    }
+  }
+  return out;
+})();
+
+function drawCottage(ctx, w, d, tilt, roof, seed) {
+  ctx.rotate(tilt);
+  const lw = 0.011;
+  // The front wall, under the eaves: daub between timbers.
+  const wallTop = d * 0.08, wallBot = d * 0.5;
+  ctx.fillStyle = DAUB;
+  ctx.fillRect(-w / 2, wallTop, w, wallBot - wallTop);
+  ctx.fillStyle = DAUB_SHADE;
+  ctx.fillRect(-w / 2, wallBot - (wallBot - wallTop) * 0.22, w, (wallBot - wallTop) * 0.22);
+  ctx.strokeStyle = TIMBER;
+  ctx.lineWidth = lw * 1.3;
+  ctx.beginPath();
+  ctx.rect(-w / 2, wallTop, w, wallBot - wallTop);
+  const posts = w > 0.13 ? [-w / 6, w / 6] : [0];
+  for (const px of posts) { ctx.moveTo(px, wallTop); ctx.lineTo(px, wallBot); }
+  const mid = (wallTop + wallBot) / 2;
+  ctx.moveTo(-w / 2, mid); ctx.lineTo(w / 2, mid);
+  // A brace across one panel, leaning whichever way this house leans.
+  const bx = seed % 2 ? -w / 2 : w / 2, bx2 = posts[0];
+  ctx.moveTo(bx, wallBot); ctx.lineTo(bx2, mid);
+  ctx.stroke();
+  // A door and a window, small and dark.
+  ctx.fillStyle = TIMBER;
+  const dx = seed % 3 === 0 ? w * 0.28 : -w * 0.28;
+  ctx.fillRect(dx - w * 0.06, mid + 0.004, w * 0.12, wallBot - mid - 0.004);
+  ctx.fillRect(-dx - w * 0.05, wallTop + 0.012, w * 0.1, (mid - wallTop) * 0.5);
+
+  // The roof, hanging over the wall a little at the eaves and the ends.
+  const [body, lit, shade] = roof ? TILE : THATCH;
+  const ox = w * 0.08, top = -d * 0.5, eave = wallTop + d * 0.06;
+  ctx.beginPath();
+  ctx.moveTo(-w / 2 - ox, eave);
+  ctx.lineTo(-w / 2 - ox * 0.4, top);
+  ctx.lineTo(w / 2 + ox * 0.4, top);
+  ctx.lineTo(w / 2 + ox, eave);
+  ctx.closePath();
+  ctx.fillStyle = body;
+  ctx.fill();
+  // The near pitch catches the lamp; the ridge runs along the top third.
+  const ridge = top + (eave - top) * 0.36;
+  ctx.fillStyle = lit;
+  ctx.beginPath();
+  ctx.moveTo(-w / 2 - ox * 0.7, ridge);
+  ctx.lineTo(w / 2 + ox * 0.7, ridge);
+  ctx.lineTo(w / 2 + ox, eave);
+  ctx.lineTo(-w / 2 - ox, eave);
+  ctx.closePath();
+  ctx.fill();
+  ctx.strokeStyle = shade;
+  ctx.lineWidth = lw * 0.8;
+  ctx.beginPath();
+  if (roof) {
+    // Clay tiles in courses.
+    for (let t = 1; t < 4; t++) {
+      const yy = ridge + (eave - ridge) * (t / 4);
+      ctx.moveTo(-w / 2 - ox * 0.8, yy); ctx.lineTo(w / 2 + ox * 0.8, yy);
+    }
+  } else {
+    // Thatch, combed down the pitch.
+    for (let t = -3; t <= 3; t++) {
+      const xx = (t / 3.5) * (w / 2);
+      ctx.moveTo(xx, ridge + 0.004); ctx.lineTo(xx * 1.06, eave - 0.004);
+    }
+  }
+  ctx.stroke();
+  ctx.strokeStyle = TIMBER;
+  ctx.lineWidth = lw;
+  ctx.beginPath();
+  ctx.moveTo(-w / 2 - ox * 0.7, ridge); ctx.lineTo(w / 2 + ox * 0.7, ridge);
+  ctx.moveTo(-w / 2 - ox, eave);
+  ctx.lineTo(-w / 2 - ox * 0.4, top);
+  ctx.lineTo(w / 2 + ox * 0.4, top);
+  ctx.lineTo(w / 2 + ox, eave);
+  ctx.closePath();
+  ctx.stroke();
+}
+
+function drawDistrict(ctx, f, rot = 0) {
+  const sh = featureShape(f.sides);
+  if (!sh) return;
+  ctx.save();
+  ctx.beginPath();
+  sh.path(ctx);
+  ctx.clip();
+
+  // The lanes: beaten earth, with a little grit.
+  ctx.fillStyle = LANE;
+  ctx.fillRect(0, 0, 1, 1);
+  ctx.fillStyle = LANE_DARK;
+  for (let i = 0; i < 46; i++) {
+    ctx.beginPath();
+    ctx.arc(((i * 37) % 100) / 100, ((i * 61) % 100) / 100, 0.007, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // The houses, back to front in the WORLD's sense, each facing the world's
+  // south: the tile is drawn turned by `rot`, so that is undone for each.
+  const turn = -(rot & 3) * Math.PI / 2;
+  const c = Math.cos(-turn), s = Math.sin(-turn);
+  const order = COTTAGES.map((h, i) => {
+    const wx = (h[0] - 0.5) * c - (h[1] - 0.5) * s, wy = (h[0] - 0.5) * s + (h[1] - 0.5) * c;
+    return { h, i, wy, wx };
+  }).sort((a, b) => a.wy - b.wy || a.wx - b.wx);
+  for (const { h: [x, y, w, d, tilt, roof], i } of order) {
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(turn);
+    drawCottage(ctx, w, d, tilt, roof, i);
+    ctx.restore();
+  }
+  ctx.restore();
+
+  // A woven wattle fence where the district meets the gardens: hazel rods
+  // between posts, the weave in two tones, the posts as dark knots.
+  if (!sh.hasRim) return;
+  ctx.save();
+  ctx.beginPath();
+  sh.path(ctx);
+  ctx.clip();
+  ctx.lineJoin = 'round';
+  const band = 0.05;                         // half of it is clipped away
+  ctx.strokeStyle = FENCE;
+  ctx.lineWidth = band;
+  ctx.beginPath(); sh.rim(ctx); ctx.stroke();
+  ctx.strokeStyle = FENCE_LIT;
+  ctx.lineWidth = band * 0.5;
+  ctx.setLineDash([0.022, 0.022]);
+  ctx.beginPath(); sh.rim(ctx); ctx.stroke();
+  ctx.lineCap = 'round';
+  ctx.strokeStyle = TIMBER;
+  ctx.lineWidth = band * 0.9;
+  ctx.setLineDash([0.0001, 0.088]);
+  ctx.beginPath(); sh.rim(ctx); ctx.stroke();
+  ctx.restore();
 }
 
 // --- roads ------------------------------------------------------------------
@@ -2149,7 +2324,7 @@ export function drawTile(ctx, type, { cave = false, terrain = cave ? 'cave' : 's
     // and fields with a seam down every edge.
     // On the chart palette the hatch drops to a whisper: a printed map's land
     // is a wash, and the crosshatch at full strength read as wallpaper.
-    const chart = THEME.paletteName === 'chart';
+    const chart = isInked();
     ctx.strokeStyle = chart ? `rgba(92,96,58,${DESIGN.tile.hatch})` : 'rgba(92,102,58,0.20)';
     ctx.lineWidth = 0.016;
     for (let i = -1.2; i < 2.4; i += 0.25) {
@@ -2192,7 +2367,8 @@ export function drawTile(ctx, type, { cave = false, terrain = cave ? 'cave' : 's
 
   if (built) type.feats.forEach((f, i) => {
     if (f.type !== 'city') return;
-    drawCity(ctx, f, L);
+    if (THEME.paletteName === 'town') drawDistrict(ctx, f, rot);
+    else drawCity(ctx, f, L);
     if (f.shield) {
       const [sx, sy] = type.spots[i];
       drawShield(ctx, [sx, sy - 0.16], L);
@@ -2410,7 +2586,7 @@ export function drawMeeple(ctx, x, y, size, color, opts = {}) {
   // Rounding on the body: a warm edge where the sun hits, cool where it
   // doesn't — except on the chart, where nothing is lit and a printed figure
   // is a flat wash inside an ink line.
-  if (THEME.paletteName !== 'chart') {
+  if (!isInked()) {
     ctx.save();
     meeplePath(ctx);
     ctx.clip();

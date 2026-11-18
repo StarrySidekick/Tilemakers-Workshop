@@ -168,9 +168,17 @@ for (const k of Object.keys(chartPalette())) TWILIGHT[k] = THEME[k];
 THEME.paletteName = 'twilight';
 export function usePalette(name, force = false) {
   if (THEME.paletteName === name && !force) return;
-  Object.assign(THEME, name === 'chart' ? chartPalette() : TWILIGHT);
+  Object.assign(THEME, name === 'chart' || name === 'town' ? chartPalette() : TWILIGHT);
   THEME.paletteName = name;
 }
+
+/**
+ * Is the live palette an inked one? The chart, and Starà's TOWN (2026-11-18),
+ * which is the chart's inks with districts drawn as wattle-and-daub houses
+ * instead of walled cities. A palette name of its own, so the sprite cache
+ * keeps the two sets of pictures apart.
+ */
+export const isInked = () => THEME.paletteName === 'chart' || THEME.paletteName === 'town';
 
 // Muted, earthy player colors — no primaries.
 export const PLAYER_COLORS = ['#b6483a', '#4a7fa8', '#6f9a52', '#d0a03f', '#7a6a94'];

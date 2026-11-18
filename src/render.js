@@ -19,6 +19,7 @@ import { rotPoint, wallSides, opposite } from './tiles.js';
 import { liftableCells } from './mechanics.js';
 import { roughen } from './ink.js';
 import { paintCastle, gatesOf, CASTLE, keepSprite } from './castle.js';
+import { TRADE_BY_ID } from './modes/stara.js';
 import { sketchLine, sketchRect, seedOf } from './sketch.js';
 
 // Move targets, in the order you want to notice them. Green is the plain "you
@@ -239,9 +240,9 @@ export class Renderer {
     this.pixel = !!game.spec?.pixel;
     setPixelFigures(this.pixel);
     const antique = !this.pixel && game.m?.backdrop === 'sky';
-    // Starà's tiles are inked too (spec.inked): the chart's colours and its
-    // hand-drawn line, on a table instead of a sky.
-    usePalette(antique || (!this.pixel && game.spec?.inked) ? 'chart' : 'twilight');
+    // Starà's tiles are inked too (spec.inked), in the TOWN palette: the
+    // chart's inks and hand-drawn line, districts as wattle and daub houses.
+    usePalette(!this.pixel && game.spec?.inked ? 'town' : antique ? 'chart' : 'twilight');
     if (this.pixel) this.drawCoasts(game, fog);
     // On a table the tiles are cardboard lying on wood, and cast a shadow on
     // it. All the shadows go down first, so none falls across a neighbour.
@@ -416,7 +417,7 @@ export class Renderer {
     const b = game.board.bounds;
     const dpr = window.devicePixelRatio || 1;
     const key = [this.w, this.h, dpr, this.cam.x, this.cam.y, this.cam.zoom, ready, !!game.spec?.walled,
-      b ? `${b.minX},${b.minY},${b.maxX},${b.maxY}` : '-'].join('|');
+      JSON.stringify(game.m?.trades || null), b ? `${b.minX},${b.minY},${b.maxX},${b.maxY}` : '-'].join('|');
     if (this.tableKey !== key) {
       this.tableKey = key;
       this.tableLayer ||= document.createElement('canvas');
@@ -471,6 +472,23 @@ export class Renderer {
     if (game.spec?.walled) {
       const mx = (b.minX + b.maxX) / 2, my = (b.minY + b.maxY) / 2;
       const [cx0, cy0] = this.toScreen(mx, my), [cx1, cy1] = this.toScreen(mx + 1, my + 1);
+      // Each quarter washed in its trade's tincture (2026-11-18: "color coded
+      // sections on the wood background so we know what's going on"). The
+      // line round each, which has to stay seen as tiles cover the wash, is
+      // the castle layer's (castle.js), over the tiles.
+      const trades = game.m?.trades;
+      if (trades) {
+        const rects = { NW: [x0, y0, cx0, cy0], NE: [cx1, y0, x1, cy0], SE: [cx1, cy1, x1, y1], SW: [x0, cy1, cx0, y1] };
+        for (const [q, [qa, qb, qc, qd]] of Object.entries(rects)) {
+          const color = TRADE_BY_ID[trades[q]]?.color;
+          if (!color) continue;
+          t.save();
+          t.globalAlpha = 0.34;
+          t.fillStyle = color;
+          t.fillRect(qa, qb, qc - qa, qd - qb);
+          t.restore();
+        }
+      }
       t.fillStyle = 'rgba(255,226,170,0.10)';
       t.fillRect(cx0, y0, cx1 - cx0, y1 - y0);
       t.fillRect(x0, cy0, cx0 - x0, cy1 - cy0);
@@ -519,8 +537,11 @@ export class Renderer {
     const [bx, by] = this.toScreen(b.minX, b.minY);
     const cols = b.maxX - b.minX + 1, rows = b.maxY - b.minY + 1;
     const pad = (CASTLE.reach + 0.2) * z;
+    // The quarters' tinctures, ruled over the tiles (Starà's trades for the day).
+    const tr = game.m?.trades;
+    const quarters = tr ? Object.fromEntries(Object.entries(tr).map(([q, id]) => [q, TRADE_BY_ID[id]?.color])) : null;
     const key = [z, dpr, bx, by, cols, rows, gates.map((g) => `${g.s}${g.i}`).join('.'),
-      towns.map(Number).join('')].join('|');
+      towns.map(Number).join(''), JSON.stringify(quarters)].join('|');
     if (this.castleKey !== key) {
       this.castleKey = key;
       this.castleLayer ||= document.createElement('canvas');
@@ -530,7 +551,7 @@ export class Renderer {
       const k = c.getContext('2d', { willReadFrequently: true });
       k.setTransform(dpr, 0, 0, dpr, 0, 0);
       k.clearRect(0, 0, c.width, c.height);
-      paintCastle(k, { z, x0: pad, y0: pad, cols, rows, gates, towns });
+      paintCastle(k, { z, x0: pad, y0: pad, cols, rows, gates, towns, quarters });
       // The nib's wander over the whole wall, then the tooth of the paper.
       roughen(c, { amp: Math.max(0.6, z * dpr * 0.014), grain: (0.42 * z * dpr) / c.width });
       roughen(c, { amp: Math.max(0.3, z * dpr * 0.004), grain: (0.07 * z * dpr) / c.width });
