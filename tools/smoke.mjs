@@ -1104,12 +1104,16 @@ await page.selectOption('#tilesPerTurn', '1');
     const held = document.querySelector('.staraCard.held');
     const seal = document.getElementById('staraGo').getBoundingClientRect();
     const cv = r.canvas.getBoundingClientRect();
-    const [sx, sy] = r.toScreen(p.x + 0.5, p.y + 0.5);
-    const d = Math.hypot(seal.left + seal.width / 2 - (cv.left + sx), seal.top + seal.height / 2 - (cv.top + sy));
-    return { inTray: !!held && getComputedStyle(held).display !== 'none', near: d < r.cam.zoom * 1.2 };
+    const z = r.cam.zoom;
+    const [tx, ty] = r.toScreen(p.x, p.y);
+    const tile = { l: cv.left + tx, t: cv.top + ty, r: cv.left + tx + z, b: cv.top + ty + z };
+    const d = Math.hypot(seal.left + seal.width / 2 - (tile.l + z / 2), seal.top + seal.height / 2 - (tile.t + z / 2));
+    const clear = seal.right <= tile.l || seal.left >= tile.r || seal.bottom <= tile.t || seal.top >= tile.b;
+    return { inTray: !!held && getComputedStyle(held).display !== 'none', near: d < z * 2.2, clear };
   });
   if (staged.inTray) problems.push('the staged tile is still in the tray');
   if (!staged.near) problems.push('the seal is not beside the staged tile');
+  if (!staged.clear) problems.push('the seal overlaps the staged tile, where a touch to turn it could land on it');
   const size0 = await page.evaluate(() => window.LAB.game.board.size);
   // An abbey's worth of hand, so the next turn deals two to choose from.
   await page.evaluate(() => { window.LAB.game.m.abbeysLaid += 1; });
@@ -1183,7 +1187,7 @@ await page.selectOption('#tilesPerTurn', '1');
 
   if (errors.length) problems.push(errors[0].split('\n')[0]);
   if (problems.length) { failures++; console.log(`  ✗ starà on a phone: ${problems.join(' · ')}`); }
-  else console.log(`  ✓ starà on a phone     walled, edge to edge at ${screen.tile}px a tile; card, seal by the tile, hand, sizes, charter, replay`);
+  else console.log(`  ✓ starà on a phone     walled, edge to edge at ${screen.tile}px a tile; card, seal clear of the tile, hand, sizes, charter, replay`);
   await page.setViewportSize({ width: 1280, height: 820 });
 }
 

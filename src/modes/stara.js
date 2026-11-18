@@ -89,11 +89,14 @@ export const STARA_KINDS = [
  * The four trades a quarter can have, and what each wants (the fourth pass).
  * `per` is what one of the wanted things pays at the end.
  */
+// Each in a heraldic tincture (2026-11-18: "color coded sections on the wood
+// background"): purpure, or, azure and gules, tinting its quarter of the
+// floor and its tag.
 export const TRADES = [
-  { id: 'housing', name: 'Housing', wants: 'district tiles', per: 1, is: (c) => c.type.feats.some((f) => f.type === 'city') },
-  { id: 'trade', name: 'Trade', wants: 'market crosses', per: 3, is: (c) => c.type.feats.filter((f) => f.type === 'road').length > 1 },
-  { id: 'church', name: 'Church', wants: 'abbeys', per: 3, is: (c) => c.type.feats.some((f) => f.type === 'monastery') },
-  { id: 'garrison', name: 'Garrison', wants: 'the keep', per: 6, is: (c) => !!c.type.keep },
+  { id: 'housing', name: 'Housing', wants: 'district tiles', per: 1, color: '#7b4f93', is: (c) => c.type.feats.some((f) => f.type === 'city') },
+  { id: 'trade', name: 'Trade', wants: 'market crosses', per: 3, color: '#d9a338', is: (c) => c.type.feats.filter((f) => f.type === 'road').length > 1 },
+  { id: 'church', name: 'Church', wants: 'abbeys', per: 3, color: '#3e66b0', is: (c) => c.type.feats.some((f) => f.type === 'monastery') },
+  { id: 'garrison', name: 'Garrison', wants: 'the keep', per: 6, color: '#b23a2c', is: (c) => !!c.type.keep },
 ];
 export const TRADE_BY_ID = Object.fromEntries(TRADES.map((t) => [t.id, t]));
 

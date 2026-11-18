@@ -221,7 +221,7 @@ export class StaraUI {
     host.style.width = `${perRow * size + (perRow - 1) * 10}px`;
     // Starà's tiles are inked, and the board may not have drawn a frame yet
     // to say so, so the hand says so itself.
-    usePalette('chart');
+    usePalette('town');
 
     // Rebuild the cards when the hand itself changes; otherwise only redraw.
     const key = `${g.turn}|${hand.join('.')}`;
@@ -274,9 +274,11 @@ export class StaraUI {
   }
 
   /**
-   * The seal, on the board: centred on the staged tile's lower right corner,
-   * or its lower left if that would put it off the screen, so the decision
-   * and the yes are in the same place.
+   * The seal, on the board beside the staged tile but clear of it ("move the
+   * seal checkmark more out from the tile itself so that i don't accidentally
+   * press it"): off its lower right corner, with a gap, so a touch on the
+   * tile to turn it can never land on the seal. Flipped to the left, or above,
+   * where the right or the bottom would put it off the screen or into the tray.
    */
   placeSeal() {
     const seal = $('staraGo');
@@ -287,11 +289,14 @@ export class StaraUI {
     const z = r.cam.zoom;
     const stage = $('stage').getBoundingClientRect();
     const cv = r.canvas.getBoundingClientRect();
+    const tray = $('staraTray').getBoundingClientRect().top - stage.top;
     const [sx, sy] = r.toScreen(p.x, p.y);
-    const half = seal.offsetWidth / 2 || 23;
-    let cx = cv.left - stage.left + sx + z, cy = cv.top - stage.top + sy + z;
-    if (cx + half > stage.width - 2) cx -= z;
-    cx = Math.max(half + 2, Math.min(stage.width - half - 2, cx));
+    const half = seal.offsetWidth / 2 || 24;
+    const gap = 12;
+    const left = cv.left - stage.left + sx, top = cv.top - stage.top + sy;
+    let cx = left + z + gap + half, cy = top + z + gap + half;
+    if (cx + half > stage.width - 2) cx = left - gap - half;
+    if (cy + half > tray - 2) cy = top - gap - half;
     seal.style.left = `${cx - half}px`;
     seal.style.top = `${cy - half}px`;
   }
@@ -343,7 +348,7 @@ export class StaraUI {
         const west = q.endsWith('W');
         const style = `${west ? 'left' : 'right'}:${west ? ox + x + 4 : stage.width - (ox + x) + 4}px;`
           + `${side === 'n' ? 'bottom' : 'top'}:${side === 'n' ? stage.height - (oy + y) + 2 : oy + y + 2}px`;
-        return `<div class="staraQuarter" data-q="${q}" style="${style}" title="The ${t.name.toLowerCase()} quarter wants ${t.wants}: ${t.per} each">`
+        return `<div class="staraQuarter" data-q="${q}" style="${style};--q:${t.color}" title="The ${t.name.toLowerCase()} quarter wants ${t.wants}: ${t.per} each">`
           + `<svg viewBox="0 0 20 20" aria-hidden="true">${EMBLEMS[t.id]}</svg>`
           + `<span class="name">${t.name}</span><b></b></div>`;
       }).join('');

@@ -1101,7 +1101,17 @@ body.stara #board { cursor: pointer; }
   background: var(--s-parch) url('assets/paper.png') center / 90px;
   filter: url(#staraHand) drop-shadow(0 2px 3px rgba(20, 8, 0, 0.45));
 }
-.staraQuarter svg { width: 16px; height: 16px; fill: none; stroke: var(--s-ink); stroke-width: 1.7; stroke-linejoin: round; stroke-linecap: round; }
+.staraQuarter svg { width: 16px; height: 16px; fill: none; stroke: var(--q, var(--s-ink)); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+/* The trade's tincture, the same that washes its quarter of the floor. */
+.staraQuarter::after {
+  content: '';
+  position: absolute;
+  left: 5px; right: 5px; bottom: -4px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--q, transparent);
+  filter: url(#staraHand);
+}
 .staraQuarter b { font: 700 12px/1 'Cinzel', serif; color: var(--s-gules); }
 
 .staraCaption {
