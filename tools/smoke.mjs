@@ -1083,7 +1083,7 @@ await page.selectOption('#tilesPerTurn', '1');
 
   // Touching the card turns the tile in hand.
   const rot0 = await page.evaluate(() => window.LAB.game.rot);
-  const card = await page.locator('#staraTile').boundingBox();
+  const card = await page.locator('.staraCard.held canvas').boundingBox();
   await page.mouse.click(card.x + card.width / 2, card.y + card.height / 2);
   if (await page.evaluate((r0) => window.LAB.game.rot === r0, rot0)) problems.push('touching the card did not turn the tile');
 
@@ -1098,7 +1098,21 @@ await page.selectOption('#tilesPerTurn', '1');
   await page.mouse.click(lit.x, lit.y);
   await page.waitForTimeout(120);
   if (!(await page.evaluate(() => document.querySelector('#staraGo.shown')))) problems.push('a lit square did not stage the tile');
+  // Staged, it leaves the tray, and the seal comes to sit by it on the board.
+  const staged = await page.evaluate(() => {
+    const r = window.LAB.renderer, p = window.LAB.game.m && r.pending;
+    const held = document.querySelector('.staraCard.held');
+    const seal = document.getElementById('staraGo').getBoundingClientRect();
+    const cv = r.canvas.getBoundingClientRect();
+    const [sx, sy] = r.toScreen(p.x + 0.5, p.y + 0.5);
+    const d = Math.hypot(seal.left + seal.width / 2 - (cv.left + sx), seal.top + seal.height / 2 - (cv.top + sy));
+    return { inTray: !!held && getComputedStyle(held).display !== 'none', near: d < r.cam.zoom * 1.2 };
+  });
+  if (staged.inTray) problems.push('the staged tile is still in the tray');
+  if (!staged.near) problems.push('the seal is not beside the staged tile');
   const size0 = await page.evaluate(() => window.LAB.game.board.size);
+  // An abbey's worth of hand, so the next turn deals two to choose from.
+  await page.evaluate(() => { window.LAB.game.m.abbeysLaid += 1; });
   await page.click('#staraGo');
   await page.waitForTimeout(120);
   const laid = await page.evaluate((n) => ({ size: window.LAB.game.board.size, phase: window.LAB.game.phase }), size0);
@@ -1106,6 +1120,17 @@ await page.selectOption('#tilesPerTurn', '1');
 
   // No followers: the seal is the whole turn, and the next tile is in hand.
   if (laid.phase !== 'place') problems.push(`after the seal the phase is "${laid.phase}", not the next tile`);
+
+  // Two in hand: touching the other card holds it up.
+  const two = await page.evaluate(() => ({ n: document.querySelectorAll('.staraCard').length, hand: window.LAB.game.m.hand.slice() }));
+  if (two.n !== 2 || two.hand.length !== 2) problems.push(`a hand of two shows ${two.n} cards for ${two.hand.length} tiles`);
+  else {
+    const other = await page.locator('.staraCard[data-i="1"] canvas').boundingBox();
+    await page.mouse.click(other.x + other.width / 2, other.y + other.height / 2);
+    await page.waitForTimeout(120);
+    const held = await page.evaluate(() => ({ sel: window.LAB.game.m.sel, tile: window.LAB.game.tileKey, ring: document.querySelector('.staraCard.held')?.dataset.i }));
+    if (held.sel !== 1 || held.tile !== two.hand[1] || held.ring !== '1') problems.push(`touching the second card held up ${JSON.stringify(held)}`);
+  }
 
   // The size switch: the 5 x 5 comes up, and going back finds the 7 x 7 as it was left.
   await page.click('#staraSizes button[data-mode="stara5"]');
@@ -1115,6 +1140,7 @@ await page.selectOption('#tilesPerTurn', '1');
   await page.click('#staraSizes button[data-mode="stara"]');
   await page.waitForTimeout(150);
   const seven = await page.evaluate(() => ({ mode: window.LAB.game.mode, size: window.LAB.game.board.size }));
+  await page.waitForTimeout(100);
   if (seven.mode !== 'stara' || seven.size !== laid.size) problems.push(`going back did not find the 7x7 as it was: ${JSON.stringify(seven)}`);
 
   // Play the rest out; the end card adds up, and today's best is kept.
@@ -1157,7 +1183,7 @@ await page.selectOption('#tilesPerTurn', '1');
 
   if (errors.length) problems.push(errors[0].split('\n')[0]);
   if (problems.length) { failures++; console.log(`  ✗ starà on a phone: ${problems.join(' · ')}`); }
-  else console.log(`  ✓ starà on a phone     walled, edge to edge at ${screen.tile}px a tile; card, seal, sizes, charter, replay`);
+  else console.log(`  ✓ starà on a phone     walled, edge to edge at ${screen.tile}px a tile; card, seal by the tile, hand, sizes, charter, replay`);
   await page.setViewportSize({ width: 1280, height: 820 });
 }
 

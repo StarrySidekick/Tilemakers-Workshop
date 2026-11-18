@@ -200,7 +200,11 @@ Carcassonne pays nothing for filling it. Then the third pass: no followers
 ("it's a solitary game"), a 5x5 and a 7x7, a town gate in the middle of each
 wall paying highways that reach them, the cities rethemed as quarters of one
 walled town with a charter, abbeys that want quiet, and fields as gardens.
-Asked, he took each recommendation.
+Asked, he took each recommendation. The fourth pass: a hand that grows by one
+with every abbey laid, a keep that ends what it touches and counts as a gate,
+the high street cutting the town into four quarters each with a trade for the
+day (the tile cities are districts now), and the seal moved onto the board
+beside the tile it lays. Again he took each recommendation.
 
 **Fields: settled 2026-09-06, and Timothy was right.** They are fully built.
 `src/tiles.js` cuts the perimeter into eight half-edges with `halfPartner` as the

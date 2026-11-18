@@ -30,6 +30,7 @@ import { Sfx, SOUND_NAMES } from './audio.js';
 import { Effects } from './fx.js';
 import { VERSION } from './version.js';
 import { StaraUI, spreadSpots } from './stara-ui.js';
+import { keepSprite } from './castle.js';
 
 const canvas = document.getElementById('board');
 const renderer = new Renderer(canvas);
@@ -445,6 +446,7 @@ const stara = new StaraUI({
   renderer,
   pending: () => pending,
   stage: stagePending,
+  clear: clearPending,
   legal: legalRotationsAt,
   turn: turnPending,
   commit: commitPending,
@@ -1427,6 +1429,13 @@ function drawBack(cur) {
  * preview is redrawn, which is on events rather than frames.
  */
 function drawTileInked(ctx2, type, opts = {}) {
+  // Starà's keep has a picture of its own (castle.js), in unit space here.
+  if (type?.keep) {
+    const m = ctx2.getTransform();
+    const px = Math.round(Math.hypot(m.a, m.b));      // the scale, however it is turned
+    ctx2.drawImage(keepSprite(px), 0, 0, 1, 1);
+    return;
+  }
   // The caller has already turned the context to the tile's rotation, but a
   // pixel tile is turned already and its buildings stand upright on it, so
   // the turn is taken back off and the finished picture goes in unsmoothed.

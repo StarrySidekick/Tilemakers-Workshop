@@ -10,14 +10,20 @@
 //
 //   top     the menu (the workshop, folded away), the day, your score
 //   middle  the 7 x 7 square, fitted to the screen and held still
-//   bottom  the draw pile, the tile in your hand, and a wax seal
+//   bottom  the draw pile and your hand; the wax seal goes on the board
 //
 // The turn is the same turn the rest of the workshop plays, through the same
 // staging main.js already has: the tile pops up from the pile; touch it to
 // turn it; touch a lit square (or drag the tile onto one) and it sits there;
 // the seal lays it. There are no followers (the third pass: "it's a
 // solitary game, so you just claim stuff simply automatically"), so that is
-// the whole turn. A switch under the title goes between the 5 x 5 and the
+// the whole turn. From the fourth pass you hold a HAND (one tile, and one
+// more for every abbey laid): touch a card to hold it up. A tile put on a
+// square leaves the tray ("once the tile is placed, don't show it in the
+// bottone anymore"), and the seal comes to sit beside it on the board ("move
+// the little seal checkmark near where the tile is"); touch the tile itself
+// to turn it there. A tag at each corner of the square names that quarter's
+// trade and what it is worth as the town stands. A switch under the title goes between the 5 x 5 and the
 // 7 x 7, keeping a game of each. When the square is full, a charter with the
 // score, where it came from, and today's best.
 //
@@ -25,13 +31,25 @@
 // a click in the workshop would.
 // ---------------------------------------------------------------------------
 
-import { STARA_KINDS, STARA_SIZES } from './modes/stara.js';
+import { STARA_KINDS, STARA_SIZES, QUARTERS, TRADE_BY_ID, quarterWorth } from './modes/stara.js';
 import { CASTLE } from './castle.js';
+import { usePalette } from './theme.js';
+import { TILES } from './tiles.js';
+
+const TILES_OF = (id) => TILES[id];
 
 const $ = (id) => document.getElementById(id);
 // Today's best, per size: the 7 x 7 keeps the key it has had since day 1.
 const BEST = (mode, iso) => `tilemakers-workshop/${mode}/best/${iso}`;
 const TAUGHT = 'tilemakers-workshop/stara/taught';
+
+/** A small emblem for each trade, drawn in ink on its tag (20 x 20). */
+const EMBLEMS = {
+  housing: '<path d="M3 10 L10 4 L17 10 V17 H3 Z M8 17 V12 H12 V17"/>',
+  trade: '<path d="M10 3 V17 M5 17 H15 M3 7 H17 M3 7 L1 12 H5 Z M17 7 L15 12 H19 Z"/>',
+  church: '<path d="M10 2 V18 M5 7 H15"/>',
+  garrison: '<path d="M4 17 V6 H6 V4 H8 V6 H12 V4 H14 V6 H16 V17 Z M9 17 V13 H11 V17"/>',
+};
 const DRAG_PX = 10;
 
 /** localStorage that never throws: a private window just forgets. */
@@ -78,11 +96,11 @@ export class StaraUI {
    */
   constructor(host) {
     this.h = host;
-    this.shown = null;         // {key, rot} — what the card is showing
+    this.shown = null;         // what the hand looked like when last drawn
     this.lastScore = null;
     this.recorded = null;      // the game whose result has been saved
     this.layoutKey = '';
-    this.press = null;         // a finger on the card: tap, or the start of a drag
+    this.press = null;         // a finger on a card: tap, or the start of a drag
     this.wire();
   }
 
@@ -90,8 +108,7 @@ export class StaraUI {
   get on() { return !!this.game?.spec?.table; }
 
   wire() {
-    const card = $('staraTile');
-    card.addEventListener('pointerdown', (e) => this.down(e));
+    $('staraCards').addEventListener('pointerdown', (e) => this.down(e));
     window.addEventListener('pointermove', (e) => this.move(e));
     window.addEventListener('pointerup', (e) => this.up(e));
     window.addEventListener('pointercancel', () => this.cancelDrag());
@@ -135,7 +152,9 @@ export class StaraUI {
     this.lastScore = p.score;
     $('staraPile').textContent = g.deck.length;
     $('staraPileWrap').title = `${g.deck.length} tiles left in the pile`;
-    this.drawCard();
+    this.drawHand();
+    this.placeSeal();
+    this.drawQuarters();
     this.showEnd();
   }
 
@@ -155,8 +174,9 @@ export class StaraUI {
     const r = this.h.renderer;
     const across = b.maxX - b.minX + 1, down = b.maxY - b.minY + 1;
     // Edge to edge (2026-11-18: "push the square to the edge of the left and
-    // right"): the castle's corner towers touch the sides of the screen.
-    const gutter = 6;
+    // right"): the castle's corner towers touch the sides of the screen. Room
+    // is kept above and below for the quarters' tags.
+    const gutter = 30;
     const reach = CASTLE.reach * 2;
     const availW = stage.width;
     const availH = stage.height - top - tray - gutter * 2;
@@ -166,6 +186,7 @@ export class StaraUI {
     r.cam.x = (b.minX + b.maxX + 1) / 2;
     r.cam.y = (b.minY + b.maxY + 1) / 2 - (midY - stage.height / 2) / r.cam.zoom;
     r.glide = null;
+    this.quarterKey = '';
   }
 
   /** Fit again on the next sync: a new game, or the window changed. */
@@ -177,49 +198,65 @@ export class StaraUI {
     this.fit(true);
   }
 
-  // --- the card -------------------------------------------------------------
+  // --- the hand ---------------------------------------------------------------
 
-  /** The tile in your hand, as the card shows it, or nothing between tiles. */
-  held() {
+  /**
+   * The hand, as cards in the tray: the one held up raised and ringed, the
+   * rest beside it, all the same size, smaller the more you hold (two rows
+   * past four). The tile held up leaves the tray while it sits on a square.
+   */
+  drawHand() {
     const g = this.game;
-    if (g.phase !== 'place' || !g.tile) return null;
-    const p = this.h.pending();
-    return { type: g.tile, rot: p ? p.rot : g.rot, key: `hand:${g.turn}:${g.tileKey}` };
-  }
-
-  drawCard() {
-    const canvas = $('staraTile');
-    const wrap = $('staraCard');
-    const held = this.held();
+    const host = $('staraCards');
+    const hand = g.phase === 'place' ? g.m.hand : [];
     const pending = this.h.pending();
-    wrap.classList.toggle('empty', !held);
-    $('staraGo').classList.toggle('shown', !!pending);
-    this.caption(held, pending);
-    if (!held) { this.shown = null; return; }
+    const sel = g.m.sel;
+    const n = hand.length;
+    const size = n <= 1 ? 150 : n === 2 ? 118 : n === 3 ? 88 : 62;
+    host.style.setProperty('--card', `${size}px`);
+    // One row up to four, two rows past that, the row as wide as the cards
+    // still in the tray (not the one sitting on a square).
+    const shown = Math.max(1, n - (pending ? 1 : 0));
+    const perRow = shown <= 4 ? shown : Math.ceil(shown / 2);
+    host.style.width = `${perRow * size + (perRow - 1) * 10}px`;
+    // Starà's tiles are inked, and the board may not have drawn a frame yet
+    // to say so, so the hand says so itself.
+    usePalette('chart');
 
-    // A new tile pops up off the pile; the same tile turned, turns.
-    const fresh = this.shown?.key !== held.key;
-    if (fresh) this.pop(wrap);
-    else if (this.shown.rot !== held.rot) this.spin(canvas, held.rot - this.shown.rot);
-    this.shown = { key: held.key, rot: held.rot };
-
-    const ctx = canvas.getContext('2d');
-    const size = canvas.width;
-    ctx.clearRect(0, 0, size, size);
-    ctx.save();
-    ctx.translate(size / 2, size / 2);
-    ctx.rotate(held.rot * Math.PI / 2);
-    ctx.translate(-size / 2, -size / 2);
-    ctx.scale(size, size);
-    this.h.drawTile(ctx, held.type, { terrain: 'surface', rot: held.rot });
-    ctx.restore();
-  }
-
-  /** The tile comes up off the pile: a short rise with a little overshoot. */
-  pop(wrap) {
-    wrap.classList.remove('pop');
-    void wrap.offsetWidth;
-    wrap.classList.add('pop');
+    // Rebuild the cards when the hand itself changes; otherwise only redraw.
+    const key = `${g.turn}|${hand.join('.')}`;
+    if (host.dataset.key !== key) {
+      const fresh = !this.shown || this.shown.turn !== g.turn;
+      host.dataset.key = key;
+      host.innerHTML = hand.map((id, i) => `<div class="staraCard${fresh && i === sel ? ' pop' : ''}" data-i="${i}">`
+        + `<canvas width="${size * 2}" height="${size * 2}" aria-label="Tile ${i + 1} in your hand"></canvas></div>`).join('');
+      this.shown = { turn: g.turn, rots: [] };
+    }
+    const cards = [...host.children];
+    cards.forEach((card, i) => {
+      const held = i === sel;
+      card.classList.toggle('held', held);
+      card.classList.toggle('placed', held && !!pending);
+      const rot = held ? (pending ? pending.rot : g.rot) : 0;
+      const canvas = card.firstChild;
+      const was = this.shown.rots[i];
+      if (was === rot && card.dataset.drawn === key) return;
+      if (held && was != null && was !== rot) this.spin(canvas, rot - was);
+      this.shown.rots[i] = rot;
+      card.dataset.drawn = key;
+      const ctx = canvas.getContext('2d');
+      const px = canvas.width;
+      ctx.clearRect(0, 0, px, px);
+      ctx.save();
+      ctx.translate(px / 2, px / 2);
+      ctx.rotate(rot * Math.PI / 2);
+      ctx.translate(-px / 2, -px / 2);
+      ctx.scale(px, px);
+      this.h.drawTile(ctx, TILES_OF(hand[i]), { terrain: 'surface', rot });
+      ctx.restore();
+    });
+    $('staraTray').classList.toggle('many', n > 4);
+    this.caption(n ? hand[sel] : null, pending, n);
   }
 
   /**
@@ -237,47 +274,123 @@ export class StaraUI {
   }
 
   /**
-   * One quiet line under the card for your first few tiles in Starà, ever,
-   * and then nothing: by then the tile and the lit squares say it.
+   * The seal, on the board: centred on the staged tile's lower right corner,
+   * or its lower left if that would put it off the screen, so the decision
+   * and the yes are in the same place.
    */
-  caption(held, pending) {
+  placeSeal() {
+    const seal = $('staraGo');
+    const p = this.h.pending();
+    seal.classList.toggle('shown', !!p);
+    if (!p) return;
+    const r = this.h.renderer;
+    const z = r.cam.zoom;
+    const stage = $('stage').getBoundingClientRect();
+    const cv = r.canvas.getBoundingClientRect();
+    const [sx, sy] = r.toScreen(p.x, p.y);
+    const half = seal.offsetWidth / 2 || 23;
+    let cx = cv.left - stage.left + sx + z, cy = cv.top - stage.top + sy + z;
+    if (cx + half > stage.width - 2) cx -= z;
+    cx = Math.max(half + 2, Math.min(stage.width - half - 2, cx));
+    seal.style.left = `${cx - half}px`;
+    seal.style.top = `${cy - half}px`;
+  }
+
+  /**
+   * One quiet line under the hand for your first few tiles in Starà, ever,
+   * and then nothing: by then the tiles and the lit squares say it.
+   */
+  caption(heldId, pending, n) {
     const el = $('staraCaption');
     const taught = Number(store.get(TAUGHT) || 0);
     let text = '';
-    if (taught < 6 && held) {
-      text = pending ? 'Touch it again to turn it. The seal lays it.'
-        : 'Touch the tile to turn it. Touch a lit square to put it there.';
+    if (taught < 8 && heldId) {
+      text = pending ? 'Touch the tile on the board to turn it. The seal lays it.'
+        : n > 1 ? 'Touch a tile to hold it up, again to turn it. Touch a lit square.'
+          : 'Touch the tile to turn it. Touch a lit square to put it there.';
     }
     el.textContent = text;
-    if (held && this.taughtFor !== held.key) {
-      this.taughtFor = held.key;
+    const key = `${this.game.turn}`;
+    if (heldId && this.taughtFor !== key) {
+      this.taughtFor = key;
       store.set(TAUGHT, String(taught + 1));
     }
   }
 
-  // --- touching the card ------------------------------------------------------
+  // --- the four quarters --------------------------------------------------------
+
+  /**
+   * A tag at each corner of the square, above it for the north quarters and
+   * below it for the south: the trade's emblem and name, and what it is worth
+   * now. Placed when the layout changes; their worth refreshed every sync.
+   */
+  drawQuarters() {
+    const g = this.game, b = g.board.bounds, r = this.h.renderer;
+    const host = $('staraQuarters');
+    const layout = `${this.layoutKey}|${g.mode}|${JSON.stringify(g.m.trades)}`;
+    if (this.quarterKey !== layout) {
+      this.quarterKey = layout;
+      const stage = $('stage').getBoundingClientRect();
+      const cv = r.canvas.getBoundingClientRect();
+      const ox = cv.left - stage.left, oy = cv.top - stage.top;
+      const z = r.cam.zoom;
+      const [x0, y0] = r.toScreen(b.minX, b.minY), [x1, y1] = r.toScreen(b.maxX + 1, b.maxY + 1);
+      const reach = CASTLE.reach * z;
+      const at = { NW: [x0, y0 - reach, 'n'], NE: [x1, y0 - reach, 'n'], SE: [x1, y1 + reach, 's'], SW: [x0, y1 + reach, 's'] };
+      host.innerHTML = QUARTERS.map((q) => {
+        const t = TRADE_BY_ID[g.m.trades[q]];
+        const [x, y, side] = at[q];
+        const west = q.endsWith('W');
+        const style = `${west ? 'left' : 'right'}:${west ? ox + x + 4 : stage.width - (ox + x) + 4}px;`
+          + `${side === 'n' ? 'bottom' : 'top'}:${side === 'n' ? stage.height - (oy + y) + 2 : oy + y + 2}px`;
+        return `<div class="staraQuarter" data-q="${q}" style="${style}" title="The ${t.name.toLowerCase()} quarter wants ${t.wants}: ${t.per} each">`
+          + `<svg viewBox="0 0 20 20" aria-hidden="true">${EMBLEMS[t.id]}</svg>`
+          + `<span class="name">${t.name}</span><b></b></div>`;
+      }).join('');
+    }
+    for (const el of host.children) {
+      const q = el.dataset.q;
+      el.querySelector('b').textContent = `+${quarterWorth(g.board, q, g.m.trades[q]).pts}`;
+    }
+  }
+
+  // --- touching the cards -----------------------------------------------------
 
   down(e) {
     const g = this.game;
-    if (!this.on || g.phase !== 'place' || !g.tile) return;
+    const card = e.target.closest('.staraCard');
+    if (!this.on || !card || g.phase !== 'place') return;
     e.preventDefault();
-    this.press = { id: e.pointerId, x: e.clientX, y: e.clientY, dragging: false };
+    const i = Number(card.dataset.i);
+    // Touching another card holds it up instead, and takes back whatever was
+    // sitting on a square: that was the other tile.
+    let picked = false;
+    if (i !== g.m.sel) {
+      if (this.h.pending()) this.h.clear();
+      picked = g.m.select(i);
+    }
+    this.press = { id: e.pointerId, i, x: e.clientX, y: e.clientY, dragging: false, picked };
   }
+
+  /** The card a finger is on (by its place in the hand, which the redraw keeps). */
+  cardAt(i) { return $('staraCards').querySelector(`.staraCard[data-i="${i}"]`); }
 
   move(e) {
     const p = this.press;
     if (!p || p.id !== e.pointerId) return;
     const dx = e.clientX - p.x, dy = e.clientY - p.y;
+    const wrap = this.cardAt(p.i);
+    if (!wrap) return;
     if (!p.dragging && Math.hypot(dx, dy) > DRAG_PX) {
       p.dragging = true;
-      $('staraCard').classList.add('lifted');
+      if (this.h.pending()) this.h.clear();
+      wrap.classList.add('lifted');
     }
     if (!p.dragging) return;
     // Picked up, the tile shrinks to the size it will be on the board and
     // follows the finger; over the square it hands over to the board's own
     // ghost, which snaps to the square it would land on.
     const r = this.h.renderer;
-    const wrap = $('staraCard');
     wrap.style.translate = `${dx}px ${dy}px`;
     wrap.style.scale = String(Math.min(1, r.cam.zoom / wrap.offsetWidth));
     const cv = r.canvas.getBoundingClientRect();
@@ -297,12 +410,12 @@ export class StaraUI {
   up(e) {
     const p = this.press;
     if (!p || p.id !== e.pointerId) return;
-    this.press = null;
     const r = this.h.renderer;
     if (!p.dragging) {
-      // A touch, not a drag: turn the tile, through only the ways it fits if
-      // it is already sitting on a square.
-      if (this.h.pending()) this.h.turn(1); else this.game.rotate(1);
+      this.press = null;
+      // A touch on the card already held up turns it; on another, it was
+      // held up by the touch, and that is all.
+      if (!p.picked) this.game.rotate(1);
       return;
     }
     const drop = r.hover;
@@ -312,17 +425,19 @@ export class StaraUI {
   }
 
   cancelDrag() {
-    const card = $('staraCard');
-    card.classList.remove('lifted', 'snapped');
-    card.style.translate = '';
-    card.style.scale = '';
+    const card = this.press ? this.cardAt(this.press.i) : null;
+    if (card) {
+      card.classList.remove('lifted', 'snapped');
+      card.style.translate = '';
+      card.style.scale = '';
+    }
     if (this.press?.dragging) this.h.renderer.hover = null;
     this.press = null;
   }
 
-  /** Where a laid tile flies in from: the card, so it is seen leaving your hand. */
+  /** Where a laid tile flies in from: the seal it was sealed with, beside it. */
   entry() {
-    const c = $('staraTile').getBoundingClientRect();
+    const c = ($('staraGo').classList.contains('shown') ? $('staraGo') : $('staraCards')).getBoundingClientRect();
     return { x: c.left + c.width / 2, y: c.top + c.height / 2 };
   }
 

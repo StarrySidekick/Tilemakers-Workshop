@@ -792,6 +792,15 @@ export const SHIP_TILE = {
  */
 export const ABBEY_TILE = { id: 'ABB', n: 0, group: 'abbey', name: 'Abbey', feats: [abbey()] };
 
+/**
+ * Starà's KEEP (Timothy, 2026-11-18: "a keep tile with walls that end feature
+ * on each side, and some effect of some kind"). Walls on all four sides, as
+ * an Abbazia's wildcard edges: it fits against anything and ends every road
+ * and district it touches. Its effect is Starà's (a road ending at it counts
+ * it as a gate); its picture is castle.js's. One to a Starà deck.
+ */
+export const KEEP_TILE = { id: 'KEEP', n: 0, group: 'stara', name: 'Keep', wild: true, keep: true, feats: [] };
+
 // ---------------------------------------------------------------------------
 // Cave tiles — a separate pool used only inside caves. 'r' edges are passages,
 // 'f' edges are solid rock, so the exact same edge-matching rule carves out a
@@ -1026,10 +1035,11 @@ prepare(CAVE_TYPES);
 prepare(CITY_TYPES);
 prepare(RIVER_TYPES);
 prepare([ABBEY_TILE]);
+prepare([KEEP_TILE]);
 prepare([SHIP_TILE]);
 
 export const TILES = Object.fromEntries(
-  [...TILE_TYPES, ...CAVE_TYPES, ...CITY_TYPES, ...RIVER_TYPES, ABBEY_TILE, SHIP_TILE]
+  [...TILE_TYPES, ...CAVE_TYPES, ...CITY_TYPES, ...RIVER_TYPES, ABBEY_TILE, KEEP_TILE, SHIP_TILE]
     .map((t) => [t.id, t]));
 
 /** The river pool, spring and mouth held back to bookend it. */

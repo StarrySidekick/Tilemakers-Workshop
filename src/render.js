@@ -18,7 +18,7 @@ import { DESIGN, rgba } from './design.js';
 import { rotPoint, wallSides, opposite } from './tiles.js';
 import { liftableCells } from './mechanics.js';
 import { roughen } from './ink.js';
-import { paintCastle, gatesOf, CASTLE } from './castle.js';
+import { paintCastle, gatesOf, CASTLE, keepSprite } from './castle.js';
 import { sketchLine, sketchRect, seedOf } from './sketch.js';
 
 // Move targets, in the order you want to notice them. Green is the plain "you
@@ -184,6 +184,12 @@ export class Renderer {
       return;
     }
     const dpr = window.devicePixelRatio || 1;
+    // Starà's keep is a picture of its own (castle.js), the same any way round.
+    if (type.keep) {
+      const [kx, ky] = origin ? origin(x, y) : this.toScreen(x, y);
+      this.ctx.drawImage(keepSprite(zoom * dpr), kx, ky, zoom + 0.5, zoom + 0.5);
+      return;
+    }
     const sprite = tileSprite(type, rot, terrain, zoom * dpr);
     if (!sprite) {
       this.inCell(x, y, rot, (c) => drawTile(c, type, { terrain, rot }), zoom, origin);
@@ -409,7 +415,7 @@ export class Renderer {
     const ready = this.wood.complete && this.wood.naturalWidth > 0;
     const b = game.board.bounds;
     const dpr = window.devicePixelRatio || 1;
-    const key = [this.w, this.h, dpr, this.cam.x, this.cam.y, this.cam.zoom, ready,
+    const key = [this.w, this.h, dpr, this.cam.x, this.cam.y, this.cam.zoom, ready, !!game.spec?.walled,
       b ? `${b.minX},${b.minY},${b.maxX},${b.maxY}` : '-'].join('|');
     if (this.tableKey !== key) {
       this.tableKey = key;
@@ -419,12 +425,12 @@ export class Renderer {
       layer.height = Math.round(this.h * dpr);
       const t = layer.getContext('2d');
       t.setTransform(dpr, 0, 0, dpr, 0, 0);
-      this.paintTable(t, b, ready);
+      this.paintTable(t, b, ready, game);
     }
     this.ctx.drawImage(this.tableLayer, 0, 0, this.w, this.h);
   }
 
-  paintTable(t, b, ready) {
+  paintTable(t, b, ready, game) {
     const { w, h } = this;
     const z = this.cam.zoom;
     // Oak's own colour while the photograph loads, so the first frame is
@@ -459,6 +465,29 @@ export class Renderer {
     const [x1, y1] = this.toScreen(b.maxX + 1, b.maxY + 1);
     t.fillStyle = 'rgba(38,18,4,0.24)';
     t.fillRect(x0, y0, x1 - x0, y1 - y0);
+    // The HIGH STREET (the fourth pass): the middle row and column, gate to
+    // gate, a shade lighter and edged by hand, cutting the square into the
+    // town's four quarters.
+    if (game.spec?.walled) {
+      const mx = (b.minX + b.maxX) / 2, my = (b.minY + b.maxY) / 2;
+      const [cx0, cy0] = this.toScreen(mx, my), [cx1, cy1] = this.toScreen(mx + 1, my + 1);
+      t.fillStyle = 'rgba(255,226,170,0.10)';
+      t.fillRect(cx0, y0, cx1 - cx0, y1 - y0);
+      t.fillRect(x0, cy0, cx0 - x0, cy1 - cy0);
+      t.fillRect(cx1, cy0, x1 - cx1, cy1 - cy0);
+      t.save();
+      t.strokeStyle = 'rgba(255,232,190,0.30)';
+      t.lineWidth = 1.4;
+      t.lineCap = 'round';
+      t.beginPath();
+      for (const [ax, ay, bx2, by2, k] of [
+        [cx0, y0, cx0, cy0, 1], [cx1, y0, cx1, cy0, 2], [cx0, cy1, cx0, y1, 3], [cx1, cy1, cx1, y1, 4],
+        [x0, cy0, cx0, cy0, 5], [x0, cy1, cx0, cy1, 6], [cx1, cy0, x1, cy0, 7], [cx1, cy1, x1, cy1, 8]]) {
+        sketchLine(t, ax, ay, bx2, by2, { seed: seedOf(k, 33), rough: 1 });
+      }
+      t.stroke();
+      t.restore();
+    }
     t.save();
     t.strokeStyle = 'rgba(40,20,4,0.30)';
     t.lineWidth = 1;

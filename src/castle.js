@@ -21,6 +21,7 @@
 // ---------------------------------------------------------------------------
 
 import { sketchLine, sketchRect, sketchCircle, seedOf } from './sketch.js';
+import { roughen } from './ink.js';
 import { gateRoads } from './modes/stara.js';
 
 /**
@@ -425,4 +426,87 @@ function gate(ctx, at, box, g, z, T, lw, ink) {
     tower(ctx, box(g.s, a - (half - pass) / 2 + 0.01 * z, a + (half - pass) / 2 - 0.01 * z, T * 0.3, T + 0.1 * z),
       z, lw * 0.85, ink, seedOf(g.s, g.i, side));
   }
+}
+
+// ---------------------------------------------------------------------------
+// THE KEEP (the fourth pass): a citadel on one tile, seen from above. Its own
+// curtain wall on all four edges (it ends whatever runs into it), a round
+// turret at each corner, a courtyard, and the donjon in the middle under a
+// pyramid roof with a banner on it. Drawn once per size, in the same hand as
+// the town wall, and inked by ink.js.
+// ---------------------------------------------------------------------------
+
+const keepSprites = new Map();
+
+/** The keep at `px` pixels square, cached. */
+export function keepSprite(px) {
+  px = Math.max(16, Math.round(px));
+  const had = keepSprites.get(px);
+  if (had) return had;
+  const c = document.createElement('canvas');
+  c.width = c.height = px;
+  const k = c.getContext('2d', { willReadFrequently: true });
+  paintKeep(k, px);
+  roughen(c, { amp: Math.max(0.5, px * 0.011), grain: 0.32 });
+  roughen(c, { amp: Math.max(0.3, px * 0.004), grain: 0.06 });
+  keepSprites.set(px, c);
+  if (keepSprites.size > 8) keepSprites.delete(keepSprites.keys().next().value);
+  return c;
+}
+
+function paintKeep(ctx, u) {
+  const lw = Math.max(1, u * 0.022);
+  const ink = (alpha = 1, width = lw) => {
+    ctx.strokeStyle = INK;
+    ctx.globalAlpha = alpha;
+    ctx.lineWidth = width;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+  };
+  const T = 0.14 * u;
+  // The courtyard: beaten earth, flagged.
+  ctx.fillStyle = '#cfb489';
+  ctx.fillRect(0, 0, u, u);
+  ctx.beginPath();
+  for (let i = 1; i < 6; i++) {
+    const v = T + (u - 2 * T) * (i / 6);
+    sketchLine(ctx, T, v, u - T, v, { seed: seedOf(i, 71), rough: 0.5, passes: 1 });
+  }
+  ink(0.18, lw * 0.7);
+
+  // The keep's own curtain wall, round all four edges: a walk and a parapet.
+  ctx.fillStyle = STONE_MID;
+  ctx.beginPath();
+  ctx.rect(0, 0, u, u);
+  ctx.rect(T, T, u - 2 * T, u - 2 * T);
+  ctx.fill('evenodd');
+  ctx.fillStyle = WALK;
+  ctx.beginPath();
+  ctx.rect(T * 0.45, T * 0.45, u - T * 0.9, u - T * 0.9);
+  ctx.rect(T, T, u - 2 * T, u - 2 * T);
+  ctx.fill('evenodd');
+  // Merlons along the outside.
+  ctx.fillStyle = STONE;
+  const m = T * 0.42, step = u / 7;
+  for (let i = 1; i < 7; i++) {
+    const a = i * step - m * 0.6;
+    ctx.fillRect(a, 0, m * 1.2, m);
+    ctx.fillRect(a, u - m, m * 1.2, m);
+    ctx.fillRect(0, a, m, m * 1.2);
+    ctx.fillRect(u - m, a, m, m * 1.2);
+  }
+  ctx.beginPath();
+  sketchRect(ctx, 1, 1, u - 2, u - 2, { seed: 81, rough: 0.6 });
+  sketchRect(ctx, T, T, u - 2 * T, u - 2 * T, { seed: 82, rough: 0.6 });
+  ink(0.95);
+
+  // A round turret at each corner, and the donjon in the middle.
+  for (const [cx, cy] of [[T * 0.9, T * 0.9], [u - T * 0.9, T * 0.9], [u - T * 0.9, u - T * 0.9], [T * 0.9, u - T * 0.9]]) {
+    roundTower(ctx, cx, cy, u * 0.36, lw * 0.85, ink, seedOf(cx, cy, 91));
+  }
+  const d = 0.44 * u;
+  tower(ctx, [(u - d) / 2, (u - d) / 2, d, d], u * 0.9, lw, ink, 97);
+  banner(ctx, u / 2, u / 2, u * 0.75, lw, ink, 99);
 }
