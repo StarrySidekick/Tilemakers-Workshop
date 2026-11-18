@@ -48,6 +48,14 @@ const FOXING = [
   [0.35, 0.88, 0.09, 0.07], [0.79, 0.93, 0.07, 0.09], [0.05, 0.78, 0.08, 0.06],
 ];
 
+/**
+ * Starà's table (assets/table-oak.jpg) is a photograph of 1.2 m of oak, and a
+ * Carcassonne tile is 45 mm, so one repeat of the wood spans this many tiles.
+ * Drawn to that scale the planks are about three tiles wide, as a real table's
+ * would be under a real box of tiles.
+ */
+const WOOD_TILES = 1200 / 45;
+
 /** Fast then slow — the shape almost everything transient here moves on. */
 const ease = (t) => 1 - (1 - t) ** 3;
 
@@ -220,6 +228,10 @@ export class Renderer {
     const antique = !this.pixel && game.m?.backdrop === 'sky';
     usePalette(antique ? 'chart' : 'twilight');
     if (this.pixel) this.drawCoasts(game, fog);
+    // On a table the tiles are cardboard lying on wood, and cast a shadow on
+    // it. All the shadows go down first, so none falls across a neighbour.
+    const table = !!game.spec?.table;
+    if (table) this.drawTileShadows(game);
 
     for (const cell of game.board.cells.values()) {
       if (!this.onScreen(cell.x, cell.y)) continue;
@@ -280,7 +292,7 @@ export class Renderer {
         const z = this.cam.zoom;
         this.ctx.save();
         this.ctx.lineWidth = 3;
-        this.ctx.strokeStyle = THEME.gold;
+        this.ctx.strokeStyle = table ? '#fff1d6' : THEME.gold;
         this.ctx.setLineDash([z * 0.12, z * 0.08]);
         this.ctx.lineDashOffset = (performance.now() / 70) % (z * 0.2);
         this.ctx.strokeRect(sx + 2, sy + 2, z - 4, z - 4);
@@ -297,7 +309,7 @@ export class Renderer {
     // A chart is not lit at dusk — it is a sheet on a table. The vignette that
     // frames every other mode would only fight the stain already painted round
     // the edge of the paper, and two vignettes are a smudge rather than a frame.
-    if (!antique && !this.pixel) applyDusk(ctx, this.w, this.h);
+    if (!antique && !this.pixel && !table) applyDusk(ctx, this.w, this.h);
 
     // Effects sit above the dusk wash. A score you can't read is not a score
     // you can read dimly — it's one you miss.
@@ -360,6 +372,156 @@ export class Renderer {
     }
   }
 
+  /**
+   * STARÀ'S TABLE (2026-11-18: "the background should be real wood"). A
+   * photograph of oak planks, drawn to scale (WOOD_TILES), lit from above
+   * like a lamp over a kitchen table, with the 7 x 7 square the day is played
+   * in sunk a little into it so its edge reads before a single tile is down.
+   *
+   * All of it is the same picture until the window, the camera or the board's
+   * bounds change, and Starà's camera does not move, so it is baked into one
+   * canvas and blitted: one drawImage a frame instead of a full-screen
+   * pattern fill, a gradient and a frame's worth of strokes.
+   */
+  drawTable(game) {
+    if (!this.wood) {
+      this.wood = new Image();
+      this.wood.src = './assets/table-oak.jpg';
+    }
+    const ready = this.wood.complete && this.wood.naturalWidth > 0;
+    const b = game.board.bounds;
+    const dpr = window.devicePixelRatio || 1;
+    const key = [this.w, this.h, dpr, this.cam.x, this.cam.y, this.cam.zoom, ready,
+      b ? `${b.minX},${b.minY},${b.maxX},${b.maxY}` : '-'].join('|');
+    if (this.tableKey !== key) {
+      this.tableKey = key;
+      this.tableLayer ||= document.createElement('canvas');
+      const layer = this.tableLayer;
+      layer.width = Math.round(this.w * dpr);
+      layer.height = Math.round(this.h * dpr);
+      const t = layer.getContext('2d');
+      t.setTransform(dpr, 0, 0, dpr, 0, 0);
+      this.paintTable(t, b, ready);
+    }
+    this.ctx.drawImage(this.tableLayer, 0, 0, this.w, this.h);
+  }
+
+  paintTable(t, b, ready) {
+    const { w, h } = this;
+    const z = this.cam.zoom;
+    // Oak's own colour while the photograph loads, so the first frame is
+    // already a table rather than a black flash.
+    t.fillStyle = '#9a6a43';
+    t.fillRect(0, 0, w, h);
+    if (ready) {
+      const pattern = t.createPattern(this.wood, 'repeat');
+      const k = (z * WOOD_TILES) / this.wood.naturalWidth;
+      // Pinned to the board's origin, so the grain sits still under it.
+      const [ox, oy] = this.toScreen(0, 0);
+      pattern.setTransform(new DOMMatrix().translateSelf(ox, oy).scaleSelf(k, k));
+      t.fillStyle = pattern;
+      t.fillRect(0, 0, w, h);
+    }
+
+    // The lamp: warm where the square is, falling away to the corners.
+    const [cx, cy] = b ? this.toScreen((b.minX + b.maxX + 1) / 2, (b.minY + b.maxY + 1) / 2)
+      : [w / 2, h / 2];
+    const reach = Math.hypot(w, h) * 0.62;
+    const lamp = t.createRadialGradient(cx, cy, z * 1.5, cx, cy, reach);
+    lamp.addColorStop(0, 'rgba(255,214,150,0.10)');
+    lamp.addColorStop(0.55, 'rgba(40,20,6,0.10)');
+    lamp.addColorStop(1, 'rgba(26,12,2,0.58)');
+    t.fillStyle = lamp;
+    t.fillRect(0, 0, w, h);
+    if (!b) return;
+
+    // The well: the square sunk a couple of millimetres into the wood. Darker
+    // inside; a shadow along the top and left lips, where the lamp cannot
+    // reach, and a catch of light along the bottom and right.
+    const [x0, y0] = this.toScreen(b.minX, b.minY);
+    const [x1, y1] = this.toScreen(b.maxX + 1, b.maxY + 1);
+    const pad = Math.max(3, z * 0.06);
+    const L = x0 - pad, T = y0 - pad, R = x1 + pad, B = y1 + pad;
+    t.save();
+    t.fillStyle = 'rgba(38,18,4,0.26)';
+    t.fillRect(L, T, R - L, B - T);
+    t.beginPath();
+    t.rect(L, T, R - L, B - T);
+    t.clip();
+    t.shadowColor = 'rgba(20,8,0,0.55)';
+    t.shadowBlur = z * 0.22;
+    t.shadowOffsetX = z * 0.05;
+    t.shadowOffsetY = z * 0.07;
+    t.lineWidth = z * 0.3;
+    t.strokeStyle = 'rgba(20,8,0,0.6)';
+    t.strokeRect(L - z * 0.15, T - z * 0.15, R - L + z * 0.3, B - T + z * 0.3);
+    t.restore();
+
+    // The squares, scored faintly into the floor of the well, so you can
+    // count what is left to fill.
+    t.save();
+    t.strokeStyle = 'rgba(30,14,2,0.22)';
+    t.lineWidth = 1;
+    t.beginPath();
+    for (let x = b.minX + 1; x <= b.maxX; x++) {
+      const [sx] = this.toScreen(x, 0);
+      t.moveTo(Math.round(sx) + 0.5, y0);
+      t.lineTo(Math.round(sx) + 0.5, y1);
+    }
+    for (let y = b.minY + 1; y <= b.maxY; y++) {
+      const [, sy] = this.toScreen(0, y);
+      t.moveTo(x0, Math.round(sy) + 0.5);
+      t.lineTo(x1, Math.round(sy) + 0.5);
+    }
+    t.stroke();
+    t.restore();
+
+    // The lips of the well: dark on the top and left, lit on the bottom and right.
+    t.save();
+    t.lineWidth = 1.5;
+    t.strokeStyle = 'rgba(18,8,0,0.55)';
+    t.beginPath();
+    t.moveTo(L, B); t.lineTo(L, T); t.lineTo(R, T);
+    t.stroke();
+    t.strokeStyle = 'rgba(255,226,180,0.30)';
+    t.beginPath();
+    t.moveTo(R + 0.5, T); t.lineTo(R + 0.5, B + 0.5); t.lineTo(L, B + 0.5);
+    t.stroke();
+    t.restore();
+  }
+
+  /**
+   * The shadow a tile casts on the table: one blurred square, made once per
+   * zoom and stamped under every tile, rather than a shadowBlur per tile per
+   * frame.
+   */
+  drawTileShadows(game) {
+    const z = this.cam.zoom;
+    const dpr = window.devicePixelRatio || 1;
+    if (!this.shadowStamp || this.shadowStamp.z !== z || this.shadowStamp.dpr !== dpr) {
+      const m = Math.ceil(z * 0.3);
+      const c = document.createElement('canvas');
+      c.width = Math.ceil((z + m * 2) * dpr);
+      c.height = c.width;
+      const s = c.getContext('2d');
+      s.scale(dpr, dpr);
+      s.shadowColor = 'rgba(16,6,0,0.62)';
+      s.shadowBlur = z * 0.12;
+      s.shadowOffsetX = 0;
+      s.shadowOffsetY = 0;
+      s.fillStyle = 'rgba(16,6,0,0.62)';
+      s.fillRect(m, m, z, z);
+      this.shadowStamp = { c, m, z, dpr };
+    }
+    const { c, m } = this.shadowStamp;
+    const size = z + m * 2;
+    for (const cell of game.board.cells.values()) {
+      if (this.fx?.veiled(`tile:${cell.x},${cell.y}`)) continue;
+      const [sx, sy] = this.toScreen(cell.x, cell.y);
+      this.ctx.drawImage(c, sx - m + z * 0.035, sy - m + z * 0.06, size, size);
+    }
+  }
+
   onScreen(x, y) {
     const [sx, sy] = this.toScreen(x, y);
     const z = this.cam.zoom;
@@ -376,6 +538,7 @@ export class Renderer {
   drawBackdrop(game) {
     const ctx = this.ctx;
     if (game?.spec?.pixel) return this.drawPixelSky(game.board.bounds);
+    if (game?.spec?.table) return this.drawTable(game);
     if (game?.m?.backdrop !== 'sky') {
       ctx.fillStyle = THEME.night;
       ctx.fillRect(0, 0, this.w, this.h);
@@ -1279,7 +1442,8 @@ export class Renderer {
     // The hover ghost is always drawn; only the "here are all the squares it
     // could go" wash is optional, because some people want to find that out
     // themselves.
-    const spots = this.showHints ? new Set(
+    // Starà always lights them: the lit squares ARE its interface.
+    const spots = this.showHints || game.spec?.table ? new Set(
       game.board.legalPlacements(game.tile, game.placeOpts())
         .filter((p) => !game.m.canPlaceAt || this.modeAllows(game, p))
         .map((p) => `${p.x},${p.y}`)) : new Set();
@@ -1292,6 +1456,16 @@ export class Renderer {
       // On a chart the hints are drawn in the red ink the rhumbs are drawn in;
       // gold was invisible on night and far too loud on a painted sky.
       const chart = game.m?.backdrop === 'sky';
+      // On the table, a square of lamplight: gold is lost in oak.
+      if (game.spec?.table) {
+        const glow = 0.20 + Math.sin(performance.now() / 520) * 0.05;
+        ctx.fillStyle = `rgba(255,240,206,${glow})`;
+        ctx.fillRect(sx + z * 0.05, sy + z * 0.05, z * 0.9, z * 0.9);
+        ctx.strokeStyle = 'rgba(255,244,220,0.62)';
+        ctx.lineWidth = 1.5;
+        ctx.strokeRect(sx + z * 0.05, sy + z * 0.05, z * 0.9, z * 0.9);
+        continue;
+      }
       ctx.fillStyle = chart ? 'rgba(126,46,32,0.07)' : 'rgba(212,175,95,0.07)';
       ctx.fillRect(sx + z * 0.06, sy + z * 0.06, z * 0.88, z * 0.88);
       ctx.strokeStyle = chart ? 'rgba(126,46,32,0.34)' : 'rgba(212,175,95,0.24)';
@@ -1309,13 +1483,15 @@ export class Renderer {
       this.paintTile(p.x, p.y, p.rot, game.tile, 'surface', this.cam.zoom, null, game.board.seq);
       ctx.save();
       ctx.lineWidth = 3.5;
-      ctx.strokeStyle = THEME.gold;
+      ctx.strokeStyle = game.spec?.table ? '#fff1d6' : THEME.gold;
       ctx.setLineDash([z * 0.14, z * 0.09]);
       ctx.lineDashOffset = (performance.now() / 60) % (z * 0.23);
       ctx.strokeRect(px + 2, py + 2, z - 4, z - 4);
       ctx.restore();
       // What a tap on it does now, so the gesture doesn't have to be guessed.
       // The checkmark in the confirm panel is the only thing that commits.
+      // Starà says nothing: its tile in hand turns in front of you instead.
+      if (game.spec?.table) return;
       ctx.save();
       ctx.fillStyle = THEME.gold;
       ctx.font = `600 ${Math.max(10, z * 0.16)}px ui-sans-serif`;

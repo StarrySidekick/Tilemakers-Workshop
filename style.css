@@ -827,3 +827,225 @@ footer { font-size: 10.5px; line-height: 1.6; }
 .welcomeHow b { color: var(--accent); font-weight: 600; }
 .welcomeDim { margin: 0; font-size: 11.5px; color: var(--dim); }
 #welcomePlay { align-self: flex-start; margin-top: 4px; }
+
+/* --- Starà: the daily square, on a wooden table -----------------------------
+   2026-11-18: "very minimalist. the background should be real wood". The
+   board's canvas paints the oak (src/render.js, drawTable); everything here
+   floats over it and is drawn to sit ON the table: cream ivory for what you
+   touch, lamp-lit text, and the tile in your hand casting the long shadow of
+   something held up off the wood. The workshop's panel, HUD and claim box
+   step aside while a Starà game runs; the menu brings the panel back. */
+
+body.stara { --bg: #3a2414; background: #3a2414; }
+body.stara:not(.staraPanel) main { grid-template-columns: 1fr; grid-template-rows: 1fr; }
+body.stara:not(.staraPanel) #panel { display: none; }
+body.stara #hud, body.stara #claim, body.stara #welcome { display: none !important; }
+body.stara #board { cursor: pointer; }
+
+#stara {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  pointer-events: none;            /* the board between the bars takes the taps */
+  color: #f7ecd8;
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+#stara[hidden] { display: none; }
+#stara .staraTop, #stara .staraTray > *, #stara .staraEnd { pointer-events: auto; }
+
+.staraTop {
+  display: grid;
+  grid-template-columns: 56px 1fr 56px;
+  align-items: center;
+  padding: max(10px, env(safe-area-inset-top)) 16px 4px;
+  box-sizing: border-box;
+}
+.staraTitle {
+  text-align: center;
+  font: 600 21px/1.05 ui-serif, Georgia, "Iowan Old Style", serif;
+  letter-spacing: 0.08em;
+  text-shadow: 0 1px 2px rgba(20, 8, 0, 0.75);
+}
+.staraTitle small {
+  display: block;
+  margin-top: 3px;
+  font: 600 10px/1 ui-sans-serif, system-ui, sans-serif;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  opacity: 0.72;
+}
+.staraScore {
+  justify-self: end;
+  font: 600 28px/1 ui-serif, Georgia, serif;
+  font-variant-numeric: tabular-nums;
+  text-shadow: 0 1px 3px rgba(20, 8, 0, 0.8);
+}
+.staraScore.bump { animation: bump 640ms cubic-bezier(0.2, 1.4, 0.4, 1); }
+
+.staraRound {
+  width: 42px; height: 42px;
+  padding: 0;
+  border-radius: 50%;
+  display: grid; place-items: center;
+  color: #f7ecd8;
+  background: rgba(30, 14, 2, 0.28);
+  border: 1px solid rgba(247, 236, 216, 0.28);
+  cursor: pointer;
+}
+.staraRound:hover { background: rgba(30, 14, 2, 0.42); }
+
+.staraTray {
+  height: 258px;                   /* fixed, so the square never moves under you */
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 0 16px max(12px, env(safe-area-inset-bottom));
+  box-sizing: border-box;
+}
+.staraHand {
+  display: grid;
+  grid-template-columns: 58px auto 58px;
+  align-items: center;
+  gap: 22px;
+}
+
+/* The draw pile: three tile backs, squared up a little carelessly, and how
+   many are left written on the top one. */
+.staraPile {
+  position: relative;
+  width: 46px; height: 46px;
+  justify-self: center;
+  display: grid; place-items: center;
+  font: 600 15px/1 ui-serif, Georgia, serif;
+  color: #4a2e14;
+  background: #e9d6b0;
+  border-radius: 4px;
+  box-shadow:
+    3px 3px 0 -1px #d8c193, 3px 3px 0 0 rgba(60, 30, 8, 0.35),
+    6px 6px 0 -1px #cfb685, 6px 6px 0 0 rgba(60, 30, 8, 0.35),
+    8px 10px 14px rgba(20, 8, 0, 0.45);
+}
+
+.staraCard { width: 150px; height: 150px; position: relative; }
+.staraCard.empty { visibility: hidden; }
+#staraTile {
+  width: 150px; height: 150px;
+  display: block;
+  border-radius: 5px;
+  touch-action: none;
+  cursor: grab;
+  box-shadow: 0 16px 30px rgba(18, 7, 0, 0.55), 0 3px 6px rgba(18, 7, 0, 0.5);
+  transition: transform 260ms cubic-bezier(0.3, 1.25, 0.5, 1);
+}
+.staraCard.claiming #staraTile { cursor: default; }
+.staraCard.lifted { z-index: 5; pointer-events: none; }
+.staraCard.lifted #staraTile { cursor: grabbing; box-shadow: 0 10px 18px rgba(18, 7, 0, 0.5); }
+.staraCard.snapped #staraTile { opacity: 0; }
+.staraCard.pop { animation: staraPop 440ms cubic-bezier(0.2, 1.3, 0.45, 1) both; }
+@keyframes staraPop {
+  from { transform: translate(-70px, 40px) scale(0.35) rotate(-8deg); opacity: 0; }
+  to { transform: none; opacity: 1; }
+}
+
+.staraGo {
+  width: 58px; height: 58px;
+  padding: 0;
+  border-radius: 50%;
+  border: none;
+  display: grid; place-items: center;
+  color: #3b2410;
+  background: radial-gradient(circle at 35% 30%, #fffaf0, #eedcb8);
+  box-shadow: 0 6px 14px rgba(18, 7, 0, 0.5), inset 0 -2px 0 rgba(120, 80, 30, 0.25);
+  cursor: pointer;
+  opacity: 0;
+  transform: scale(0.6);
+  pointer-events: none;
+  transition: opacity 160ms ease, transform 220ms cubic-bezier(0.2, 1.5, 0.4, 1);
+}
+.staraGo.shown { opacity: 1; transform: none; pointer-events: auto; }
+.staraGo:active { transform: scale(0.94); }
+
+.staraSkip {
+  padding: 6px 16px;
+  border-radius: 999px;
+  font: 600 13px/1.2 ui-sans-serif, system-ui, sans-serif;
+  color: #f7ecd8;
+  background: rgba(30, 14, 2, 0.34);
+  border: 1px solid rgba(247, 236, 216, 0.34);
+  cursor: pointer;
+  visibility: hidden;
+}
+.staraSkip.shown { visibility: visible; }
+.staraSkip:hover { background: rgba(30, 14, 2, 0.5); }
+
+.staraFollowers canvas { display: block; width: 126px; height: 20px; }
+.staraCaption {
+  min-height: 1.3em;
+  font-size: 12px;
+  text-align: center;
+  opacity: 0.85;
+  text-shadow: 0 1px 2px rgba(20, 8, 0, 0.8);
+}
+
+/* The end of the day: a card laid on the table over the square. */
+.staraEnd {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  background: rgba(24, 10, 0, 0.42);
+  animation: staraFade 300ms ease both;
+}
+.staraEnd[hidden] { display: none; }
+@keyframes staraFade { from { opacity: 0; } to { opacity: 1; } }
+.staraEndCard {
+  width: min(320px, 100%);
+  box-sizing: border-box;
+  padding: 22px 22px 18px;
+  border-radius: 14px;
+  text-align: center;
+  color: #3b2410;
+  background: radial-gradient(120% 90% at 50% 0%, #fffaf0, #efdfbf);
+  box-shadow: 0 24px 50px rgba(18, 7, 0, 0.6);
+  animation: staraPop 480ms cubic-bezier(0.2, 1.3, 0.45, 1) both;
+}
+.staraEndDay {
+  font: 600 12px/1 ui-sans-serif, system-ui, sans-serif;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: #8a5a2a;
+}
+.staraEndScore { font: 600 64px/1.1 ui-serif, Georgia, serif; margin: 6px 0 10px; }
+.staraEndRows { display: grid; gap: 4px; margin: 0 6px 12px; font-size: 14px; }
+.staraEndRows div { display: flex; justify-content: space-between; border-bottom: 1px dotted rgba(90, 55, 20, 0.3); padding-bottom: 3px; }
+.staraEndRows b { font-variant-numeric: tabular-nums; }
+.staraEndDim { font-size: 12.5px; color: #7a5a3a; }
+.staraEndBest { font: 600 14px/1.4 ui-serif, Georgia, serif; margin: 6px 0 14px; }
+.staraEndBtns { display: flex; gap: 10px; justify-content: center; }
+.staraEndBtns button {
+  padding: 9px 18px;
+  border-radius: 999px;
+  font: 600 14px/1 ui-sans-serif, system-ui, sans-serif;
+  border: 1px solid #b08850;
+  background: #fffaf0;
+  color: #3b2410;
+  cursor: pointer;
+}
+.staraEndBtns button:first-child { background: #3b2410; color: #fbf1dc; border-color: #3b2410; }
+
+/* A short phone: the tray gives up its caption first, then some height. */
+@media (max-height: 640px) {
+  .staraTray { height: 204px; gap: 5px; }
+  .staraCard, #staraTile { width: 128px; height: 128px; }
+  .staraCaption { display: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .staraCard.pop, .staraEndCard, .staraEnd, .staraScore.bump { animation: none; }
+  #staraTile, .staraGo { transition: none; }
+}

@@ -54,6 +54,48 @@
         <canvas id="claimTile" width="260" height="260"></canvas>
         <div id="claimActions" class="btns"></div>
       </div>
+
+      <!-- Starà: the daily square, one tile at a time, on a wooden table
+           (src/stara-ui.js). Shown only while a Starà game is running; the
+           workshop's panel, HUD and claim box step aside for it. -->
+      <div id="stara" hidden>
+        <div id="staraTop" class="staraTop">
+          <button id="staraMenu" class="staraRound" title="The workshop" aria-label="The workshop">
+            <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+          </button>
+          <div class="staraTitle">Starà<small id="staraDay">No. 1</small></div>
+          <div id="staraScore" class="staraScore" title="Your score">0</div>
+        </div>
+
+        <div id="staraTray" class="staraTray">
+          <div class="staraHand">
+            <div id="staraPileWrap" class="staraPile"><span id="staraPile">0</span></div>
+            <div id="staraCard" class="staraCard">
+              <canvas id="staraTile" width="360" height="360" aria-label="The tile in your hand"></canvas>
+            </div>
+            <button id="staraGo" class="staraGo" title="Lay it here (Enter)" aria-label="Lay it here">
+              <svg viewBox="0 0 24 24" width="28" height="28" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </button>
+          </div>
+          <button id="staraSkip" class="staraSkip">No follower</button>
+          <div id="staraFollowersWrap" class="staraFollowers"><canvas id="staraFollowers" width="252" height="40"></canvas></div>
+          <div id="staraCaption" class="staraCaption"></div>
+        </div>
+
+        <div id="staraEnd" class="staraEnd" hidden>
+          <div class="staraEndCard">
+            <div id="staraEndDay" class="staraEndDay">Starà</div>
+            <div id="staraEndScore" class="staraEndScore">0</div>
+            <div id="staraEndRows" class="staraEndRows"></div>
+            <div id="staraEndFill" class="staraEndDim"></div>
+            <div id="staraEndBest" class="staraEndBest"></div>
+            <div class="staraEndBtns">
+              <button id="staraAgain">Play again</button>
+              <button id="staraShare">Share</button>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
 
     <aside id="panel">

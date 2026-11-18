@@ -6,7 +6,8 @@ mechanically**, what it cost against the engine, and — most importantly —
 **what question it answers**. A prototype that doesn't answer a question isn't
 worth building.
 
-**All twelve are built**, plus a thirteenth — World — and a mechanics menu.
+**All twelve are built**, plus a thirteenth — World — a fourteenth, Starà,
+and a mechanics menu.
 Eight became modes; four became mechanics, because a rule that works on every
 mode is worth more than one that works on its own. Each section below keeps its
 original design, with a note at the top recording what actually shipped and
@@ -28,6 +29,7 @@ interesting part.
 | 11. Tesserae | mode | Is there a version someone opens every morning? |
 | 12. Two-faced | mechanic | Is a tile a noun, or a state? |
 | 13. World | mode + 4 tile families | What does the countryside still not have? |
+| 14. Starà | mode + its own interface | Is plain Carcassonne a daily puzzle once the table has an edge? |
 
 Play them and the questions answer themselves. What's at the bottom is what the
 engine still can't do.
@@ -1976,6 +1978,95 @@ and they pay a city the way a lake does.
 directions on purpose — one rewards placing with no follower at all, the other
 rewards committing a follower for the whole game. If one of those dominates,
 the fix is the number, not the rule.
+
+---
+
+## 14. Starà — the daily square
+
+> **Built 2026-11-18** — `src/modes/stara.js` (the rules), `src/stara-ui.js`
+> (its own screen), `drawTable` in `src/render.js` (the table), and
+> `assets/table-oak.jpg` (the wood; see `assets/CREDITS.md`). Checked by
+> `checkStara` in the harness and "starà on a phone" in the smoke test.
+
+Timothy, 2026-11-18: *"new mode, going to be daily, and based around the idea
+of fitting tiles into the area of your phone screen. so like let's define a
+square area of say 7x7 tiles. you have to get the best score possible within
+that shape. so regular carcassone rules but there's this border. build this
+and call it "Starà" mode. in addition, when in this mode, made the placement
+interface much simpler and more intuitive, with just like the tile itself pop
+up and then you place it and stuff, very minimalist. the background should be
+real wood"*.
+
+**Question:** is plain Carcassonne a daily puzzle once the table has an edge?
+
+**The rules** are the base game as printed: the 72-tile base deck, seven
+followers, farms scored at the end, unfinished features at half, solo, on a
+7 x 7 border with the start tile in the middle. Calls of Claude's, each with
+why:
+
+- **The whole deck, not 48 tiles.** The square has 48 free squares and the
+  deck has 71 tiles, so most days the deck outlasts the square. Dealing
+  exactly 48 would leave a hole for every tile that fits nowhere; dealing the
+  lot, with Carcassonne's own rule that a tile fitting nowhere is set aside,
+  gives every hole the rest of the deck to find its tile. The day ends when the
+  square is full or the deck is out.
+- **The local date**, not UTC (Tesserae's): a daily thing on a phone should
+  turn over at your midnight. Day 1 is 2026-11-18, so the screen says *No. 1*.
+  The seed is hashed from `stara:YYYY-MM-DD`, so it never shares a deal with
+  Tesserae.
+- **Pure.** A new `spec.pure` makes the host ignore the workshop's bolted-on
+  mechanics, edition, tiles-per-turn and follower switch for this mode. A daily
+  puzzle is only the same puzzle for everyone if nobody's settings reach it.
+- **The points by kind** (cities, roads, cloisters, farms, unfinished) are
+  booked as they are paid, so the end card can say where the score came from.
+  The farms are paid by the mode (`finalFarms = false`) so they land in that
+  tally once.
+- **Today's best** is kept in the browser (`tilemakers-workshop/stara/best/<date>`),
+  and Play again deals the same day again. It is a convenience, not a record.
+
+**The table.** A photograph: Poly Haven's "Oak Wood Planks" (CC0), which
+covers 1.2 m of table, drawn to scale against a 45 mm tile so its planks are
+about three tiles wide, as they would be under a real box. A warm lamp in the
+middle falling off to the corners; the 7 x 7 sunk into the wood as a shallow
+well with its squares scored faintly into the floor; and a soft shadow under
+each tile, because cardboard on a table casts one. All of the table is baked
+into one canvas and blitted, since Starà's camera never moves.
+
+**The interface.** While a Starà game runs, the workshop's panel, HUD and claim
+box step aside. Top: a menu (which brings the panel back), the day, the score.
+Middle: the square, fitted to the screen and held still (no pan, no zoom).
+Bottom: the draw pile with its count, the tile in your hand, and a checkmark.
+
+- The tile pops up off the pile. **Touch it to turn it**; it is seen to turn.
+- **Touch a lit square** (or drag the tile onto one) and it sits there; touch
+  it again, or the card, to turn it through only the ways it fits there. The
+  **checkmark** lays it. Touching anywhere else puts it back in your hand.
+- Dragged, the tile shrinks to its size on the board and follows your finger;
+  over a square it hands over to the board's ghost, turned to fit if it fits
+  that square another way, which is what dropping it there does anyway.
+- Laid, the same tile stays big on the card with **a dot on each thing you
+  could put a follower on**, and a "No follower" under it.
+- One line of instructions under the card for your first six tiles ever, and
+  then nothing.
+- At the end, a card: the score, where it came from, how many squares were
+  filled, today's best, Play again and Share.
+
+**What it measures** (100 games each, `src/ai.js` against random play):
+
+| | mean score | range | squares filled | square full |
+|---|---|---|---|---|
+| random | 45.1 | 21–84 | 46.2 of 49 | 5 games |
+| the bot | 59.4 | 29–92 | 46.6 of 49 | 3 games |
+
+The bot's 59 is 9.7 cities, 3.0 roads, 6.6 cloisters, 11.5 farms and 28.7
+unfinished. **Half its score is unfinished work**, because on a 7 x 7 a city
+or road that runs into the border can never close: the edge is the real
+opponent. And **the square is almost never filled**: about two and a half
+holes a day are left that nothing in the deck fits. Fitting the shape is
+harder than it looks, and plain Carcassonne does not reward it, so if
+"fitting tiles into the area" is meant to be the point, a bonus for a full
+square (or for each square filled) is the obvious lever. Not built; it is
+Timothy's call.
 
 ---
 

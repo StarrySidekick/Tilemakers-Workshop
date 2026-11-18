@@ -62,6 +62,15 @@ export class Game {
     groups = null, options = {}, tilesPerTurn = 1, ruleset = DEFAULT_RULESET,
   } = {}) {
     const spec = MODE_BY_ID[mode] || MODE_BY_ID.classic;
+    // A PURE mode plays the base game as printed, whatever the workshop has
+    // bolted on for the others: Starà is a daily puzzle, and a puzzle is only
+    // the same puzzle for everyone if nobody's settings can change it.
+    if (spec.pure) {
+      options = {};
+      ruleset = DEFAULT_RULESET;
+      tilesPerTurn = 1;
+      meeples = true;
+    }
     this.mode = spec.id;
     this.spec = spec;
     this.options = options;

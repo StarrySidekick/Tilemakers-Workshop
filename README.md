@@ -51,6 +51,15 @@ that. Five minutes a game.
 gets the same thirty tiles on the same 7×7 board on the same day. Solo, against
 par.
 
+**Starà** — the daily square. The base game as printed, followers, farms and
+all, solo, on a 7×7 border sized for a phone held upright, with the same deal
+for everyone on the same day. It has its own screen: a wooden table, the
+square sunk into it, and one tile at a time that pops up off the pile. Touch
+the tile to turn it, touch a lit square to put it there, the checkmark lays
+it; then touch a dot on the tile for a follower, or don't. The menu in the
+corner brings the workshop back. `index.html?mode=stara` opens straight into
+it.
+
 **Sprawl** — pieces of two to four cells, in tetromino shapes. A big piece has
 to satisfy several neighbours at once, so once a single-cell gap exists almost
 nothing fits it — **denial becomes a real strategy**. Sealing an empty cell
