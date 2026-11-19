@@ -205,6 +205,11 @@ with every abbey laid, a keep that ends what it touches and counts as a gate,
 the high street cutting the town into four quarters each with a trade for the
 day (the tile cities are districts now), and the seal moved onto the board
 beside the tile it lays. Again he took each recommendation.
+On 2026-11-19 he asked for a design analysis of the square itself ("i'm not
+convinced on what we have at the moment, besides the castle wall gates for
+connecting roads, that's fun"). **[`docs/STARA-DESIGN.md`](docs/STARA-DESIGN.md)**
+is that analysis, measured with `tools/stara-sim.mjs`, and its proposals; read
+it before changing the mode. Nothing in it is built yet.
 
 **Fields: settled 2026-09-06, and Timothy was right.** They are fully built.
 `src/tiles.js` cuts the perimeter into eight half-edges with `halfPartner` as the
