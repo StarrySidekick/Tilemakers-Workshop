@@ -211,6 +211,17 @@ connecting roads, that's fun"). **[`docs/STARA-DESIGN.md`](docs/STARA-DESIGN.md)
 is that analysis, measured with `tools/stara-sim.mjs`, and its proposals; read
 it before changing the mode. Nothing in it is built yet.
 
+**Giardino, the daily walled garden: asked for 2026-11-22.** "based on
+stara ... a little walled garden, and each tile is a plant, and the mechanics
+are based off how plants actually need to be planted in a polyculture farm.
+things like irrigations, some plants liking other plants, some not liking
+others, and potentially something where every tile places progresses time,
+so plants grow and change as we go." Built as `giardino` on Starà's screen:
+rills from a central fountain, thirsty and dry plants, a week per tile,
+friends and foes paid at picking, perennials, the frost. What was decided,
+what it measures and what is open (sun and shade, succession, bees) is
+section 15 of `MODES.md`.
+
 **Fields: settled 2026-09-06, and Timothy was right.** They are fully built.
 `src/tiles.js` cuts the perimeter into eight half-edges with `halfPartner` as the
 joining rule; fields are ordinary components; `allFields`, `citiesFed` and

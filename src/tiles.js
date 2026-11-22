@@ -251,10 +251,13 @@ function edgeLetter(f, s) {
 export const EDGE_LETTER = {
   city: 'c', road: 'r', monastery: 'f', temple: 'f', garden: 'f',
   forest: 'w', mountain: 'm', lake: 'l', river: 'v', sfera: 'o',
+  // Giardino's rills (2026-11-22): a stone channel of water, meeting only
+  // another rill.
+  rill: 'a',
 };
 
 /** Features you can't put a follower on. */
-export const NO_MEEPLE = new Set(['mountain', 'lake', 'river', 'sfera']);
+export const NO_MEEPLE = new Set(['mountain', 'lake', 'river', 'sfera', 'rill']);
 
 /**
  * Features that reach no edge and are completed by being surrounded, rather
@@ -1053,6 +1056,17 @@ export function buildRiverDeck(rng = Math.random, { long = false } = {}) {
   // isn't modelled yet, so this is the length without the branch.
   if (long) deck.push('w1', 'w1', 'w2', 'w2', 'w3', 'w7');
   return shuffle(deck, rng);
+}
+
+/**
+ * Add a mode's own tiles to TILES, prepared like every other. Giardino's
+ * plants are made this way (src/modes/giardino.js): they are no group's, so
+ * the workshop's tile list never offers them.
+ */
+export function registerTiles(list) {
+  prepare(list);
+  for (const t of list) TILES[t.id] = t;
+  return list;
 }
 
 // Declared as a function so it's hoisted above the prepare() calls that run

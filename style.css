@@ -1122,6 +1122,30 @@ body.stara #board { cursor: pointer; }
   text-shadow: 0 1px 2px rgba(20, 8, 0, 0.9);
 }
 
+/* Giardino's seed packet, under the hand: the plant held up, its water, its
+   weeks and its yield, and a line of its friends (green) and foes (red). */
+body.garden .staraCards { min-height: 100px; }
+body.garden .staraCaption {
+  font: 14px/1.3 'Fell', ui-serif, serif;
+  font-style: normal;
+  display: grid;
+  gap: 2px;
+  padding: 0 12px;
+}
+.packetTop { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 4px 10px; }
+.packetTop b { font: 700 16px/1 'Cinzel', serif; letter-spacing: 0.04em; color: #fff1d6; }
+.packetCo { display: flex; flex-wrap: wrap; justify-content: center; gap: 2px 12px; font-style: italic; }
+.packetCo .fr { color: #bfe39a; }
+.packetCo .fo { color: #f2a99a; }
+.packetTop .drop {
+  display: inline-block; width: 9px; height: 12px;
+  border-radius: 50% 50% 50% 50% / 62% 62% 38% 38%;
+  border: 1.5px solid #f1e2c2;
+  transform: rotate(180deg);
+}
+.packetTop .drop.wet { background: #7fbadb; }
+.packetTop .drop.dry { background: transparent; border-style: dashed; }
+
 /* --- the end of the day: a charter, sealed ------------------------------ */
 
 .staraEnd {
@@ -1220,6 +1244,9 @@ body.stara #board { cursor: pointer; }
   .staraTray { height: 168px; gap: 4px; }
   .staraCards { --card: 120px; min-height: 120px; }
   .staraCaption { display: none; }
+  body.garden .staraCards { min-height: 100px; }
+body.garden .staraCaption { display: grid; font-size: 12px; }
+  body.garden .staraCards { min-height: 96px; }
   .staraName { font-size: 28px; }
 }
 

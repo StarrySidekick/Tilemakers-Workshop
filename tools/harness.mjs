@@ -25,6 +25,7 @@ import { GROUPS } from '../src/tiles.js';
 import { checkRulebook } from './soffiando-rulebook.mjs';
 import { SOFFIANDO_WEIGHTS } from '../src/modes/soffiando.js';
 import { staraDay, quietOf, highways, gateRoads, quarterOf, quarterWorth, tradesFor } from '../src/modes/stara.js';
+import { giardinoDay, runningWater, isWatered, PLANTS, PLANT_IDS, FRIENDS, FOES, relation, DECK_SIZE } from '../src/modes/giardino.js';
 
 const ALL_GROUPS = GROUPS.map((g) => g.id);
 
@@ -2720,6 +2721,113 @@ function botVsRandom(rounds) {
  * full or nothing left fits; and the end card's breakdown adds up to the
  * score, with the farms paid once.
  */
+/**
+ * GIARDINO, the daily walled garden (2026-11-22): the deal, the rills, the
+ * water, the weeks, the company a plant is picked in, perennials, the frost,
+ * and a whole season played by the bot.
+ */
+function checkGiardino() {
+  console.log('\ngiardino, the daily garden');
+  const ok = (what, pass, detail = '') => {
+    if (pass) console.log(`  ✓ ${what.padEnd(50)} ${detail}`);
+    else { failures++; console.log(`  ✗ ${what} ${detail}`); }
+  };
+  const a = new Game({ mode: 'giardino' }), b = new Game({ mode: 'giardino' });
+  ok('the same deal for everyone today', a.deck.join() === b.deck.join() && a.m.hand.join() === b.m.hand.join());
+  ok('…and not the same deal as Starà', a.seed !== new Game({ mode: 'stara' }).seed);
+  const day = (y, m, d) => giardinoDay(new Date(y, m, d, 12));
+  ok('22 November 2026 is No. 1', day(2026, 10, 22).n === 1 && day(2026, 10, 23).n === 2);
+  ok('72 tiles: the fountain and 71 plants', DECK_SIZE === 72 && a.deck.length + a.m.hand.length + 1 === 72,
+    `${a.deck.length} in the pile, ${a.m.hand.length} in hand`);
+  let figFirst = true;
+  for (let seed = 1; seed <= 40; seed++) {
+    const g = new Game({ mode: 'giardino', seed });
+    const dealt = [...g.m.hand, ...g.deck.slice().reverse()];
+    if (dealt.indexOf('g-fig-0') >= 16) figFirst = false;
+  }
+  ok('the fig is dealt in the first third, every deal', figFirst);
+  {
+    // Nothing is set aside: a plant with nowhere to go yet stays on top of the pile.
+    const g = new Game({ mode: 'giardino', seed: 9 });
+    const soil = g.deck.filter((id) => !TILES[id].feats.length).length + g.m.hand.filter((id) => !TILES[id].feats.length).length;
+    const top = g.deck[g.deck.length - 1];
+    ok('a plant with nowhere to go waits on top of the pile', g.m.hand.every((id) => TILES[id].feats.length)
+      && soil === PLANT_IDS.reduce((n, k) => n + (PLANTS[k].deck[0] || 0), 0),
+      `${soil} plants without a rill kept; the first sown always has one`);
+  }
+  const bolted = new Game({ mode: 'giardino', seed: 7, players: 3, tilesPerTurn: 3, options: { market: true } });
+  ok('pure, solo and walled, 7 x 7', bolted.players.length === 1 && bolted.tilesPerTurn === 1 && !bolted.has('market')
+    && bolted.board.walled && JSON.stringify(bolted.board.bounds) === JSON.stringify({ minX: -3, maxX: 3, minY: -3, maxY: 3 }));
+  const src = a.board.get(0, 0);
+  ok('the fountain in the middle, a rill out of every side', src?.type.fountain && [0, 1, 2, 3].every((s) => a.board.edgeAt(src, s) === 'a'));
+  ok('friends and foes are pairs, both ways, of real plants',
+    [...FRIENDS, ...FOES].every(([x, y]) => PLANTS[x] && PLANTS[y] && relation(x, y) === relation(y, x) && relation(x, y) !== 0)
+    && relation('fennel', 'tomato') < 0 && relation('corn', 'bean') > 0 && relation('marigold', 'fennel') === 0);
+
+  // A rill meets only a rill; soil meets soil.
+  const g = new Game({ mode: 'giardino', seed: 5 });
+  const T = (id) => TILES[id];
+  ok('soil cannot be laid against a rill', !g.board.canPlace(0, -1, T('g-rosemary-0'), 0)
+    && g.board.canPlace(0, -1, T('g-tomato-I'), 0) && !g.board.canPlace(0, -1, T('g-tomato-I'), 1));
+
+  // Water: a rill joined to the fountain runs and waters the four squares
+  // beside it; one that is not joined is dry.
+  g.board.place(0, -1, T('g-tomato-I'), 0);
+  g.board.place(2, 2, T('g-lettuce-I'), 0);
+  let run = runningWater(g.board);
+  ok('a rill joined to the fountain runs; one that is not, does not', run.has('0,-1') && run.has('0,0') && !run.has('2,2'));
+  ok('watered: running water on the square or beside it, not diagonal',
+    isWatered(run, 1, -1) && isWatered(run, 0, -2) && !isWatered(run, 1, -2) && !isWatered(run, 2, 2));
+
+  // The week: thirsty grows only watered, rosemary only dry, hardy either way.
+  const m = g.m;
+  const bed = (x, y, kind, grown = 0) => { m.beds.set(`${x},${y}`, { kind, grown, picks: 0, spent: false, watered: false, sown: 0 }); return m.beds.get(`${x},${y}`); };
+  g.board.place(1, -1, T('g-basil-0'), 0);
+  g.board.place(-1, -2, T('g-corn-0'), 0);
+  g.board.place(-1, -1, T('g-rosemary-0'), 0);
+  g.board.place(3, 3, T('g-carrot-0'), 0);
+  const tom = bed(0, -1, 'tomato', 9), bas = bed(1, -1, 'basil'), corn = bed(-1, -2, 'corn');
+  const dryTom = bed(2, 2, 'tomato'), ros = bed(-1, -1, 'rosemary'), car = bed(3, 3, 'carrot');
+  const before = g.players[0].score;
+  m.passWeek();
+  ok('a thirsty plant grows only while watered', tom.grown === 10 && dryTom.grown === 0 && corn.grown === 0);
+  ok('rosemary grows only while dry, the hardy either way', ros.grown === 0 && bas.grown === 1 && car.grown === 1,
+    `rosemary beside a running rill: ${ros.grown} weeks`);
+  ok('picked when ripe: yield +1 a friend -1 a foe', tom.spent && tom.picks === 1 && g.players[0].score - before === PLANTS.tomato.yield,
+    `tomato, basil (+1) and corn (-1): +${g.players[0].score - before}`);
+  ok('a picked annual stays, and is still company', m.living(0, -1) === tom && m.company('basil', 1, -1).friends === 1);
+  // Never below nothing.
+  g.board.place(-1, 1, T('g-fennel-0'), 0);
+  const fen = bed(-1, 1, 'fennel', PLANTS.fennel.weeks - 1);
+  bed(-2, 0, 'carrot'); bed(-2, 1, 'onion'); bed(-2, 2, 'bean'); bed(-1, 2, 'tomato'); bed(0, 2, 'lettuce'); bed(0, 1, 'cabbage');
+  const f0 = g.players[0].score;
+  m.passWeek();
+  ok('…and a harvest never pays below 0', fen.spent && g.players[0].score === f0, `fennel among six vegetables: +${g.players[0].score - f0}`);
+  // Perennials are picked again.
+  const per = new Game({ mode: 'giardino', seed: 6 });
+  per.board.place(3, 3, T('g-rosemary-0'), 0);
+  per.m.beds.set('3,3', { kind: 'rosemary', grown: 0, picks: 0, spent: false, watered: false, sown: 0 });
+  for (let w = 0; w < PLANTS.rosemary.weeks + PLANTS.rosemary.again; w++) per.m.passWeek();
+  const r3 = per.m.beds.get('3,3');
+  ok('a perennial is picked again every few weeks', r3.picks === 2 && !r3.spent, `rosemary picked ${r3.picks} times in ${per.m.week} weeks`);
+  // The frost.
+  per.m.beds.set('-3,-3', { kind: 'corn', grown: 3, picks: 0, spent: false, watered: false, sown: 0 });
+  per.finish();
+  ok('whatever is green at the frost is lost', per.phase === 'over' && per.m.lost.includes('-3,-3') && !per.m.lost.includes('3,3'));
+
+  // Whole seasons, by the bot and at random.
+  let worst = Infinity, best = 0, stuck = 0, lost = 0;
+  for (let seed = 1; seed <= 12; seed++) {
+    try {
+      const r = playOut({ mode: 'giardino', seed, bots: seed % 2 ? 'all' : null });
+      worst = Math.min(worst, r.scores[0]); best = Math.max(best, r.scores[0]);
+      lost += r.game.m.lost.length;
+      if (r.game.board.size > 49) stuck++;
+    } catch (e) { stuck++; console.log(`    seed ${seed}: ${e.message}`); }
+  }
+  ok('whole seasons play to the frost', !stuck && worst > 0, `12 seasons, ${worst}–${best} points, ${lost} plants lost to the frost`);
+}
+
 function checkStara() {
   console.log('\nstarà, the daily square');
   const ok = (what, pass, detail = '') => {
@@ -2920,6 +3028,7 @@ async function main() {
   }
 
   checkStara();
+  checkGiardino();
 
   console.log('\nmodes');
   for (const spec of MODES) {

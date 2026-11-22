@@ -31,6 +31,7 @@ import { Effects } from './fx.js';
 import { VERSION } from './version.js';
 import { StaraUI, spreadSpots } from './stara-ui.js';
 import { keepSprite } from './castle.js';
+import { gardenSprite } from './garden.js';
 
 const canvas = document.getElementById('board');
 const renderer = new Renderer(canvas);
@@ -1429,6 +1430,21 @@ function drawBack(cur) {
  * preview is redrawn, which is on events rather than frames.
  */
 function drawTileInked(ctx2, type, opts = {}) {
+  // Giardino's beds (garden.js) are drawn in the world's frame, so the turn
+  // the caller gave the context is taken back off; the hand shows a plant
+  // ripe, which is how its seed packet would picture it.
+  if (type?.plant || type?.fountain) {
+    const rot = opts.rot || 0;
+    const m = ctx2.getTransform();
+    const px = Math.round(Math.hypot(m.a, m.b));
+    ctx2.save();
+    ctx2.translate(0.5, 0.5);
+    ctx2.rotate(-rot * Math.PI / 2);
+    ctx2.translate(-0.5, -0.5);
+    ctx2.drawImage(gardenSprite(type, rot, opts.look || '4r', px), 0, 0, 1, 1);
+    ctx2.restore();
+    return;
+  }
   // Starà's keep has a picture of its own (castle.js), in unit space here.
   if (type?.keep) {
     const m = ctx2.getTransform();

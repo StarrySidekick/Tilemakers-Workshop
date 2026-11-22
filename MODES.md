@@ -7,7 +7,7 @@ mechanically**, what it cost against the engine, and — most importantly —
 worth building.
 
 **All twelve are built**, plus a thirteenth — World — a fourteenth, Starà,
-and a mechanics menu.
+a fifteenth, Giardino, and a mechanics menu.
 Eight became modes; four became mechanics, because a rule that works on every
 mode is worth more than one that works on its own. Each section below keeps its
 original design, with a note at the top recording what actually shipped and
@@ -30,6 +30,7 @@ interesting part.
 | 12. Two-faced | mechanic | Is a tile a noun, or a state? |
 | 13. World | mode + 4 tile families | What does the countryside still not have? |
 | 14. Starà | two modes (5×5, 7×7) + their own interface | Is Carcassonne a daily puzzle once the table has an edge? |
+| 15. Giardino | mode, on Starà's interface | Can the tiles be living things, and time the thing you place against? |
 
 Play them and the questions answer themselves. What's at the bottom is what the
 engine still can't do.
@@ -2276,6 +2277,154 @@ half holes a day that nothing in the deck fits. Fitting the shape is harder
 than it looks and still pays nothing in itself, so if "fitting tiles into the
 area" is meant to be the point, a bonus for a full square (or for each square
 filled) is the obvious lever. Not built; it is Timothy's call.
+
+---
+
+## 15. Giardino — the daily walled garden
+
+> **Built 2026-11-22, one pass** — `src/modes/giardino.js` (the rules, the
+> plants and the tiles), `src/garden.js` (the beds, the plants as they grow,
+> the rills, the fountain and the garden wall), Starà's screen
+> (`src/stara-ui.js`) taught a garden's title, week and seed packet, and
+> `drawCompany` in `src/render.js`. Checked by `checkGiardino` in the
+> harness and "giardino on a phone" in the smoke test; measured by
+> `tools/giardino-sim.mjs`.
+
+Timothy, 2026-11-22: *"so i want, based on stara, to have a mode that's
+actually like a little walled garden, and each tile is a plant, and the
+mechanics are based off how plants actually need to be planted in a
+polyculture farm. things like irrigations, some plants liking other plants,
+some not liking others, and potentially something where every tile places
+progresses time, so plants grow and change as we go. this new mode will be
+called Giardino."*
+
+**Question:** can the tiles be living things, so that what you place is
+weighed against *time* (will it ripen?) and *company* (who is it next to when
+it does?) rather than against an edge?
+
+**From Starà** it keeps the walled square (7 × 7), the daily deal by local
+date (its own seed, `giardino:YYYY-MM-DD`; day 1 is 2026-11-22), solitaire,
+the hand, `pure`, the wooden table and the whole interface. A *walled* garden
+is not a stretch of the theme: the medieval *hortus conclusus* and the
+kitchen garden behind a brick wall are what the word meant for centuries.
+
+**The rules**, each one a thing a real kitchen garden does:
+
+- **The fountain** is the middle square, with a **rill** (a narrow stone
+  water channel, as in the Moorish and Persian four-fold gardens) out of each
+  side. Every other tile is one plant in a bed, and some beds have a rill
+  across them: a stub ending in a basin, straight, a bend, a tee or a cross.
+  A rill must meet a rill, soil meets soil, and the wall takes either.
+- **Water** runs in every rill joined to the fountain. A plant is
+  **watered** if running water is on its square or on one of the four beside
+  it: water seeps sideways through soil a little way, and not round corners.
+- **Thirst.** Thirsty plants (tomato, corn, squash, cabbage, lettuce) grow
+  only in the weeks they are watered; rosemary only in the weeks it is not
+  ("wet feet" rot it); the rest are hardy and grow either way.
+- **Time.** Every tile laid is a week. At the end of each week every plant
+  whose water is right grows a week, and one that has grown the weeks on its
+  seed packet ripens and is **picked** there and then. The weeks keep their
+  real order: lettuce and basil 4, marigold 5, rosemary 6, beans 7, carrots
+  and fennel 8, onions 9, tomatoes and cabbages 10, corn and squash 11, the
+  fig 14.
+- **Company.** A plant picked pays its yield, **+1 for every friend in the
+  eight squares round it and −1 for every foe**, never below 0. Friends and
+  foes are pairs, so it works both ways, and each comes from the companion
+  charts gardeners use, its reason written beside it in `FRIENDS` and `FOES`:
+  the Three Sisters (corn, beans and squash), tomatoes with basil, carrots
+  and onions, carrots with onions against the carrot fly, rosemary against
+  the cabbage moth, lettuce in the fig's shade, marigolds with every
+  vegetable; tomatoes and corn (one caterpillar eats both), tomatoes and
+  cabbages, beans and onions, and fennel against every vegetable. Some of
+  these are well studied (the Three Sisters, alliums and the carrot fly,
+  fennel's allelopathy) and some are lore; the code says which is which.
+- **Annuals** are picked once. **Perennials** (rosemary, the fig) are
+  picked again every 6 weeks for the rest of the season.
+- **The frost.** The season ends when the garden is full or nothing left
+  fits. Whatever has not ripened is lost.
+
+**The deck**: 71 plants and the fountain, 72 (the number Soffiando keeps):
+tomatoes 6, basil 5, beans 7, corn 6, squash 6, onions 6, carrots 7,
+cabbages 5, lettuces 7, rosemary 5, marigolds 6, fennel 4 and one fig tree.
+About half carry a rill, thirsty plants more often than not; rosemary,
+fennel and the fig never do.
+
+Calls of Claude's, each with why:
+
+- **A hand of two, always.** When to sow is half the game (a tomato sown in
+  week 40 never ripens), and a single tile gives you no say in it.
+- **The fig, one to a deal, dealt in the first third**, as Starà's keep is:
+  a tree sown late never fruits.
+- **Friends and foes are counted when a plant is picked**, not when it is
+  sown, so you can still improve the company round a plant that is growing.
+- **A picked annual stays in its bed, gone to seed** (a gardener leaves some
+  to save seed) and still counts as company. Built first the other way, a
+  picked bed went bare: by week 30 the garden was straw, and a neighbour that
+  vanished the week it ripened was a rule nobody could see coming. Drawn
+  faded to straw with pale seed heads.
+- **Nothing is set aside.** You draw the first plant in the pile that has
+  somewhere to go, and the ones passed over stay on top until they fit.
+  Built first with Starà's set-aside, the fountain's four rills turned away
+  every plant without a rill in the opening, and the fig was lost one deal in
+  five.
+- **Watered reaches four squares, not eight**: seeping water does not cut
+  corners, and four keeps "is it watered?" something you can see at a glance.
+
+**The look** (`src/garden.js`), seen from above and lit from the upper left
+like Starà's table: each bed is tilled earth in a timber edge with gravel
+between beds, so the garden reads as a grid of beds and paths; a crop grows
+as four plants, one in each corner, so a rill always has room to run between
+them; soil is darker where it is watered, a rill blue where water runs and a
+dry bed of pebbles where it does not. Each plant is drawn at five stages,
+sown (the drill and its seed packet on a stick), a seedling, young, grown
+with its fruit coming, and ripe (how the hand shows it), and then gone to
+seed. The wall is old brick under a stone coping, square piers with stone
+balls at the corners, and ivy. All of it is inked by ink.js, as Starà's are.
+
+**The interface** is Starà's, with a **seed packet** under the hand for the
+plant held up: its name, its water, its weeks, its yield, its friends in
+green and its foes in red. Staging a plant marks every friend round it with a
+green + and every foe with a red −, so the company is seen before it is
+sown, and the staged tile shows whether its rill will run and its soil be
+watered. The week is under the title. No sizes and no quarter tags.
+
+**What it measures** (100 deals each, `tools/giardino-sim.mjs`; the bot is
+`src/ai.js` with Giardino's advice, the greedy player every tile in hand at
+every square for the best company and water now; neither plans for the
+frost):
+
+| | mean | range | garden full | pickings | lost to the frost | harvest | friends | foes |
+|---|---|---|---|---|---|---|---|---|
+| random | 114.4 | 74–165 | 52 | 39.2 | 17.3 | 81.8 | 47.0 | −14.5 |
+| greedy | 201.4 | 154–250 | 86 | 49.3 | 9.3 | 106.1 | 101.3 | −6.0 |
+| bot | 196.5 | 145–249 | 91 | 49.3 | 9.8 | 105.4 | 98.3 | −7.2 |
+
+- **Company is half the score** for anyone who looks at it (98 of 197), and
+  the gap between looking and not is 72%. That is the polyculture working.
+- **Water and time bite where they should.** The slow thirsty crops ripen
+  about two times in three for the bot (tomatoes 65%, corn 67%, squash 69%,
+  cabbages 64%) against nine in ten for the quick hardy ones, and a quarter
+  of the time at random. About ten plants a day are lost to the frost even
+  for the bot, which never plans for it, so timing the last weeks is skill
+  still on the table.
+- **The garden almost always fills** (91 days in 100 for the bot), unlike
+  Starà's town: a rill is a looser shape to match than a road and a city.
+  Fitting is not this mode's puzzle; when and next to whom is.
+
+**Open, for the next pass** (none built):
+
+- **Sun and shade.** In a real walled garden the north wall faces south and
+  is a sun trap (figs, tomatoes, rosemary against it), and the south wall
+  shades the beds behind it (lettuce likes that). The square's four walls
+  would each get a character, the way Starà's quarters each have a trade.
+- **Succession and rotation.** Sowing again into a bed gone to seed, and
+  beans after a heavy feeder (they put back the nitrogen it took) paying
+  more: the other half of how a polyculture is planned.
+- **Pollinators.** A bee skep, one to a deal like the fig, that makes the
+  flowering crops round it yield more.
+- **Marigold may be too easy a friend** (every vegetable likes it) and fennel
+  too easy a loner (it ripens 94% of the time at 5); both are one number to
+  tune if play says so.
 
 ---
 

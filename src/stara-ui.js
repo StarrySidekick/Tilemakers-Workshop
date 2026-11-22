@@ -27,11 +27,18 @@
 // 7 x 7, keeping a game of each. When the square is full, a charter with the
 // score, where it came from, and today's best.
 //
+// Giardino (2026-11-22) plays on the same screen: a garden wall for the
+// castle (garden.js), no quarters and no sizes, the week under the title,
+// and a SEED PACKET under the hand saying what the plant held up needs and
+// who it likes and dislikes. The marks on the board round a staged plant are
+// the renderer's (drawCompany).
+//
 // Nothing in here is a rule. It reads the game and calls the same functions
 // a click in the workshop would.
 // ---------------------------------------------------------------------------
 
 import { STARA_KINDS, STARA_SIZES, QUARTERS, TRADE_BY_ID, quarterWorth } from './modes/stara.js';
+import { GIARDINO_KINDS, PLANTS } from './modes/giardino.js';
 import { CASTLE } from './castle.js';
 import { usePalette } from './theme.js';
 import { TILES } from './tiles.js';
@@ -132,7 +139,7 @@ export class StaraUI {
     const on = this.on;
     const was = document.body.classList.contains('stara');
     document.body.classList.toggle('stara', on);
-    if (!on) document.body.classList.remove('staraPanel');
+    if (!on) document.body.classList.remove('staraPanel', 'garden');
     $('stara').hidden = !on;
     // Coming or going, the panel has moved and the board's canvas with it.
     if (was !== on) { this.h.renderer.resize(); this.refit(); }
@@ -140,7 +147,11 @@ export class StaraUI {
     this.fit();
 
     const g = this.game, p = g.players[0];
-    $('staraDay').textContent = `No. ${g.m.day.n}`;
+    const garden = !!g.spec.garden;
+    document.body.classList.toggle('garden', garden);
+    document.querySelector('#stara .staraName').textContent = g.spec.title || 'Starà';
+    $('staraDay').textContent = garden ? `No. ${g.m.day.n} · week ${g.m.week}` : `No. ${g.m.day.n}`;
+    $('staraSizes').style.display = garden ? 'none' : '';
     for (const b of $('staraSizes').children) b.classList.toggle('on', b.dataset.mode === g.mode);
     const score = $('staraScore');
     score.textContent = p.score;
@@ -212,7 +223,8 @@ export class StaraUI {
     const pending = this.h.pending();
     const sel = g.m.sel;
     const n = hand.length;
-    const size = n <= 1 ? 150 : n === 2 ? 118 : n === 3 ? 88 : 62;
+    // Giardino's packet needs the room under the hand, so its cards are smaller.
+    const size = g.spec.garden ? (n <= 1 ? 120 : 100) : n <= 1 ? 150 : n === 2 ? 118 : n === 3 ? 88 : 62;
     host.style.setProperty('--card', `${size}px`);
     // One row up to four, two rows past that, the row as wide as the cards
     // still in the tray (not the one sitting on a square).
@@ -307,6 +319,7 @@ export class StaraUI {
    */
   caption(heldId, pending, n) {
     const el = $('staraCaption');
+    if (this.game.spec.garden) return this.packet(el, heldId);
     const taught = Number(store.get(TAUGHT) || 0);
     let text = '';
     if (taught < 8 && heldId) {
@@ -322,6 +335,26 @@ export class StaraUI {
     }
   }
 
+  /**
+   * GIARDINO'S SEED PACKET, for the plant held up: its name, what water it
+   * wants, how many weeks it takes, what it yields, and its friends and foes.
+   * Always shown (it is the plant's rules, not a lesson), in one short line
+   * and a second for its company.
+   */
+  packet(el, heldId) {
+    const info = heldId ? this.game.m.packet(heldId) : null;
+    if (!info) { el.innerHTML = ''; return; }
+    const names = (ids) => ids.map((k) => PLANTS[k].name.toLowerCase()).join(', ');
+    const repeat = info.again ? `, then every ${info.again}` : '';
+    const drop = info.water === 'thirsty' ? '<i class="drop wet"></i>' : info.water === 'dry' ? '<i class="drop dry"></i>' : '<i class="drop"></i>';
+    const friends = info.friends.length > 6 ? 'every vegetable' : names(info.friends);
+    const foes = info.foes.length > 6 ? 'every vegetable' : names(info.foes);
+    el.innerHTML = `<div class="packetTop"><b>${info.name}</b> ${drop}<span>${info.need}</span>`
+      + `<span>${info.weeks} weeks${repeat}</span><span>yields ${info.yield}</span></div>`
+      + `<div class="packetCo">${friends ? `<span class="fr">+ ${friends}</span>` : ''}${foes ? `<span class="fo">− ${foes}</span>` : ''}`
+      + `${!friends && !foes ? '<span>no friends or foes</span>' : ''}</div>`;
+  }
+
   // --- the four quarters --------------------------------------------------------
 
   /**
@@ -332,6 +365,7 @@ export class StaraUI {
   drawQuarters() {
     const g = this.game, b = g.board.bounds, r = this.h.renderer;
     const host = $('staraQuarters');
+    if (!g.m.trades) { host.innerHTML = ''; this.quarterKey = ''; return; }
     const layout = `${this.layoutKey}|${g.mode}|${JSON.stringify(g.m.trades)}`;
     if (this.quarterKey !== layout) {
       this.quarterKey = layout;
@@ -462,12 +496,15 @@ export class StaraUI {
     }
     const prior = this.priorBest;
     const t = g.m.tally;
-    $('staraEndDay').innerHTML = `Starà<small>No. ${g.m.day.n} · ${g.m.side}×${g.m.side}</small>`;
+    const garden = !!g.spec.garden;
+    $('staraEndDay').innerHTML = `${g.spec.title || 'Starà'}<small>No. ${g.m.day.n} · ${g.m.side}×${g.m.side}</small>`;
     $('staraEndScore').textContent = score;
-    $('staraEndRows').innerHTML = STARA_KINDS
+    $('staraEndRows').innerHTML = (garden ? GIARDINO_KINDS : STARA_KINDS)
       .map(([k, name]) => `<div><span>${name}</span><i></i><b>${t[k]}</b></div>`).join('');
-    $('staraEndFill').textContent = `${g.board.size} of ${g.m.squares} squares filled`;
-    $('staraEndBest').textContent = prior == null ? 'Your first town today.'
+    $('staraEndFill').textContent = garden
+      ? `${g.m.picked} pickings in ${g.m.week} weeks; ${g.m.lost.length} still green at the frost`
+      : `${g.board.size} of ${g.m.squares} squares filled`;
+    $('staraEndBest').textContent = prior == null ? (garden ? 'Your first garden today.' : 'Your first town today.')
       : score > prior ? `A new best for today (was ${prior}).`
         : score === prior ? 'Level with your best today.'
           : `Your best today: ${prior}.`;
@@ -476,7 +513,9 @@ export class StaraUI {
 
   async share() {
     const g = this.game;
-    const text = `Starà No. ${g.m.day.n} (${g.m.side}×${g.m.side}): ${g.players[0].score} points, ${g.board.size}/${g.m.squares} squares.`;
+    const text = g.spec.garden
+      ? `Giardino No. ${g.m.day.n}: ${g.players[0].score} points, ${g.m.picked} pickings, ${g.m.lost.length} lost to the frost.`
+      : `Starà No. ${g.m.day.n} (${g.m.side}×${g.m.side}): ${g.players[0].score} points, ${g.board.size}/${g.m.squares} squares.`;
     const btn = $('staraShare');
     try {
       if (navigator.share) await navigator.share({ text });
