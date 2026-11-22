@@ -170,7 +170,7 @@ for (const [kind, p] of Object.entries(PLANTS)) {
 registerTiles(GARDEN_TILES);
 
 /** How many tiles a Giardino deal has: 71 plants and the fountain, 72. */
-export const DECK_SIZE = GARDEN_TILES.reduce((n, t) => n + t.n, 0);
+export const DECK_SIZE = 1 + GARDEN_TILES.reduce((n, t) => n + t.n, 0);
 
 // --- the day ----------------------------------------------------------------
 
