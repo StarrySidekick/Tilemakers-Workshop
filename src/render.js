@@ -19,6 +19,7 @@ import { rotPoint, wallSides, opposite } from './tiles.js';
 import { liftableCells } from './mechanics.js';
 import { roughen } from './ink.js';
 import { paintCastle, gatesOf, CASTLE, keepSprite } from './castle.js';
+import { gardenSprite, paintGardenWall, GARDEN_WALL } from './garden.js';
 import { TRADE_BY_ID } from './modes/stara.js';
 import { sketchLine, sketchRect, seedOf } from './sketch.js';
 
@@ -185,6 +186,13 @@ export class Renderer {
       return;
     }
     const dpr = window.devicePixelRatio || 1;
+    // Giardino's beds are pictures of their own (garden.js), as they look
+    // this week: `look` is the mode's, a string; anything else is a seed.
+    if (type.plant || type.fountain) {
+      const [gx, gy] = origin ? origin(x, y) : this.toScreen(x, y);
+      this.ctx.drawImage(gardenSprite(type, rot, typeof look === 'string' ? look : '0', zoom * dpr), gx, gy, zoom + 0.5, zoom + 0.5);
+      return;
+    }
     // Starà's keep is a picture of its own (castle.js), the same any way round.
     if (type.keep) {
       const [kx, ky] = origin ? origin(x, y) : this.toScreen(x, y);
@@ -259,7 +267,7 @@ export class Renderer {
       if (lift) this.drawStackShadow(cell, lift);
       ctx.save();
       if (fog && !fog.has(`${cell.x},${cell.y}`)) ctx.globalAlpha = 0.26;
-      this.paintTile(cell.x, cell.y - lift, cell.rot, cell.type, 'surface', this.cam.zoom, null, cell.seq);
+      this.paintTile(cell.x, cell.y - lift, cell.rot, cell.type, 'surface', this.cam.zoom, null, game.m.lookOf?.(cell) ?? cell.seq);
       ctx.restore();
       if (antique) this.drawFoxedTile(cell.x, cell.y - lift);
       if (overlay) this.drawCellOverlay(cell, overlay, lift);
@@ -530,6 +538,7 @@ export class Renderer {
    * get. Remade only when the camera moves or a road reaches the wall.
    */
   drawCastle(game) {
+    if (game.spec?.garden) return this.drawGardenWall(game);
     const b = game.board.bounds;
     const z = this.cam.zoom;
     const dpr = window.devicePixelRatio || 1;
@@ -554,6 +563,36 @@ export class Renderer {
       paintCastle(k, { z, x0: pad, y0: pad, cols, rows, gates, towns, quarters });
       // The nib's wander over the whole wall, then the tooth of the paper.
       roughen(c, { amp: Math.max(0.6, z * dpr * 0.014), grain: (0.42 * z * dpr) / c.width });
+      roughen(c, { amp: Math.max(0.3, z * dpr * 0.004), grain: (0.07 * z * dpr) / c.width });
+      this.castlePad = pad;
+    }
+    const c = this.castleLayer;
+    this.ctx.drawImage(c, bx - this.castlePad, by - this.castlePad, c.width / dpr, c.height / dpr);
+  }
+
+  /**
+   * GIARDINO'S WALL (garden.js), round the square instead of a castle: baked
+   * once per size and inked the same way, since nothing about it changes.
+   */
+  drawGardenWall(game) {
+    const b = game.board.bounds;
+    const z = this.cam.zoom;
+    const dpr = window.devicePixelRatio || 1;
+    const [bx, by] = this.toScreen(b.minX, b.minY);
+    const cols = b.maxX - b.minX + 1, rows = b.maxY - b.minY + 1;
+    const pad = (GARDEN_WALL.reach + 0.2) * z;
+    const key = ['garden', z, dpr, cols, rows].join('|');
+    if (this.castleKey !== key) {
+      this.castleKey = key;
+      this.castleLayer ||= document.createElement('canvas');
+      const c = this.castleLayer;
+      c.width = Math.ceil((cols * z + pad * 2) * dpr);
+      c.height = Math.ceil((rows * z + pad * 2) * dpr);
+      const k = c.getContext('2d', { willReadFrequently: true });
+      k.setTransform(dpr, 0, 0, dpr, 0, 0);
+      k.clearRect(0, 0, c.width, c.height);
+      paintGardenWall(k, { z, x0: pad, y0: pad, cols, rows });
+      roughen(c, { amp: Math.max(0.6, z * dpr * 0.012), grain: (0.42 * z * dpr) / c.width });
       roughen(c, { amp: Math.max(0.3, z * dpr * 0.004), grain: (0.07 * z * dpr) / c.width });
       this.castlePad = pad;
     }
@@ -1562,11 +1601,12 @@ export class Renderer {
     if (p) {
       const [px, py] = this.toScreen(p.x, p.y);
       const z = this.cam.zoom;
-      this.paintTile(p.x, p.y, p.rot, game.tile, 'surface', this.cam.zoom, null, game.board.seq);
+      this.paintTile(p.x, p.y, p.rot, game.tile, 'surface', this.cam.zoom, null, game.m.previewLook?.(p.x, p.y, p.rot) ?? game.board.seq);
       // On the table, a ring drawn round it by hand, breathing, not marching.
       if (game.spec?.table) {
         const a = 0.75 + Math.sin(performance.now() / 300) * 0.2;
         this.sketchBox(px + 1, py + 1, z - 2, `rgba(255,242,214,${a})`, seedOf(p.x, p.y, p.rot), 2.6);
+        this.drawCompany(game, p.x, p.y);
         return;
       }
       ctx.save();
@@ -1597,14 +1637,48 @@ export class Renderer {
     if (covering && !ok) return;              // don't smear a ghost over the board
     ctx.save();
     ctx.globalAlpha = ok ? 0.92 : 0.32;
-    this.paintTile(h.x, h.y, game.rot, game.tile, 'surface', this.cam.zoom, null, game.board.seq);
+    this.paintTile(h.x, h.y, game.rot, game.tile, 'surface', this.cam.zoom, null, (ok && game.m.previewLook?.(h.x, h.y, game.rot)) ?? game.board.seq);
     ctx.restore();
+    if (ok) this.drawCompany(game, h.x, h.y);
 
     const [sx, sy] = this.toScreen(h.x, h.y);
     const z = this.cam.zoom;
     ctx.lineWidth = 3;
     ctx.strokeStyle = ok ? THEME.gold : '#a8443a';
     ctx.strokeRect(sx + 1.5, sy + 1.5, z - 3, z - 3);
+  }
+
+  /**
+   * GIARDINO'S COMPANY, round a plant about to be sown: a green + on each
+   * friend growing in the eight squares round it and a red − on each foe,
+   * set toward the new square so it reads as a pair.
+   */
+  drawCompany(game, x, y) {
+    const kind = game.tile?.plant;
+    if (!kind || !game.m.companyMarks) return;
+    const ctx = this.ctx, z = this.cam.zoom;
+    const [cx, cy] = this.toScreen(x + 0.5, y + 0.5);
+    for (const m of game.m.companyMarks(kind, x, y)) {
+      const [nx, ny] = this.toScreen(m.x + 0.5, m.y + 0.5);
+      const bx = cx + (nx - cx) * 0.62, by = cy + (ny - cy) * 0.62;
+      const r = Math.max(7, z * 0.15);
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(bx, by, r, 0, Math.PI * 2);
+      ctx.fillStyle = m.r > 0 ? '#3f7d34' : '#a8392c';
+      ctx.fill();
+      ctx.lineWidth = Math.max(1.5, z * 0.03);
+      ctx.strokeStyle = '#fff1d6';
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(bx - r * 0.5, by);
+      ctx.lineTo(bx + r * 0.5, by);
+      if (m.r > 0) { ctx.moveTo(bx, by - r * 0.5); ctx.lineTo(bx, by + r * 0.5); }
+      ctx.lineWidth = Math.max(2, r * 0.28);
+      ctx.lineCap = 'round';
+      ctx.stroke();
+      ctx.restore();
+    }
   }
 
   modeAllows(game, p) {

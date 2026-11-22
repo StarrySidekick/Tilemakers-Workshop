@@ -1191,6 +1191,101 @@ await page.selectOption('#tilesPerTurn', '1');
   await page.setViewportSize({ width: 1280, height: 820 });
 }
 
+// Giardino, the daily garden, on a phone (2026-11-22): Starà's screen with a
+// garden wall, no sizes or quarters, the week under the title and the seed
+// packet under the hand. Played through the real controls to the frost.
+{
+  errors.length = 0;
+  await page.setViewportSize({ width: 390, height: 844 });
+  if (await page.evaluate(() => document.body.classList.contains('stara') && !document.body.classList.contains('staraPanel'))) await page.click('#staraMenu');
+  await page.selectOption('#mode', 'giardino');
+  await page.click('#newGame');
+  await page.waitForTimeout(300);
+  const problems = [];
+  const screen = await page.evaluate(() => {
+    const g = window.LAB.game, r = window.LAB.renderer;
+    const cv = r.canvas.getBoundingClientRect();
+    const top = document.getElementById('staraTop').getBoundingClientRect().bottom;
+    const tray = document.getElementById('staraTray').getBoundingClientRect().top;
+    const [x0, y0] = r.toScreen(-3, -3), [x1, y1] = r.toScreen(4, 4);
+    return {
+      on: document.body.classList.contains('stara') && document.body.classList.contains('garden'),
+      title: document.querySelector('#stara .staraName').textContent,
+      day: document.getElementById('staraDay').textContent,
+      sizes: getComputedStyle(document.getElementById('staraSizes')).display,
+      tags: document.getElementById('staraQuarters').children.length,
+      wall: String(r.castleKey || '').startsWith('garden'),
+      fits: x0 >= 0 && x1 <= cv.width && y0 + cv.top >= top && y1 + cv.top <= tray,
+      packet: document.getElementById('staraCaption').textContent,
+      name: window.LAB.game.m.packet(window.LAB.game.tileKey)?.name,
+      cards: document.querySelectorAll('.staraCard').length,
+      tile: Math.round(r.cam.zoom),
+    };
+  });
+  if (!screen.on) problems.push('the garden screen did not come up');
+  if (screen.title !== 'Giardino' || !/week 0/.test(screen.day)) problems.push(`the title reads "${screen.title} ${screen.day}"`);
+  if (screen.sizes !== 'none' || screen.tags) problems.push('Starà\'s sizes or quarter tags are showing');
+  if (!screen.wall) problems.push('no garden wall round the square');
+  if (!screen.fits) problems.push('the 7x7 garden does not fit between the top bar and the tray');
+  if (!screen.name || !screen.packet.includes(screen.name)) problems.push(`the seed packet does not name the plant held up: "${screen.packet}"`);
+  if (screen.cards !== 2) problems.push(`a hand of ${screen.cards}, not two`);
+
+  // A lit square stages it, with its company marked; the seal sows it, and a week passes.
+  const lit = await page.evaluate(() => {
+    const g = window.LAB.game, r = window.LAB.renderer;
+    const s = g.board.legalPlacements(g.tile, g.placeOpts())[0];
+    const [sx, sy] = r.toScreen(s.x + 0.5, s.y + 0.5);
+    const cv = r.canvas.getBoundingClientRect();
+    return { x: sx + cv.left, y: sy + cv.top };
+  });
+  await page.mouse.click(lit.x, lit.y);
+  await page.waitForTimeout(150);
+  if (!(await page.evaluate(() => document.querySelector('#staraGo.shown')))) problems.push('a lit square did not stage the plant');
+  await page.click('#staraGo');
+  await page.waitForTimeout(150);
+  const sown = await page.evaluate(() => ({ week: window.LAB.game.m.week, beds: window.LAB.game.m.beds.size, day: document.getElementById('staraDay').textContent, phase: window.LAB.game.phase }));
+  if (sown.week !== 1 || sown.beds !== 1 || !/week 1/.test(sown.day) || sown.phase !== 'place') problems.push(`sowing gave ${JSON.stringify(sown)}`);
+
+  // To the frost: the end card adds up, and today's best is kept.
+  const end = await page.evaluate(async () => {
+    const g = window.LAB.game;
+    let guard = 0;
+    while (g.phase !== 'over' && guard++ < 400) {
+      if (g.phase !== 'place') break;
+      const s = g.board.legalPlacements(g.tile, g.placeOpts())[0];
+      g.rot = s.rot; g.placeAt(s.x, s.y);
+    }
+    await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+    return {
+      over: g.phase === 'over',
+      shown: !document.getElementById('staraEnd').hidden,
+      title: document.getElementById('staraEndDay').textContent,
+      card: Number(document.getElementById('staraEndScore').textContent),
+      score: g.players[0].score,
+      sum: Object.values(g.m.tally).reduce((a, b) => a + b, 0),
+      best: Number(localStorage.getItem(`tilemakers-workshop/giardino/best/${g.m.day.iso}`)),
+      fill: document.getElementById('staraEndFill').textContent,
+    };
+  });
+  if (!end.over || !end.shown) problems.push('no end card at the frost');
+  else if (!end.title.startsWith('Giardino') || end.card !== end.score || end.sum !== end.score) problems.push(`the end card does not add up: ${JSON.stringify(end)}`);
+  else if (end.best !== end.score) problems.push('today\'s best was not kept');
+  await page.click('#staraAgain');
+  await page.waitForTimeout(150);
+  const again = await page.evaluate(() => ({ phase: window.LAB.game.phase, week: window.LAB.game.m.week, end: document.getElementById('staraEnd').hidden }));
+  if (again.phase !== 'place' || again.week !== 0 || !again.end) problems.push('Play again did not sow the day again');
+  await page.click('#staraMenu');
+  await page.selectOption('#mode', 'classic');
+  await page.click('#newGame');
+  await page.waitForTimeout(150);
+  if (!(await page.evaluate(() => !document.body.classList.contains('garden') && document.getElementById('stara').hidden))) problems.push('leaving Giardino left its screen up');
+
+  if (errors.length) problems.push(errors[0].split('\n')[0]);
+  if (problems.length) { failures++; console.log(`  ✗ giardino on a phone: ${problems.join(' · ')}`); }
+  else console.log(`  ✓ giardino on a phone  walled garden at ${screen.tile}px a bed; packet, company, seal, weeks, frost (${end.score}, ${end.fill}), replay`);
+  await page.setViewportSize({ width: 1280, height: 820 });
+}
+
 await browser.close();
 server.close();
 console.log(failures ? `\n${failures} failure(s)` : '\nbrowser: all good');

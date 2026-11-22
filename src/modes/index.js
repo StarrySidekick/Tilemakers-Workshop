@@ -8,7 +8,8 @@
 // renderer asks the mode what to draw.
 //
 // Ordered roughly as: the classics, then the placement experiments, then the
-// long-form ones. Starà, the daily square, sits second (its two sizes) so it is easy to find.
+// long-form ones. Starà, the daily square, sits second (its two sizes) so it is easy to find,
+// and Giardino, the daily garden built on it, after it.
 // ---------------------------------------------------------------------------
 
 import { Classic } from './classic.js';
@@ -24,9 +25,10 @@ import { Chronicle } from './chronicle.js';
 import { Tesserae } from './tesserae.js';
 import { World } from './world.js';
 import { Stara, Stara5 } from './stara.js';
+import { Giardino } from './giardino.js';
 
 export const MODES = [
-  Classic, Stara, Stara5, World, Duel, Sprawl, Strata, Soffiando,
+  Classic, Stara, Stara5, Giardino, World, Duel, Sprawl, Strata, Soffiando,
   Marches, Expedition, Adventure, Descent, Chronicle, Tesserae,
 ].map((M) => M.spec);
 

@@ -67,6 +67,18 @@ it, touch a lit square to put it there, and the red wax seal beside it lays
 it. The menu in the corner brings the workshop back.
 `index.html?mode=stara` opens the 7×7, `?mode=stara5` the 5×5.
 
+**Giardino** — the daily walled garden, 7×7, on Starà's screen. Every tile is
+a plant and every tile laid is a week. A fountain in the middle sends a rill
+out of each side; rills must meet rills, and every rill joined to the
+fountain runs with water and waters the squares beside it. Thirsty plants
+grow only while watered, rosemary only while dry. A plant that has grown its
+weeks is picked: its yield, +1 for every friend in the eight squares round it
+and −1 for every foe (the Three Sisters, tomatoes and basil, fennel against
+everything, and so on, from the gardeners' companion charts). Rosemary and
+the fig are picked again every six weeks; whatever is still green at the
+frost is lost. The seed packet under the hand says what the plant held up
+needs and who it likes. `index.html?mode=giardino` opens it.
+
 **Sprawl** — pieces of two to four cells, in tetromino shapes. A big piece has
 to satisfy several neighbours at once, so once a single-cell gap exists almost
 nothing fits it — **denial becomes a real strategy**. Sealing an empty cell
