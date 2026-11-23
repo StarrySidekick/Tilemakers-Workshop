@@ -1984,13 +1984,16 @@ the fix is the number, not the rule.
 
 ## 14. Starà — the daily square
 
-> **Built 2026-11-18, in four passes** — `src/modes/stara.js` (the rules),
-> `walled` in `src/board.js` (the castle wall's rule), `src/stara-ui.js` (its
-> own screen), `drawTable` and `drawCastle` in `src/render.js`,
-> `src/castle.js` (the castle's picture), `src/sketch.js` (hand-drawn
-> strokes), `assets/table-oak.jpg` and `assets/fonts/` (see
-> `assets/CREDITS.md`). Checked by `checkStara` in the harness and "starà on a
-> phone" in the smoke test.
+> **Built 2026-11-18, in four passes, and made a city-state on 2026-11-23** —
+> `src/modes/stara.js` (the rules and the places), `walled` and
+> `builtFromWall` in `src/board.js` (the town wall's rules), `ARCH` in
+> `src/tiles.js` (the aqueduct's edge), `src/city.js` (the places' pictures
+> and the water arch), `src/stara-ui.js` (its own screen), `drawTable`,
+> `drawCastle` and `drawGain` in `src/render.js`, `src/castle.js` (the
+> castle), `src/sketch.js` (hand-drawn strokes), `assets/table-oak.jpg` and
+> `assets/fonts/` (see `assets/CREDITS.md`). Checked by `checkStara` in the
+> harness and "starà on a phone" in the smoke test; measured by
+> `tools/stara-sim.mjs`.
 
 Timothy, 2026-11-18: *"new mode, going to be daily, and based around the idea
 of fitting tiles into the area of your phone screen. so like let's define a
@@ -2003,8 +2006,183 @@ real wood"*.
 
 **Question:** is Carcassonne a daily puzzle once the table has an edge?
 
-**Where it stands now (the fourth pass)** comes first; how it got there
-follows, pass by pass, newest first. One look-only pass sits on top of it:
+**Where it stands now (the fifth pass)** comes first; how it got there
+follows, pass by pass, newest first.
+
+### The fifth pass: a walled city-state (2026-11-23)
+
+Timothy: *"drop the quarters idea for now. The framing we're going for is
+that these are the walls of an illustrious city-state. You are given the city
+walls in the form of a square of 5 by 5 or 7 by 7, and your job is to fill it
+in with all of these different things"*: cathedral, housing, plazas, gardens,
+markets, barracks, keeps, wizard towers, aqueducts, farms, roads, *"let's
+think of some more"*. *"The vision I have is sort of like ... one of those
+beautiful Italian city-states from the Middle Ages ... like the city of
+Lucca ... There's a whole civilization that exists and is doing things and is
+interacting ... Each time you play, I want the city state to feel a little
+bit different based on the tiles you get ... Your goal is to kind of make
+that city state thrive."*
+
+**Question:** can a full square still be a decision, if every point depends on
+what stands next to what?
+
+Asked four questions, he took the recommendation each time:
+
+- **One place per tile.** Every tile is a place in the city, with streets
+  across its edges. A street must meet a street and a frontage a frontage
+  (Giardino's rule for rills); the wall takes either. Carcassonne's cities,
+  fields and cloisters are gone, and so are the quarters, their trades, the
+  charter, abbeys and districts.
+- **Neighbours, paid as laid.** Each place wants things in the eight squares
+  round it, and some want the wall, water or a street out through a gate. The
+  score is always what the whole city is worth (`appraise`), recomputed
+  after every tile, so a tile pays the difference it makes to itself and to
+  everything round it. That difference is drawn on the board while the tile
+  is staged, before the seal: a wax tag on the tile with the whole gain, and
+  a green or red +n / −n on each neighbour it changes. Islanders and Tiny
+  Towns score this way.
+- **A cast per day.** Houses, plazas, gardens, farms, markets, churches and
+  the aqueduct come every day. The day deals one place of each of four kinds,
+  from two each: **faith** (the cathedral, or three convents), **defence**
+  (three barracks, or the keep), **industry** (three silk works, or three
+  tanneries) and a **wonder** (the wizard's tower, or the university). The
+  four are named on the tags at the square's corners. Tiny Towns does this.
+- **An aqueduct from the wall.** Each day puts a water arch in the wall
+  (never a town gate's square). Aqueduct tiles carry the water across on
+  arches, and a square is watered if running water is on it or beside it.
+
+**The places**, each worth what its card says (the card is made from the same
+table that scores it, `describe` in stara.js, so it cannot drift):
+
+| place | in the deal | worth |
+|---|---|---|
+| Piazza del Comune | the first tile, in the middle | 2, +1 each different place round it, +6 when the aqueduct reaches its fountain |
+| Houses | 24 | 1, +1 watered, +1 each garden, plaza, the Comune, market, church or cathedral round it, −2 each tannery, −1 each barracks |
+| Plaza | 5 | +1 each different place round it, +2 watered (its fountain plays) |
+| Garden | 7 | 1, +2 watered, −1 each tannery round it |
+| Farm | 6 | +2 each side on the wall |
+| Market | 5 | +1 each house round it, +2 each farm, +2 each gate its street reaches |
+| Church | 3 | 1, +1 each house round it; laid, you hold one more tile |
+| Aqueduct | 10 | +1 for each span the water has run through to reach it (1, 2, 3 ...) |
+| Cathedral | 1 (faith) | 4, +1 each house round it, +3 each plaza or the Comune; one more tile in hand |
+| Convent | 3 (faith) | +2 each side on the wall, +1 each garden or farm round it; one more tile in hand |
+| Barracks | 3 (defence) | +1 each side on the wall, +3 on or beside a town gate |
+| Keep | 1 (defence) | 2, +1 each house round it; fits anything, and a street ending at it counts it as a gate |
+| Silk works | 3 (industry) | +3 watered, +1 each house round it, +2 each market |
+| Tannery | 3 (industry) | +5 watered, +1 each side on the wall |
+| Wizard's tower | 1 (wonder) | 8, −1 each place round it but gardens and farms; while it stands you see the next two tiles |
+| University | 1 (wonder) | +1 each different place in its row and column |
+
+**High roads.** A street network out through the gates pays by how many it
+reaches: 1 gate 2, 2 gates 6, 3 gates 14, 4 gates 24, 5 (the keep) 36.
+
+Calls of Claude's, each with why, named to him when it shipped:
+
+- **The Piazza del Comune is the first tile**, the town hall's square with a
+  fountain that plays when the aqueduct reaches it (Siena's Fonte Gaia was fed
+  by tunnels from the hills). A goal in the middle you can see from turn one.
+- **A tile may be laid against the town wall as well as beside another tile**
+  (`builtFromWall`). Built first the Carcassonne way, from the middle out,
+  water never ran: the arch is on the wall, and by the time the city reached
+  it every square an aqueduct would need going inward was built. Now the city
+  grows from its walls and its middle at once, the way walled towns did, the
+  arch and the gates are reachable from the first turn, and the squeeze moves
+  to the ring between the two.
+- **The aqueduct stands on arches** (`ARCH` in tiles.js): its edges take a
+  street or a frontage, and a street meeting it runs on under it. Built first
+  with streets of its own, five of eight aqueducts had none and fitted almost
+  nowhere in a city of streets.
+- **The arch pours into a basin at the foot of the wall**, so its own square
+  is watered whatever stands there. A span on it opening onto the arch carries
+  the water on; anything else built there, a span beside it takes the water
+  from the basin. Without that, a tannery on the arch's square (which greedy
+  play always chose) ended the aqueduct for the day, a dead end nobody would
+  see coming.
+- **An aqueduct span pays for how far the water has come** (1, 2, 3 ...), so
+  a long one pays more than its length; and **houses want water**, which is
+  what aqueducts were built for. At a flat +2 a span, nothing pulled anyone
+  to build past the second.
+- **A high road pays by gates, not by length.** Every tile has streets now, so
+  a network can cover half the square, and a per-tile price would pay for a
+  size a full square hands you anyway.
+- **The hand: 1, and 1 more for every church of any kind, up to 5.** Past five
+  the tray is two rows of small cards and choosing becomes searching.
+- **A place is never worth less than 0**: a house between two tanneries is
+  worth nothing, not a debt.
+- **The wizard's tower shows the next two tiles** (the design analysis's
+  "preview", principle 7), as its own power, so luck becomes something to
+  plan on the days it is dealt.
+
+**The look** (`src/city.js`): seen from above, lit from the upper left like
+the rest of the table. Terracotta roofs with the face toward the lamp lighter
+and rows of tiles down each face; streets in flagstones; plazas and the Comune
+in Siena's herringbone brick with the streets coming in in stone, so you can
+see where they meet; gardens of box-edged beds; vines, orchards or wheat for
+farms; stalls under striped awnings in a market; a basilica with its apse and
+bell tower; the cathedral as a Latin cross with a ribbed dome and a campanile
+in banded marble; cloisters for the convent and the university; a drill yard
+and a red flag at the barracks; a mill wheel and racks of dyed silk; the
+tannery's honeycomb of dye vats; the wizard's tower round, with a roof of
+midnight slates and gold stars; the aqueduct a pale channel on piers with its
+long shadow. Watered places show it (a fountain plays, the silk and the vats
+take their colours). The water arch is drawn in the wall with its channel
+coming in from outside. The quarters' tinted floor, the high street and the
+quarters' lines over the tiles are gone. Inked by ink.js, as the rest is.
+
+**The interface** keeps the fourth pass's: the tags at the four corners name
+the day's cast instead of the quarters; under the hand is the card of the
+place held up (what it is, what it wants, in green and red); while a wizard's
+tower stands the next two tiles sit face up beside the pile; and staging a
+tile shows what it pays before the seal.
+
+**What it measures** (`tools/stara-sim.mjs`, 100 deals each way; greedy is
+every tile in hand at every legal square, keeping the best city now; water
+first is greedy that keeps the square at the end of a running span free and
+always extends the water when it can):
+
+| | greedy | random | floor | skill gap | trivial turns | square full |
+|---|---|---|---|---|---|---|
+| 7×7, the fourth pass | 220 | 168 | 77% | 2.40 | 23% | about 6 days in 100 |
+| **7×7, the city** | 202 | 122 | **60%** | **4.59** | **5%** | 100 |
+| 5×5, the fourth pass | 120 | 99 | 82% | 1.44 | 33% | about half |
+| **5×5, the city** | 111 | 70 | **63%** | **3.21** | **7%** | 100 |
+
+- **Every column moved the right way.** The floor (points that arrive
+  whatever you do) is down by about a fifth, the gap between careful and
+  random play is nearly double, and turns where nothing is decided are rare.
+  Every point now depends on arrangement, which is what the design analysis
+  said a full square needs.
+- **The square always fills**, from about 6 days in 100 on the 7×7. Two edge
+  types (street or frontage) fit far more easily than Carcassonne's three, and
+  the aqueduct fits anything. So fitting is no longer the puzzle; *where* is.
+- **By kind (7×7, greedy / random):** houses 71 / 45, plazas, gardens and
+  farms 47 / 32, markets 27 / 15, churches 24 / 13, industry 9 / 5, defence
+  7 / 4, wonders 6 / 5, high roads 13 / 4.
+- **Water rewards a plan, and greedy play does not make one.** Greedy gets
+  water past the arch's own square almost never (1.5 squares). Water first
+  runs it 4.7 squares, reaches the Comune's fountain 10 days in 100 on the
+  7×7 and 23 on the 5×5, and beats greedy 58 days in 100. A person who sees
+  the arch from turn one should do better than either.
+- **Little skill shows yet in the Comune, plazas, the keep and the wizard's
+  tower** (greedy and random within a point or two). The wizard's worth is
+  mostly its sight, which these players cannot use.
+
+**Open, for the next pass** (none built):
+
+- **More places.** Proposed and not built: tower houses that pay for every
+  other tower in their row and column (the skyline), an inn by a gate, a
+  guild hall paid by the workshops near it, the Palazzo Pubblico as its own
+  tile, a hospital, a theatre (Lucca's amphitheatre piazza), a granary.
+  The cast makes each one cheap to add: one row in `PLACES`, one drawing.
+- **Two gates a side on the 7×7**: measured in the design analysis as the
+  best change for that size, not tried with the city.
+- **Par for the day**, and **holes costing points**: the square always fills
+  now, so the second matters less than it did.
+
+### The fourth pass, and before
+
+**Where it stood after the fourth pass** follows; how it got there follows
+that, pass by pass, newest first. One look-only pass sits on top of it:
 
 *"move the seal checkmark more out from the tile itself so that i don't
 accidentally press it"*, *"make quarters have like color coded sections on the

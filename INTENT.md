@@ -208,8 +208,20 @@ beside the tile it lays. Again he took each recommendation.
 On 2026-11-19 he asked for a design analysis of the square itself ("i'm not
 convinced on what we have at the moment, besides the castle wall gates for
 connecting roads, that's fun"). **[`docs/STARA-DESIGN.md`](docs/STARA-DESIGN.md)**
-is that analysis, measured with `tools/stara-sim.mjs`, and its proposals; read
-it before changing the mode. Nothing in it is built yet.
+is that analysis and its proposals; read it before changing the mode.
+On 2026-11-23 the fifth pass: "drop the quarters idea for now", and the
+square is "the walls of an illustrious city-state ... like the city of
+Lucca", to fill with "all of these different things" (cathedral, housing,
+plazas, gardens, markets, barracks, keeps, wizard towers, aqueducts, farms,
+roads), different each day, the goal to "make that city state thrive". Asked,
+he chose one place per tile with streets on its edges, places paid by their
+neighbours as they are laid, a cast of four places dealt per day, and an
+aqueduct from an arch in the wall. Built, and measured with
+`tools/stara-sim.mjs` (which now plays the city): the floor and the trivial
+turns fell and the skill gap nearly doubled on both sizes. Section 14 of
+`MODES.md` has the rules, the calls of Claude's (the city may be built from
+its walls inward, the aqueduct stands on arches over the streets) and what is
+open (more places, two gates a side).
 
 **Giardino, the daily walled garden: asked for 2026-11-22.** "based on
 stara ... a little walled garden, and each tile is a plant, and the mechanics

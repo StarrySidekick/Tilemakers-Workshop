@@ -51,20 +51,22 @@ that. Five minutes a game.
 gets the same thirty tiles on the same 7×7 board on the same day. Solo, against
 par.
 
-**Starà** — the daily town, in a 5×5 and a 7×7. Solo and without followers:
-everything you build is yours, and the same deal comes to everyone on the same
-day. The square is a walled town: the wall ends roads and closes districts
-(the tile cities), the middle of each wall is a town gate, and the high
-street between the gates cuts the town into four quarters, each given a trade
-for the day (housing, trade, church, garrison) that pays for what it wants.
-At the end every highway (roads joined at crossroads) pays +1 a tile for each
-gate it reaches, the keep counting as one; the charter pays +2 per finished
-district; abbeys pay for the quiet round them, and each abbey you lay lets you
-hold one more tile in hand. Fields are gardens and pay nothing. It has its own
-screen, medieval and drawn by hand: a wooden table, the town wall seen from
-above, your hand in the tray. Touch a tile to hold it up and again to turn
-it, touch a lit square to put it there, and the red wax seal beside it lays
-it. The menu in the corner brings the workshop back.
+**Starà** — the daily city-state, in a 5×5 and a 7×7. Solo and without
+followers, the same deal for everyone on the same day. The square is a walled
+Italian city to fill, one place to a tile: houses, plazas, gardens, farms,
+markets, churches and the aqueduct every day, and a cast of four dealt by the
+day (the cathedral or convents, barracks or the keep, silk works or a tannery,
+a wizard's tower or the university). Streets must meet streets. Each place is
+worth what it wants round it, and the score is always what the whole city is
+worth, so a tile pays the difference it makes, shown before you lay it. A
+street out through the town gates in the middle of each wall is a high road;
+water comes in at an arch in the wall and runs along the aqueduct; each church
+lets you hold one more tile. Tiles may be laid against the wall as well as
+beside each other. It has its own screen, medieval and drawn by hand: a wooden
+table, the town wall seen from above, your hand in the tray, the card of the
+place you hold under it. Touch a tile to hold it up and again to turn it,
+touch a lit square to put it there, and the red wax seal beside it lays it.
+The menu in the corner brings the workshop back.
 `index.html?mode=stara` opens the 7×7, `?mode=stara5` the 5×5.
 
 **Giardino** — the daily walled garden, 7×7, on Starà's screen. Every tile is

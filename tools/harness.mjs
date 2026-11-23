@@ -24,7 +24,7 @@ import { gust, storm } from '../src/wind.js';
 import { GROUPS } from '../src/tiles.js';
 import { checkRulebook } from './soffiando-rulebook.mjs';
 import { SOFFIANDO_WEIGHTS } from '../src/modes/soffiando.js';
-import { staraDay, quietOf, highways, gateRoads, quarterOf, quarterWorth, tradesFor } from '../src/modes/stara.js';
+import { staraDay, highways, gateRoads, appraise, castFor, archFor, archSquare, runningWater as cityWater, CAST, PLACES, RULES, KEEP as STARA_KEEP } from '../src/modes/stara.js';
 import { giardinoDay, runningWater, isWatered, PLANTS, PLANT_IDS, FRIENDS, FOES, relation, DECK_SIZE } from '../src/modes/giardino.js';
 
 const ALL_GROUPS = GROUPS.map((g) => g.id);
@@ -2861,94 +2861,149 @@ function checkStara() {
     && JSON.stringify(new Game({ mode: 'stara5' }).board.bounds) === JSON.stringify({ minX: -2, maxX: 2, minY: -2, maxY: 2 }));
   ok('…each with a deal of its own', new Game({ mode: 'stara5' }).seed !== a.seed);
 
-  // The third pass: abbeys want quiet, highways through the town gates.
+  // The fifth pass (2026-11-23): a walled city-state, one place to a tile.
   {
     const B5 = { minX: -2, maxX: 2, minY: -2, maxY: 2 };
-    const facing = (type, side, edge) => [0, 1, 2, 3].find((r) => new Board({}).edgeAt({ type, rot: r }, side) === edge);
-    const q = new Board({ bounds: B5, walled: true });
-    q.place(0, 0, TILES.B, 0);                            // the abbey
-    q.place(1, 0, TILES.B, 0);                            // all fields: 2
-    q.place(-1, 0, TILES.U, facing(TILES.U, 1, 'r'));     // a road: 1
-    q.place(0, 1, TILES.E, 0);                            // a quarter: 0
-    ok('an abbey pays 1, then 2 / 1 / 0 for fields / road / district round it', quietOf(q, 0, 0) === 4, `${quietOf(q, 0, 0)}`);
+    const city = () => new Board({ bounds: B5, walled: true, builtFromWall: true });
+    const T = (id) => TILES[id];
+    const turnTo = (id, side, edge) => [0, 1, 2, 3].find((r) => new Board({}).edgeAt({ type: T(id), rot: r }, side) === edge);
+    const worth = (b, x, y, arch = { s: 0, i: 0 }) => appraise(b, arch).per.get(`${x},${y}`)?.pts;
 
-    // A crossroads in the middle of a 5 x 5, a road from it out through the
-    // north gate and one out through the east: one highway, two gates.
-    const h = new Board({ bounds: B5, walled: true });
-    h.place(0, 0, TILES.X, 0);
-    const ns = facing(TILES.U, 0, 'r'), ew = facing(TILES.U, 1, 'r');
-    h.place(0, -1, TILES.U, ns); h.place(0, -2, TILES.U, ns);
-    h.place(1, 0, TILES.U, ew); h.place(2, 0, TILES.U, ew);
-    const ways = highways(h).filter((w) => w.gates.size);
-    ok('roads joined at a crossroads are one highway, gates stacking',
-      ways.length === 1 && ways[0].gates.size === 2 && ways[0].tiles.size === 5,
-      ways.map((w) => `${w.tiles.size} tiles, ${w.gates.size} gates`).join(' '));
-    ok('the town gates see the roads out through them, and only those',
+    // Streets meet streets and frontages frontages; the aqueduct takes either.
+    const st = city();
+    st.place(0, 0, T('c-comune-X'), 0);
+    ok('a street must meet a street, a frontage a frontage',
+      !st.canPlace(1, 0, T('c-garden-0'), 0) && [0, 1, 2, 3].some((r) => st.canPlace(1, 0, T('c-house-U'), r))
+      && [0, 1, 2, 3].every((r) => st.canPlace(1, 0, T('c-house-U'), r) === (st.edgeAt({ type: T('c-house-U'), rot: r }, 3) === 'r')));
+    st.place(1, 0, T('c-aqueduct-I'), 0);
+    st.place(2, 0, T('c-house-U'), turnTo('c-house-U', 3, 'r'));
+    const run = st.featureOf(2, 0, 0);
+    ok('an aqueduct takes a street or a frontage, and the street runs on under it',
+      [0, 1, 2, 3].every((r) => st.canPlace(1, -1, T('c-aqueduct-I'), r)) && run && run === st.featureOf(0, 0, 0));
+    ok('a tile may be laid against the town wall, touching nothing else',
+      st.canPlace(-2, -2, T('c-garden-0'), 0) && !st.canPlace(-1, -1, T('c-garden-0'), 0)
+      && (() => { const p = new Board({ bounds: B5, walled: true }); p.place(0, 0, T('c-comune-X'), 0); return !p.canPlace(-2, -2, T('c-garden-0'), 0); })());
+
+    // Neighbours: each place is worth what it wants round it, never less than 0.
+    const n = city();
+    n.place(0, 0, T('c-house-0'), 0);
+    n.place(1, 1, T('c-garden-0'), 0);
+    n.place(-1, -1, T('c-garden-0'), 0);
+    const two = worth(n, 0, 0);
+    n.place(1, -1, T('c-tannery-0'), 0);
+    ok('a house: 1, +1 a garden round it, −2 a tannery', two === 3 && worth(n, 0, 0) === 1, `${two} then ${worth(n, 0, 0)}`);
+    n.place(-1, 1, T('c-tannery-0'), 0);
+    n.place(-1, 0, T('c-tannery-0'), 0);
+    ok('a place is never worth less than 0', worth(n, 0, 0) === 0);
+    const v = city();
+    v.place(0, 0, T('c-plaza-X'), 0);
+    for (const [x, y, id] of [[-1, -1, 'c-house-0'], [1, -1, 'c-garden-0'], [1, 1, 'c-farm-0'], [-1, 1, 'c-house-0']]) v.place(x, y, T(id), 0);
+    ok('a plaza: +1 for each DIFFERENT kind of place round it', worth(v, 0, 0) === 3, `${worth(v, 0, 0)}`);
+    const w = city();
+    w.place(-2, -2, T('c-farm-0'), 0); w.place(0, -2, T('c-farm-0'), 0);
+    ok('a farm: +2 for each side on the wall', worth(w, -2, -2) === 4 && worth(w, 0, -2) === 2);
+
+    // Water: in at the arch, along the spans, onto the squares beside them.
+    const arch = { s: 1, i: 1 };                       // the east wall, one square down
+    const at = archSquare(new Board({ bounds: B5 }), arch);
+    const aq = city();
+    ok('the arch is on the wall, its square watered with nothing built', at.x === 2 && at.y === -1
+      && cityWater(aq, arch).has('2,-1'));
+    aq.place(2, -1, T('c-aqueduct-I'), 1);              // on the arch, opening onto it (east-west)
+    aq.place(1, -1, T('c-aqueduct-I'), 1);
+    aq.place(0, -1, T('c-aqueduct-L'), 1);              // a bend: east and south
+    aq.place(0, 0, T('c-house-0'), 0);
+    aq.place(1, 1, T('c-garden-0'), 0);
+    const ap = appraise(aq, arch);
+    const pays = ['2,-1', '1,-1', '0,-1'].map((k) => ap.per.get(k).pts).join(' ');
+    ok('water runs as far as the spans open onto each other', cityWater(aq, arch).size === 3, [...cityWater(aq, arch)].join(' '));
+    ok('a span pays for how far the water has come: 1, 2, 3', pays === '1 2 3', pays);
+    ok('a square beside running water is watered, one a square away is not',
+      ap.per.get('0,0').wet && !ap.per.get('1,1').wet && ap.per.get('0,0').pts === 3, `house ${ap.per.get('0,0').pts}: 1, +1 watered, +1 the garden`);
+    const side = city();
+    side.place(2, -1, T('c-tannery-0'), 0);
+    side.place(1, -1, T('c-aqueduct-I'), 1);
+    ok('a span beside the arch\'s square takes the water from it, whatever stands there',
+      cityWater(side, arch).has('1,-1') && appraise(side, arch).per.get('2,-1').pts === 6);
+    ok('the arch is never a town gate\'s square, and the same for everyone',
+      [1, 2, 3, 4, 5, 6, 7, 8, 9, 10].every((sd) => archFor(sd, 7).i !== 3 && archFor(sd, 5).i !== 2)
+      && JSON.stringify(archFor(a.seed, 7)) === JSON.stringify(a.m.arch));
+
+    // High roads: a street out through gates pays by how many it joins.
+    const h = city();
+    h.place(0, 0, T('c-comune-X'), 0);
+    const ns = turnTo('c-house-I', 0, 'r'), ew = turnTo('c-house-I', 1, 'r');
+    h.place(0, -1, T('c-house-I'), ns); h.place(0, -2, T('c-house-I'), ns);
+    const one = appraise(h, arch).groups.roads;
+    h.place(1, 0, T('c-house-I'), ew); h.place(2, 0, T('c-house-I'), ew);
+    ok('a street through one gate pays 2, through two 6', one === RULES.highRoad[1] && appraise(h, arch).groups.roads === RULES.highRoad[2],
+      `${one}, then ${appraise(h, arch).groups.roads}`);
+    ok('the town gates see the streets out through them, and only those',
       gateRoads(h).map(Boolean).join() === 'true,true,false,false');
+    h.place(-1, 0, T('c-house-I'), ew);
+    h.place(-2, 0, T(STARA_KEEP), 0);
+    ok('the keep counts as a gate for the street that ends at it', highways(h).some((x) => x.gates.size === 3)
+      && appraise(h, arch).groups.roads === RULES.highRoad[3]);
 
-    // The keep: walls all round, so a road ending at it is ended by it, and
-    // it counts as a gate on that road's highway.
-    const k = new Board({ bounds: B5, walled: true });
-    k.place(0, 0, TILES.X, 0);
-    k.place(0, -1, TILES.U, ns); k.place(0, -2, TILES.U, ns);   // out through the north gate
-    k.place(1, 0, TILES.U, ew);                                    // east, to...
-    k.place(2, 0, TILES.KEEP, 0);                                  // ...the keep (no road through it)
-    const kw = highways(k).filter((w) => w.gates.size);
-    const east = k.featureOf(1, 0, k.featAt(k.get(1, 0), 1));
-    ok('a road ending at the keep is finished by it', east && east.open === 0);
-    ok('the keep is a gate for its highway', kw.length === 1 && kw[0].gates.size === 2,
-      kw.map((w) => [...w.gates].join(' + ')).join());
-    ok('the keep fits against anything', ['C', 'E', 'U', 'X', 'B'].every((id) => {
-      const bb = new Board({ bounds: B5, walled: true });
-      bb.place(0, 0, TILES[id], 0);
-      return [0, 1, 2, 3].some((r) => bb.canPlace(1, 0, TILES.KEEP, r));
-    }));
-
-    // The four quarters, cut by the high street.
-    ok('the high street cuts the square into four quarters',
-      quarterOf(k, 0, 1) === null && quarterOf(k, 1, 0) === null && quarterOf(k, -1, -1) === 'NW'
-      && quarterOf(k, 2, -2) === 'NE' && quarterOf(k, 1, 1) === 'SE' && quarterOf(k, -2, 2) === 'SW');
-    const town = new Board({ bounds: B5, walled: true });
-    town.place(-1, -1, TILES.B, 0); town.place(-2, -1, TILES.A, 0);    // two abbeys in the NW
-    town.place(1, -1, TILES.X, 0);                                      // a market cross in the NE
-    town.place(1, 1, TILES.KEEP, 0);                                    // the keep in the SE
-    town.place(-1, 1, TILES.E, 0); town.place(-2, 2, TILES.C, 0);       // two district tiles in the SW
-    ok('each trade pays for what it wants, in its own quarter',
-      quarterWorth(town, 'NW', 'church').pts === 6 && quarterWorth(town, 'NE', 'trade').pts === 3
-      && quarterWorth(town, 'SE', 'garrison').pts === 6 && quarterWorth(town, 'SW', 'housing').pts === 2
-      && quarterWorth(town, 'NW', 'housing').pts === 0 && quarterWorth(town, 'SE', 'church').pts === 0);
-    const tr = tradesFor(a.seed);
-    ok('the day gives each quarter a trade, all four, the same for everyone',
-      new Set(Object.values(tr)).size === 4 && JSON.stringify(tr) === JSON.stringify(tradesFor(a.seed))
-      && JSON.stringify(tr) === JSON.stringify(a.m.trades), JSON.stringify(tr));
+    // The day's cast.
+    const cast = castFor(a.seed);
+    ok('the day deals one place of each kind, the same for everyone',
+      CAST.every((c) => c.of.includes(cast[c.id])) && JSON.stringify(cast) === JSON.stringify(a.m.cast), JSON.stringify(cast));
+    const pile = [a.m.hand[0], ...[...a.deck].reverse()].map((id) => TILES[id].place || (TILES[id].keep ? 'keep' : null));
+    const others = CAST.flatMap((c) => c.of.filter((k) => k !== cast[c.id]));
+    ok('...and only those: the others are not in the pile', others.every((k) => !pile.includes(k)) && Object.values(cast).every((k) => pile.includes(k)));
+    const seen = new Set();
+    for (let sd = 1; sd <= 40; sd++) for (const k of Object.values(castFor(sd))) seen.add(k);
+    ok('over the days every place of the cast comes up', CAST.every((c) => c.of.every((k) => seen.has(k))), `${seen.size} of 8`);
+    const firstThird = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10].every((sd) => {
+      const gg = new Game({ mode: 'stara', seed: sd });
+      const order = [gg.m.hand[0], ...[...gg.deck].reverse()];
+      return Object.values(gg.m.cast).filter((k) => PLACES[k].one).every((k) => {
+        const i = order.findIndex((id) => (TILES[id].place || (TILES[id].keep ? 'keep' : null)) === k);
+        // Dealt within the first 16 (a third of the 7 x 7), each pushing the
+        // others down by one as it goes in.
+        return i >= 0 && i < 16 + 3;
+      });
+    });
+    ok('a place there is only one of comes in the first third of the square', firstThird);
   }
 
-  // The hand: one tile, and one more for every abbey laid; any tile in it may be played.
+  // The hand: one tile, one more for every church laid (up to five); any may be played.
+  // The score is always what the city is worth.
   {
     const g = new Game({ mode: 'stara', seed: 11 });
     const handOk = g.m.hand.length === 1 && g.m.handSize === 1 && g.tileKey === g.m.hand[0];
-    let grew = null, chose = null, guard = 0;
-    while (g.phase === 'place' && guard++ < 80 && (grew == null || chose == null)) {
+    let grew = null, chose = null, worthy = true, guard = 0;
+    while (g.phase === 'place' && guard++ < 80) {
       if (g.m.hand.length > 1 && chose == null) {
         const want = g.m.hand[1];
         g.m.select(1);
         chose = g.tileKey === want && g.tile === TILES[want];
       }
-      const abbey = TILES[g.tileKey].feats.some((f) => f.type === 'monastery');
+      const church = PLACES[TILES[g.tileKey].place]?.church;
       const spot = g.board.legalPlacements(g.tile, g.placeOpts())[0];
       g.rot = spot.rot;
       const before = g.m.handSize;
       g.placeAt(spot.x, spot.y);
-      if (abbey && grew == null) grew = g.m.handSize === before + 1 && g.m.hand.length === g.m.handSize;
+      if (church && grew == null && before < RULES.handMax) grew = g.m.handSize === before + 1;
+      if (g.players[0].score !== appraise(g.board, g.m.arch).total) worthy = false;
     }
     ok('you hold one tile, the one in play', handOk);
-    ok('an abbey laid makes the hand one bigger, filled at once', grew === true);
+    ok('a church laid makes the hand one bigger', grew === true);
     ok('any tile in the hand may be held up and played', chose === true);
-    const keepAt = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((seed) => {
-      const gg = new Game({ mode: 'stara', seed });
-      return [gg.m.hand[0], ...[...gg.deck].reverse()].indexOf('KEEP') + 1;
-    });
-    ok('one keep to a deal, within the first third of the square', keepAt.every((n) => n >= 1 && n <= 16), keepAt.join(' '));
+    ok('after every tile the score is what the city is worth', worthy);
+    ok('the hand never holds more than five', g.m.handSize <= RULES.handMax);
+    // The wizard's tower: the next tiles in the pile, while it stands.
+    const wz = Array.from({ length: 40 }, (_, i) => i + 1).find((sd) => castFor(new Game({ mode: 'stara', seed: sd }).seed).wonder === 'wizard');
+    const gw = new Game({ mode: 'stara', seed: wz });
+    const none = gw.m.ahead().length;
+    let sees = null;
+    for (let k = 0; k < 60 && gw.phase === 'place'; k++) {
+      const s = gw.board.legalPlacements(gw.tile, gw.placeOpts())[0];
+      gw.rot = s.rot; gw.placeAt(s.x, s.y);
+      if (gw.m.foresight) { sees = gw.m.ahead().join() === gw.deck.slice(-2).reverse().join(); break; }
+    }
+    ok('a wizard\'s tower standing shows the next two tiles in the pile', none === 0 && sees === true);
   }
 
   // The castle walls round the square end what runs into them.
@@ -2981,7 +3036,7 @@ function checkStara() {
       && !new Game({ mode: 'tesserae' }).board.walled);
   }
 
-  let full = 0, sumsUp = 0, inside = 0, ended = 0, gates = 0, claimed = 0;
+  let full = 0, sumsUp = 0, inside = 0, ended = 0, gates = 0, claimed = 0, water = 0;
   const N = 40;
   for (let seed = 1; seed <= N; seed++) {
     const r = playOut({ mode: 'stara', seed, bots: seed % 2 ? 'all' : null });
@@ -2993,13 +3048,15 @@ function checkStara() {
     if ([...g.board.cells.values()].every((c) => g.board.inBounds(c.x, c.y))) inside++;
     if (g.board.size === 49) full++;
     if (g.phase === 'over' && (g.deck.length === 0 || g.board.size === 49)) ended++;
-    if (tl.gates > 0) gates++;
+    if (tl.roads > 0) gates++;
+    if (g.m.city.running.size > 1) water++;
   }
   ok('every tile lands inside the square', inside === N, `${inside}/${N} games`);
   ok('it ends only when the square is full or nothing fits', ended === N, `${full}/${N} filled every square`);
   ok('the breakdown adds up to the score', sumsUp === N, `${sumsUp}/${N} games`);
   ok('no followers: nothing is ever claimed by hand', claimed === 0, `${claimed}/${N} games`);
-  ok('highways through the gates pay at the end', gates > 0, `${gates}/${N} games had one`);
+  ok('high roads through the gates pay', gates > 0, `${gates}/${N} games had one`);
+  ok('the aqueduct carries water in some days', water > 0, `${water}/${N} games`);
 }
 
 const avg = (l) => l.reduce((a, b) => a + b, 0) / (l.length || 1);

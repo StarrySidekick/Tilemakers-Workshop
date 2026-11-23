@@ -4,6 +4,14 @@ Written 2026-11-19, from Timothy's brief and about 4,800 simulated days.
 Everything here is either a measurement or a proposal, and each says which it is.
 No rule was changed.
 
+> **Since then (2026-11-23):** the fifth pass made the square a walled
+> city-state, one place to a tile, paid by its neighbours as it is laid, and
+> dropped the quarters. It follows this document's principles 1, 2, 5, 6 and 7
+> (arrangement, goals on the frame, escalation, points on the board, a preview
+> through the wizard's tower) rather than its proposals one by one; the
+> numbers are in `MODES.md` section 14. `tools/stara-sim.mjs` now plays the
+> city; the simulator that made the tables below is at commit 286ab76.
+
 ## The brief
 
 Timothy, 2026-11-19: *"run a design analysis as to way to make the idea of a

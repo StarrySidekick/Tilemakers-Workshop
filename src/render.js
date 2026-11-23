@@ -20,7 +20,7 @@ import { liftableCells } from './mechanics.js';
 import { roughen } from './ink.js';
 import { paintCastle, gatesOf, CASTLE, keepSprite } from './castle.js';
 import { gardenSprite, paintGardenWall, GARDEN_WALL } from './garden.js';
-import { TRADE_BY_ID } from './modes/stara.js';
+import { citySprite } from './city.js';
 import { sketchLine, sketchRect, seedOf } from './sketch.js';
 
 // Move targets, in the order you want to notice them. Green is the plain "you
@@ -191,6 +191,12 @@ export class Renderer {
     if (type.plant || type.fountain) {
       const [gx, gy] = origin ? origin(x, y) : this.toScreen(x, y);
       this.ctx.drawImage(gardenSprite(type, rot, typeof look === 'string' ? look : '0', zoom * dpr), gx, gy, zoom + 0.5, zoom + 0.5);
+      return;
+    }
+    // Starà's places are pictures of their own (city.js), as they look now.
+    if (type.place) {
+      const [cx, cy] = origin ? origin(x, y) : this.toScreen(x, y);
+      this.ctx.drawImage(citySprite(type, rot, typeof look === 'string' ? look : type.place, zoom * dpr), cx, cy, zoom + 0.5, zoom + 0.5);
       return;
     }
     // Starà's keep is a picture of its own (castle.js), the same any way round.
@@ -425,7 +431,7 @@ export class Renderer {
     const b = game.board.bounds;
     const dpr = window.devicePixelRatio || 1;
     const key = [this.w, this.h, dpr, this.cam.x, this.cam.y, this.cam.zoom, ready, !!game.spec?.walled,
-      JSON.stringify(game.m?.trades || null), b ? `${b.minX},${b.minY},${b.maxX},${b.maxY}` : '-'].join('|');
+      b ? `${b.minX},${b.minY},${b.maxX},${b.maxY}` : '-'].join('|');
     if (this.tableKey !== key) {
       this.tableKey = key;
       this.tableLayer ||= document.createElement('canvas');
@@ -474,46 +480,6 @@ export class Renderer {
     const [x1, y1] = this.toScreen(b.maxX + 1, b.maxY + 1);
     t.fillStyle = 'rgba(38,18,4,0.24)';
     t.fillRect(x0, y0, x1 - x0, y1 - y0);
-    // The HIGH STREET (the fourth pass): the middle row and column, gate to
-    // gate, a shade lighter and edged by hand, cutting the square into the
-    // town's four quarters.
-    if (game.spec?.walled) {
-      const mx = (b.minX + b.maxX) / 2, my = (b.minY + b.maxY) / 2;
-      const [cx0, cy0] = this.toScreen(mx, my), [cx1, cy1] = this.toScreen(mx + 1, my + 1);
-      // Each quarter washed in its trade's tincture (2026-11-18: "color coded
-      // sections on the wood background so we know what's going on"). The
-      // line round each, which has to stay seen as tiles cover the wash, is
-      // the castle layer's (castle.js), over the tiles.
-      const trades = game.m?.trades;
-      if (trades) {
-        const rects = { NW: [x0, y0, cx0, cy0], NE: [cx1, y0, x1, cy0], SE: [cx1, cy1, x1, y1], SW: [x0, cy1, cx0, y1] };
-        for (const [q, [qa, qb, qc, qd]] of Object.entries(rects)) {
-          const color = TRADE_BY_ID[trades[q]]?.color;
-          if (!color) continue;
-          t.save();
-          t.globalAlpha = 0.34;
-          t.fillStyle = color;
-          t.fillRect(qa, qb, qc - qa, qd - qb);
-          t.restore();
-        }
-      }
-      t.fillStyle = 'rgba(255,226,170,0.10)';
-      t.fillRect(cx0, y0, cx1 - cx0, y1 - y0);
-      t.fillRect(x0, cy0, cx0 - x0, cy1 - cy0);
-      t.fillRect(cx1, cy0, x1 - cx1, cy1 - cy0);
-      t.save();
-      t.strokeStyle = 'rgba(255,232,190,0.30)';
-      t.lineWidth = 1.4;
-      t.lineCap = 'round';
-      t.beginPath();
-      for (const [ax, ay, bx2, by2, k] of [
-        [cx0, y0, cx0, cy0, 1], [cx1, y0, cx1, cy0, 2], [cx0, cy1, cx0, y1, 3], [cx1, cy1, cx1, y1, 4],
-        [x0, cy0, cx0, cy0, 5], [x0, cy1, cx0, cy1, 6], [cx1, cy0, x1, cy0, 7], [cx1, cy1, x1, cy1, 8]]) {
-        sketchLine(t, ax, ay, bx2, by2, { seed: seedOf(k, 33), rough: 1 });
-      }
-      t.stroke();
-      t.restore();
-    }
     t.save();
     t.strokeStyle = 'rgba(40,20,4,0.30)';
     t.lineWidth = 1;
@@ -546,11 +512,10 @@ export class Renderer {
     const [bx, by] = this.toScreen(b.minX, b.minY);
     const cols = b.maxX - b.minX + 1, rows = b.maxY - b.minY + 1;
     const pad = (CASTLE.reach + 0.2) * z;
-    // The quarters' tinctures, ruled over the tiles (Starà's trades for the day).
-    const tr = game.m?.trades;
-    const quarters = tr ? Object.fromEntries(Object.entries(tr).map(([q, id]) => [q, TRADE_BY_ID[id]?.color])) : null;
+    // The day's water arch in the wall (Starà's city).
+    const arch = game.m?.arch || null;
     const key = [z, dpr, bx, by, cols, rows, gates.map((g) => `${g.s}${g.i}`).join('.'),
-      towns.map(Number).join(''), JSON.stringify(quarters)].join('|');
+      towns.map(Number).join(''), arch ? `${arch.s}.${arch.i}` : '-'].join('|');
     if (this.castleKey !== key) {
       this.castleKey = key;
       this.castleLayer ||= document.createElement('canvas');
@@ -560,7 +525,7 @@ export class Renderer {
       const k = c.getContext('2d', { willReadFrequently: true });
       k.setTransform(dpr, 0, 0, dpr, 0, 0);
       k.clearRect(0, 0, c.width, c.height);
-      paintCastle(k, { z, x0: pad, y0: pad, cols, rows, gates, towns, quarters });
+      paintCastle(k, { z, x0: pad, y0: pad, cols, rows, gates, towns, arch });
       // The nib's wander over the whole wall, then the tooth of the paper.
       roughen(c, { amp: Math.max(0.6, z * dpr * 0.014), grain: (0.42 * z * dpr) / c.width });
       roughen(c, { amp: Math.max(0.3, z * dpr * 0.004), grain: (0.07 * z * dpr) / c.width });
@@ -1606,7 +1571,7 @@ export class Renderer {
       if (game.spec?.table) {
         const a = 0.75 + Math.sin(performance.now() / 300) * 0.2;
         this.sketchBox(px + 1, py + 1, z - 2, `rgba(255,242,214,${a})`, seedOf(p.x, p.y, p.rot), 2.6);
-        this.drawCompany(game, p.x, p.y);
+        this.drawCompany(game, p.x, p.y, p.rot);
         return;
       }
       ctx.save();
@@ -1639,7 +1604,7 @@ export class Renderer {
     ctx.globalAlpha = ok ? 0.92 : 0.32;
     this.paintTile(h.x, h.y, game.rot, game.tile, 'surface', this.cam.zoom, null, (ok && game.m.previewLook?.(h.x, h.y, game.rot)) ?? game.board.seq);
     ctx.restore();
-    if (ok) this.drawCompany(game, h.x, h.y);
+    if (ok) this.drawCompany(game, h.x, h.y, game.rot);
 
     const [sx, sy] = this.toScreen(h.x, h.y);
     const z = this.cam.zoom;
@@ -1653,8 +1618,9 @@ export class Renderer {
    * friend growing in the eight squares round it and a red − on each foe,
    * set toward the new square so it reads as a pair.
    */
-  drawCompany(game, x, y) {
-    const kind = game.tile?.plant;
+  drawCompany(game, x, y, rot = game.rot) {
+    if (game.spec?.city) return this.drawGain(game, x, y, rot);
+    const kind = game.tile?.plant || game.tile?.place || (game.tile?.keep ? 'keep' : null);
     if (!kind || !game.m.companyMarks) return;
     const ctx = this.ctx, z = this.cam.zoom;
     const [cx, cy] = this.toScreen(x + 0.5, y + 0.5);
@@ -1679,6 +1645,46 @@ export class Renderer {
       ctx.stroke();
       ctx.restore();
     }
+  }
+
+  /**
+   * STARÀ'S CITY, round a place about to be laid (2026-11-23): what laying it
+   * here would pay, before the seal. The tile's own square gets the whole
+   * difference it makes to the city, on a wax-red tag at its upper left;
+   * every place round it whose worth would change gets its own +n or −n,
+   * green or red, set toward the new square so it reads as a pair.
+   */
+  drawGain(game, x, y, rot) {
+    const pv = game.m.preview?.(x, y, rot);
+    if (!pv) return;
+    const ctx = this.ctx, z = this.cam.zoom;
+    const [cx, cy] = this.toScreen(x + 0.5, y + 0.5);
+    const font = (px) => `700 ${Math.round(px)}px Cinzel, ui-serif, serif`;
+    const tag = (tx, ty, text, bg, r) => {
+      ctx.save();
+      ctx.font = font(r * 1.05);
+      const w = Math.max(r * 2, ctx.measureText(text).width + r * 0.9);
+      ctx.beginPath();
+      ctx.roundRect(tx - w / 2, ty - r, w, r * 2, r);
+      ctx.fillStyle = bg;
+      ctx.fill();
+      ctx.lineWidth = Math.max(1.5, z * 0.025);
+      ctx.strokeStyle = '#fff1d6';
+      ctx.stroke();
+      ctx.fillStyle = '#fff6e4';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(text, tx, ty + r * 0.06);
+      ctx.restore();
+    };
+    const signed = (n) => (n > 0 ? `+${n}` : `−${Math.abs(n)}`);
+    for (const c of pv.changes) {
+      if (c.self) continue;
+      const [nx, ny] = this.toScreen(c.x + 0.5, c.y + 0.5);
+      tag(cx + (nx - cx) * 0.62, cy + (ny - cy) * 0.62, signed(c.d), c.d > 0 ? '#3f7d34' : '#a8392c', Math.max(8, z * 0.14));
+    }
+    const [sx, sy] = this.toScreen(x, y);
+    tag(sx + z * 0.22, sy + z * 0.2, signed(pv.gain), pv.gain >= 0 ? '#8e2a1e' : '#4a1a12', Math.max(10, z * 0.19));
   }
 
   modeAllows(game, p) {
