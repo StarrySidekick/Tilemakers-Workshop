@@ -1114,9 +1114,22 @@ await page.selectOption('#tilesPerTurn', '1');
   if (staged.inTray) problems.push('the staged tile is still in the tray');
   if (!staged.near) problems.push('the seal is not beside the staged tile');
   if (!staged.clear) problems.push('the seal overlaps the staged tile, where a touch to turn it could land on it');
+  // The city (2026-11-23): the day's cast at the corners, the card of the
+  // place held up under the hand, and what the staged tile would pay.
+  const city = await page.evaluate(() => {
+    const g = window.LAB.game, r = window.LAB.renderer;
+    const tags = [...document.querySelectorAll('#staraQuarters .staraQuarter .name')].map((e) => e.textContent);
+    const card = document.getElementById('staraCaption').textContent;
+    const p = r.pending;
+    const pv = p && g.m.preview(p.x, p.y, p.rot);
+    return { tags, cast: Object.values(g.m.cast), card, name: g.m.nameOf(g.tileKey), gain: pv ? pv.gain : null, total: pv ? pv.total : null, score: g.players[0].score };
+  });
+  if (city.tags.length !== 4) problems.push(`${city.tags.length} cast tags, not 4`);
+  if (!city.card.includes(city.name)) problems.push(`the card under the hand does not name the ${city.name}`);
+  if (city.gain == null || city.total !== city.score + city.gain) problems.push(`the staged tile's gain does not add up: ${JSON.stringify(city)}`);
   const size0 = await page.evaluate(() => window.LAB.game.board.size);
-  // An abbey's worth of hand, so the next turn deals two to choose from.
-  await page.evaluate(() => { window.LAB.game.m.abbeysLaid += 1; });
+  // A church's worth of hand, so the next turn deals two to choose from.
+  await page.evaluate(() => { window.LAB.game.m.churches += 1; });
   await page.click('#staraGo');
   await page.waitForTimeout(120);
   const laid = await page.evaluate((n) => ({ size: window.LAB.game.board.size, phase: window.LAB.game.phase }), size0);
@@ -1187,7 +1200,7 @@ await page.selectOption('#tilesPerTurn', '1');
 
   if (errors.length) problems.push(errors[0].split('\n')[0]);
   if (problems.length) { failures++; console.log(`  ✗ starà on a phone: ${problems.join(' · ')}`); }
-  else console.log(`  ✓ starà on a phone     walled, edge to edge at ${screen.tile}px a tile; card, seal clear of the tile, hand, sizes, charter, replay`);
+  else console.log(`  ✓ starà on a phone     walled, edge to edge at ${screen.tile}px a tile; card, seal clear of the tile, cast, gain, hand, sizes, charter, replay`);
   await page.setViewportSize({ width: 1280, height: 820 });
 }
 

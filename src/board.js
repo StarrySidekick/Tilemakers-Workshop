@@ -43,7 +43,7 @@ export function meepleWeight(m, d) {
 }
 
 export class Board {
-  constructor({ bounds = null, wrap = false, walled = false } = {}) {
+  constructor({ bounds = null, wrap = false, walled = false, builtFromWall = false } = {}) {
     this.cells = new Map();       // "x,y" -> cell (the TOP cell, if stacked)
     this.parent = new Map();      // "x,y#i" -> parent id
     this.data = new Map();        // root id -> component data
@@ -69,6 +69,13 @@ export class Board {
      * does not wrap can have one.
      */
     this.walled = walled && !wrap && !!bounds;
+    /**
+     * BUILT FROM THE WALL (Starà's city, 2026-11-23): a tile may be laid
+     * against the town wall as well as beside another tile, so the city
+     * grows in from its walls as well as out from its middle. Only a walled
+     * board can have it.
+     */
+    this.builtFromWall = builtFromWall && this.walled;
     this.seq = 0;                 // placement counter, for replay order
     /**
      * Bumped by every mutation — placing, shifting, removing, replacing. It
@@ -216,12 +223,20 @@ export class Board {
       touches++;
       if (!edgesMeet(this.edgeAt(probe, s), this.edgeAt(nb, opposite(s)))) return false;
     }
-    return touches > 0 || this.size === 0;
+    return touches > 0 || this.size === 0 || (this.builtFromWall && this.wallSidesAt(x, y).length > 0);
   }
 
-  /** Every empty in-bounds cell adjacent to something placed. */
+  /** Every empty in-bounds cell adjacent to something placed (or to the wall, built from it). */
   frontier() {
     const out = new Map();
+    if (this.builtFromWall) {
+      const b = this.bounds;
+      for (let x = b.minX; x <= b.maxX; x++) {
+        for (let y = b.minY; y <= b.maxY; y++) {
+          if ((x === b.minX || x === b.maxX || y === b.minY || y === b.maxY) && !this.cells.has(keyOf(x, y))) out.set(keyOf(x, y), { x, y });
+        }
+      }
+    }
     for (const cell of this.cells.values()) {
       for (let s = 0; s < 4; s++) {
         const [dx, dy] = SIDE_STEP[s];

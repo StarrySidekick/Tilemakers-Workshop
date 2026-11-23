@@ -32,6 +32,7 @@ import { VERSION } from './version.js';
 import { StaraUI, spreadSpots } from './stara-ui.js';
 import { keepSprite } from './castle.js';
 import { gardenSprite } from './garden.js';
+import { citySprite } from './city.js';
 
 const canvas = document.getElementById('board');
 const renderer = new Renderer(canvas);
@@ -1442,6 +1443,20 @@ function drawTileInked(ctx2, type, opts = {}) {
     ctx2.rotate(-rot * Math.PI / 2);
     ctx2.translate(-0.5, -0.5);
     ctx2.drawImage(gardenSprite(type, rot, opts.look || '4r', px), 0, 0, 1, 1);
+    ctx2.restore();
+    return;
+  }
+  // Starà's places (city.js) are drawn in the world's frame too, so the turn
+  // is taken back off the same way.
+  if (type?.place) {
+    const rot = opts.rot || 0;
+    const m = ctx2.getTransform();
+    const px = Math.round(Math.hypot(m.a, m.b));
+    ctx2.save();
+    ctx2.translate(0.5, 0.5);
+    ctx2.rotate(-rot * Math.PI / 2);
+    ctx2.translate(-0.5, -0.5);
+    ctx2.drawImage(citySprite(type, rot, typeof opts.look === 'string' ? opts.look : type.place, px), 0, 0, 1, 1);
     ctx2.restore();
     return;
   }

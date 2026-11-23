@@ -22,10 +22,18 @@
 // square leaves the tray ("once the tile is placed, don't show it in the
 // bottone anymore"), and the seal comes to sit beside it on the board ("move
 // the little seal checkmark near where the tile is"); touch the tile itself
-// to turn it there. A tag at each corner of the square names that quarter's
-// trade and what it is worth as the town stands. A switch under the title goes between the 5 x 5 and the
+// to turn it there. A switch under the title goes between the 5 x 5 and the
 // 7 x 7, keeping a game of each. When the square is full, a charter with the
 // score, where it came from, and today's best.
+//
+// The fifth pass (2026-11-23), the city-state: the quarters' tags are gone,
+// and the four corner tags name the day's CAST instead (its faith, defence,
+// industry and wonder). Under the hand is the CARD of the place held up:
+// what it is and what it wants, in green and red, made from the same table
+// that scores it. While a wizard's tower stands, the next tiles in the pile
+// are shown face up beside it. What a tile would pay, to itself and to every
+// place round it, is drawn on the board while it is staged (render.js,
+// drawGain).
 //
 // Giardino (2026-11-22) plays on the same screen: a garden wall for the
 // castle (garden.js), no quarters and no sizes, the week under the title,
@@ -37,7 +45,7 @@
 // a click in the workshop would.
 // ---------------------------------------------------------------------------
 
-import { STARA_KINDS, STARA_SIZES, QUARTERS, TRADE_BY_ID, quarterWorth } from './modes/stara.js';
+import { STARA_KINDS, STARA_SIZES, CAST, PLACES } from './modes/stara.js';
 import { GIARDINO_KINDS, PLANTS } from './modes/giardino.js';
 import { CASTLE } from './castle.js';
 import { usePalette } from './theme.js';
@@ -50,13 +58,15 @@ const $ = (id) => document.getElementById(id);
 const BEST = (mode, iso) => `tilemakers-workshop/${mode}/best/${iso}`;
 const TAUGHT = 'tilemakers-workshop/stara/taught';
 
-/** A small emblem for each trade, drawn in ink on its tag (20 x 20). */
+/** A small emblem for each kind of the day's cast, drawn in ink on its tag (20 x 20). */
 const EMBLEMS = {
-  housing: '<path d="M3 10 L10 4 L17 10 V17 H3 Z M8 17 V12 H12 V17"/>',
-  trade: '<path d="M10 3 V17 M5 17 H15 M3 7 H17 M3 7 L1 12 H5 Z M17 7 L15 12 H19 Z"/>',
-  church: '<path d="M10 2 V18 M5 7 H15"/>',
-  garrison: '<path d="M4 17 V6 H6 V4 H8 V6 H12 V4 H14 V6 H16 V17 Z M9 17 V13 H11 V17"/>',
+  faith: '<path d="M10 2 V18 M5 7 H15"/>',
+  defence: '<path d="M4 17 V6 H6 V4 H8 V6 H12 V4 H14 V6 H16 V17 Z M9 17 V13 H11 V17"/>',
+  industry: '<circle cx="10" cy="10" r="6"/><path d="M10 2 V18 M2 10 H18 M4.5 4.5 L15.5 15.5 M15.5 4.5 L4.5 15.5"/>',
+  wonder: '<path d="M10 2 L12 8 L18 8 L13 12 L15 18 L10 14 L5 18 L7 12 L2 8 L8 8 Z"/>',
 };
+/** Each kind's tincture, for its tag's underline. */
+const TINCTURES = { faith: '#3e66b0', defence: '#b23a2c', industry: '#d9a338', wonder: '#7b4f93' };
 const DRAG_PX = 10;
 
 /** localStorage that never throws: a private window just forgets. */
@@ -139,7 +149,7 @@ export class StaraUI {
     const on = this.on;
     const was = document.body.classList.contains('stara');
     document.body.classList.toggle('stara', on);
-    if (!on) document.body.classList.remove('staraPanel', 'garden');
+    if (!on) document.body.classList.remove('staraPanel', 'garden', 'city');
     $('stara').hidden = !on;
     // Coming or going, the panel has moved and the board's canvas with it.
     if (was !== on) { this.h.renderer.resize(); this.refit(); }
@@ -149,6 +159,7 @@ export class StaraUI {
     const g = this.game, p = g.players[0];
     const garden = !!g.spec.garden;
     document.body.classList.toggle('garden', garden);
+    document.body.classList.toggle('city', !!g.spec.city);
     document.querySelector('#stara .staraName').textContent = g.spec.title || 'Starà';
     $('staraDay').textContent = garden ? `No. ${g.m.day.n} · week ${g.m.week}` : `No. ${g.m.day.n}`;
     $('staraSizes').style.display = garden ? 'none' : '';
@@ -165,7 +176,8 @@ export class StaraUI {
     $('staraPileWrap').title = `${g.deck.length} tiles left in the pile`;
     this.drawHand();
     this.placeSeal();
-    this.drawQuarters();
+    this.drawCast();
+    this.drawAhead();
     this.showEnd();
   }
 
@@ -223,8 +235,10 @@ export class StaraUI {
     const pending = this.h.pending();
     const sel = g.m.sel;
     const n = hand.length;
-    // Giardino's packet needs the room under the hand, so its cards are smaller.
-    const size = g.spec.garden ? (n <= 1 ? 120 : 100) : n <= 1 ? 150 : n === 2 ? 118 : n === 3 ? 88 : 62;
+    // Giardino's packet and the city's card need the room under the hand, so
+    // their cards are smaller.
+    const size = g.spec.garden || g.spec.city ? (n <= 1 ? 116 : n === 2 ? 100 : n === 3 ? 84 : 62)
+      : n <= 1 ? 150 : n === 2 ? 118 : n === 3 ? 88 : 62;
     host.style.setProperty('--card', `${size}px`);
     // One row up to four, two rows past that, the row as wide as the cards
     // still in the tray (not the one sitting on a square).
@@ -320,6 +334,7 @@ export class StaraUI {
   caption(heldId, pending, n) {
     const el = $('staraCaption');
     if (this.game.spec.garden) return this.packet(el, heldId);
+    if (this.game.spec.city) return this.card(el, heldId);
     const taught = Number(store.get(TAUGHT) || 0);
     let text = '';
     if (taught < 8 && heldId) {
@@ -355,42 +370,70 @@ export class StaraUI {
       + `${!friends && !foes ? '<span>no friends or foes</span>' : ''}</div>`;
   }
 
-  // --- the four quarters --------------------------------------------------------
+  /**
+   * THE CITY'S CARD, for the place held up: its name, a line of what it is,
+   * and what it wants, good in green and bad in red. Made by stara.js from
+   * the table that scores it, so it can never say other than what pays.
+   */
+  card(el, heldId) {
+    const info = heldId ? this.game.m.card(heldId) : null;
+    if (!info) { el.innerHTML = ''; return; }
+    el.innerHTML = `<div class="packetTop"><b>${info.name}</b><span>${info.about}</span></div>`
+      + `<div class="packetCo">${info.good.map((t) => `<span class="fr">${t}</span>`).join('')}`
+      + `${info.bad.map((t) => `<span class="fo">${t}</span>`).join('')}</div>`;
+  }
+
+  // --- the day's cast -----------------------------------------------------------
 
   /**
-   * A tag at each corner of the square, above it for the north quarters and
-   * below it for the south: the trade's emblem and name, and what it is worth
-   * now. Placed when the layout changes; their worth refreshed every sync.
+   * A tag at each corner of the square, above it for the first two and below
+   * it for the last two: the kind's emblem and the place the day dealt for
+   * it. Placed when the layout changes.
    */
-  drawQuarters() {
+  drawCast() {
     const g = this.game, b = g.board.bounds, r = this.h.renderer;
     const host = $('staraQuarters');
-    if (!g.m.trades) { host.innerHTML = ''; this.quarterKey = ''; return; }
-    const layout = `${this.layoutKey}|${g.mode}|${JSON.stringify(g.m.trades)}`;
-    if (this.quarterKey !== layout) {
-      this.quarterKey = layout;
-      const stage = $('stage').getBoundingClientRect();
-      const cv = r.canvas.getBoundingClientRect();
-      const ox = cv.left - stage.left, oy = cv.top - stage.top;
-      const z = r.cam.zoom;
-      const [x0, y0] = r.toScreen(b.minX, b.minY), [x1, y1] = r.toScreen(b.maxX + 1, b.maxY + 1);
-      const reach = CASTLE.reach * z;
-      const at = { NW: [x0, y0 - reach, 'n'], NE: [x1, y0 - reach, 'n'], SE: [x1, y1 + reach, 's'], SW: [x0, y1 + reach, 's'] };
-      host.innerHTML = QUARTERS.map((q) => {
-        const t = TRADE_BY_ID[g.m.trades[q]];
-        const [x, y, side] = at[q];
-        const west = q.endsWith('W');
-        const style = `${west ? 'left' : 'right'}:${west ? ox + x + 4 : stage.width - (ox + x) + 4}px;`
-          + `${side === 'n' ? 'bottom' : 'top'}:${side === 'n' ? stage.height - (oy + y) + 2 : oy + y + 2}px`;
-        return `<div class="staraQuarter" data-q="${q}" style="${style};--q:${t.color}" title="The ${t.name.toLowerCase()} quarter wants ${t.wants}: ${t.per} each">`
-          + `<svg viewBox="0 0 20 20" aria-hidden="true">${EMBLEMS[t.id]}</svg>`
-          + `<span class="name">${t.name}</span><b></b></div>`;
-      }).join('');
-    }
-    for (const el of host.children) {
-      const q = el.dataset.q;
-      el.querySelector('b').textContent = `+${quarterWorth(g.board, q, g.m.trades[q]).pts}`;
-    }
+    if (!g.m.cast || !g.spec.city) { host.innerHTML = ''; this.castKey = ''; return; }
+    const layout = `${this.layoutKey}|${g.mode}|${JSON.stringify(g.m.cast)}`;
+    if (this.castKey === layout) return;
+    this.castKey = layout;
+    const stage = $('stage').getBoundingClientRect();
+    const cv = r.canvas.getBoundingClientRect();
+    const ox = cv.left - stage.left, oy = cv.top - stage.top;
+    const z = r.cam.zoom;
+    const [x0, y0] = r.toScreen(b.minX, b.minY), [x1, y1] = r.toScreen(b.maxX + 1, b.maxY + 1);
+    const reach = CASTLE.reach * z;
+    const at = [[x0, y0 - reach, 'n', true], [x1, y0 - reach, 'n', false], [x0, y1 + reach, 's', true], [x1, y1 + reach, 's', false]];
+    host.innerHTML = CAST.map((c, i) => {
+      const place = PLACES[g.m.cast[c.id]];
+      const [x, y, side, west] = at[i];
+      const style = `${west ? 'left' : 'right'}:${west ? ox + x + 4 : stage.width - (ox + x) + 4}px;`
+        + `${side === 'n' ? 'bottom' : 'top'}:${side === 'n' ? stage.height - (oy + y) + 2 : oy + y + 2}px`;
+      return `<div class="staraQuarter" data-kind="${c.id}" style="${style};--q:${TINCTURES[c.id]}" title="Today's ${c.name.toLowerCase()}: ${place.name.toLowerCase()}. ${place.about}">`
+        + `<svg viewBox="0 0 20 20" aria-hidden="true">${EMBLEMS[c.id]}</svg>`
+        + `<span class="name">${place.name}</span></div>`;
+    }).join('');
+  }
+
+  /**
+   * THE WIZARD'S SIGHT: while a wizard's tower stands, the next tiles in the
+   * pile face up beside it, smallest last, so luck becomes something to plan.
+   */
+  drawAhead() {
+    const g = this.game, host = $('staraAhead');
+    const ahead = g.spec.city && g.phase === 'place' ? g.m.ahead() : [];
+    const key = ahead.join('.');
+    if (host.dataset.key === key) return;
+    host.dataset.key = key;
+    host.hidden = !ahead.length;
+    host.innerHTML = ahead.map((id, i) => `<canvas width="${i ? 64 : 84}" height="${i ? 64 : 84}" title="${i ? 'After that' : 'Next'}: ${g.m.nameOf(id)}"></canvas>`).join('');
+    [...host.children].forEach((cv, i) => {
+      const ctx = cv.getContext('2d');
+      ctx.save();
+      ctx.scale(cv.width, cv.height);
+      this.h.drawTile(ctx, TILES_OF(ahead[i]), { terrain: 'surface', rot: 0 });
+      ctx.restore();
+    });
   }
 
   // --- touching the cards -----------------------------------------------------
@@ -503,8 +546,8 @@ export class StaraUI {
       .map(([k, name]) => `<div><span>${name}</span><i></i><b>${t[k]}</b></div>`).join('');
     $('staraEndFill').textContent = garden
       ? `${g.m.picked} pickings in ${g.m.week} weeks; ${g.m.lost.length} still green at the frost`
-      : `${g.board.size} of ${g.m.squares} squares filled`;
-    $('staraEndBest').textContent = prior == null ? (garden ? 'Your first garden today.' : 'Your first town today.')
+      : `${g.board.size} of ${g.m.squares} squares built`;
+    $('staraEndBest').textContent = prior == null ? (garden ? 'Your first garden today.' : 'Your first city today.')
       : score > prior ? `A new best for today (was ${prior}).`
         : score === prior ? 'Level with your best today.'
           : `Your best today: ${prior}.`;
@@ -515,7 +558,7 @@ export class StaraUI {
     const g = this.game;
     const text = g.spec.garden
       ? `Giardino No. ${g.m.day.n}: ${g.players[0].score} points, ${g.m.picked} pickings, ${g.m.lost.length} lost to the frost.`
-      : `Starà No. ${g.m.day.n} (${g.m.side}×${g.m.side}): ${g.players[0].score} points, ${g.board.size}/${g.m.squares} squares.`;
+      : `Starà No. ${g.m.day.n} (${g.m.side}×${g.m.side}): a city worth ${g.players[0].score}, ${g.board.size}/${g.m.squares} squares.`;
     const btn = $('staraShare');
     try {
       if (navigator.share) await navigator.share({ text });

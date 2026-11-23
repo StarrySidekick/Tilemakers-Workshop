@@ -216,6 +216,14 @@ export const DOCK = '~';
  * back to back. Never an open city or a sfera half.
  */
 export const WALL = '#';
+
+/**
+ * AN ARCH over the street: the edge of a Starà aqueduct (2026-11-23), which
+ * stands on piers with the city going on underneath it. It takes a street
+ * or a frontage, so an aqueduct never stops a tile being laid, and a street
+ * that meets it runs on under it.
+ */
+export const ARCH = '^';
 /**
  * Do two edges meet? Same letter, or one of them takes anything: a cap, a
  * dock, or a city wall, which takes a field, a road, another wall or a city
@@ -224,14 +232,14 @@ export const WALL = '#';
  * wall refused an open city.
  */
 export const edgesMeet = (a, b) => seamJoins(a, b) || a === CAP || b === CAP
-  || a === DOCK || b === DOCK || a === WALL || b === WALL;
+  || a === DOCK || b === DOCK || a === WALL || b === WALL || a === ARCH || b === ARCH;
 
 /**
  * Two edges JOIN across a seam: the same letter, or two quarters of a big
  * tower that are each other's mirror (the same tower, the quarter at the
  * near end of one and the far end of the other, clockwise).
  */
-export const seamJoins = (a, b) => (a[0] === 'q' && b[0] === 'q'
+export const seamJoins = (a, b) => (a === ARCH || b === ARCH ? (a === 'r' || b === 'r' || a === b) : a[0] === 'q' && b[0] === 'q'
   ? a !== b && a.slice(0, -1) === b.slice(0, -1)
   : a === b);
 
@@ -1001,6 +1009,7 @@ function prepare(list) {
       for (const s of f.sides) t.edges[s] = edgeLetter(f, s);
     }
     if (t.capOut) t.edges = t.edges.map((e) => (e === 'f' ? CAP : e));
+    if (t.arched) t.edges = [ARCH, ARCH, ARCH, ARCH];
     // A district's walls stand ON its edge, so there is no strip of country
     // between them and the next tile: those sides present the wall, and the
     // tile has no fields at all. Until 2026-10-25 they presented farmland and

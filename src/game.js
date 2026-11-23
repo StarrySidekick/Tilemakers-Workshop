@@ -101,6 +101,7 @@ export class Game {
       bounds: spec.bounds || mapBounds || null,
       wrap: !!spec.wrap && !!spec.bounds,
       walled: !!spec.walled && !!spec.bounds,
+      builtFromWall: !!spec.builtFromWall,
     });
     this.players = Array.from({ length: players }, (_, i) => ({
       id: i,
