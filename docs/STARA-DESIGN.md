@@ -17,6 +17,15 @@ No rule was changed.
 > That is proposal 1's finite deal taken to its end (the square's worth and
 > not one more, so every hole is points left on the table) and proposal 5's
 > par for the day, made by a level maker rather than the bot.
+>
+> **And later the same day:** the seventh pass took the square away. Timothy:
+> "having the border on the outside is kind of restricting ... the bigger the
+> castle walls get, the less points you get". The wall now hugs whatever is
+> built and costs a point a stretch, the way the old Carcassonne app's
+> Solitaire charged for widening its field, and the plan is a square because a
+> square is the cheapest wall. Much of this document is about filling a fixed
+> square; read it as the history of that question. `MODES.md` section 14, the
+> seventh pass, has the rules and the numbers.
 
 ## The brief
 

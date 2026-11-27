@@ -998,10 +998,10 @@ body.stara #stage, body.stara #stage * {
 }
 .staraHand {
   display: grid;
-  grid-template-columns: 58px auto;    /* the pile, then the hand: the seal lives on the board */
+  /* the pile, the hand, then the turn button: the seal lives on the board */
+  grid-template-columns: 58px auto 48px;
   align-items: center;
-  gap: 12px;
-  margin-left: -20px;                  /* sit the hand, not the pile, under the middle */
+  gap: 10px;
 }
 
 /* The draw pile: tile backs of parchment, ruled round in ink, the count
@@ -1116,40 +1116,29 @@ body.stara #stage, body.stara #stage * {
   filter: url(#staraHand) drop-shadow(0 4px 6px rgba(20, 8, 0, 0.5));
 }
 
-/* The day's cast (the quarters until 2026-11-23): a parchment tag at each corner of the square. */
-.staraQuarters { position: absolute; inset: 0; pointer-events: none; }
-.staraQuarter {
+/* Turning the piece (the seventh pass, 2026-11-27: "we should probably have
+   the rotate button ... an additional rotate button somewhere on the bottom").
+   One floats beside the piece staged on the table; the other sits in the tray
+   beside the hand. A parchment roundel, the same hand as the menu's. */
+.staraTurn {
   position: absolute;
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  padding: 3px 8px 3px 6px;
-  font: 15px/1 'Fell', ui-serif, serif;
-  color: var(--s-ink);
-  isolation: isolate;
-  white-space: nowrap;
-}
-.staraQuarter::before {
-  content: '';
-  position: absolute; inset: 0;
-  z-index: -1;
-  border: 1.5px solid var(--s-ink);
-  border-radius: 3px;
+  width: 40px; height: 40px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
   background: var(--s-parch) url('assets/paper.png') center / 90px;
-  filter: url(#staraHand) drop-shadow(0 2px 3px rgba(20, 8, 0, 0.45));
+  box-shadow: 0 0 0 2px var(--s-ink), 0 4px 8px rgba(20, 8, 0, 0.5);
+  color: var(--s-ink);
+  cursor: pointer;
+  touch-action: manipulation;
+  z-index: 6;
 }
-.staraQuarter svg { width: 16px; height: 16px; fill: none; stroke: var(--q, var(--s-ink)); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
-/* The kind's tincture. */
-.staraQuarter::after {
-  content: '';
-  position: absolute;
-  left: 5px; right: 5px; bottom: -4px;
-  height: 4px;
-  border-radius: 2px;
-  background: var(--q, transparent);
-  filter: url(#staraHand);
-}
-.staraQuarter b { font: 700 12px/1 'Cinzel', serif; color: var(--s-gules); }
+.staraTurn[hidden] { display: none; }
+.staraTurn svg { width: 26px; height: 26px; fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; filter: url(#staraHand); }
+.staraTurn:active { transform: translateY(1px) rotate(25deg); }
+.staraTurn.inTray { position: relative; justify-self: center; width: 46px; height: 46px; }
+.staraTurn.inTray[hidden] { display: block; visibility: hidden; }
+#stara .staraTurn { pointer-events: auto; }
 
 .staraCaption {
   min-height: 1.3em;
@@ -1190,20 +1179,17 @@ body.city .staraCards { min-height: 90px; }
   box-shadow: 0 1px 2px rgba(20, 8, 0, 0.5);
   text-shadow: none;
 }
-.way.self { background: #efe3c4; color: #3a2616; }
-.way.near { background: #3f7d34; color: #fff6e4; }
-.way.variety { background: #7b4f93; color: #fff6e4; }
+/* The ways, in the tinctures of WAYS in stara-city.js (the seventh pass). */
+.way.houses { background: #efe3c4; color: #3a2616; }
+.way.plaza { background: #3f7d34; color: #fff6e4; }
 .way.water { background: #2f6fb0; color: #fff6e4; }
+.way.cathedral { background: #7b4f93; color: #fff6e4; }
+.way.roads { background: #c8961e; color: #2b1a0d; }
 .way.wall { background: #2f2b28; color: #fff6e4; }
-.way.gates { background: #c8961e; color: #2b1a0d; }
 .way.loss { background: #a8392c; color: #fff6e4; }
 .packetCo .power { font-style: italic; color: #e9d7b2; }
 .packetHow { font: italic 12.5px/1.25 'Fell', ui-serif, serif; color: #f1e2c2; opacity: 0.9; margin-top: 2px; }
 /* The wizard's sight: the next tiles in the pile, face up. */
-.staraAhead { display: flex; align-items: flex-end; gap: 6px; opacity: 0.92; }
-.staraAhead[hidden] { display: none; }
-.staraAhead canvas { width: 42px; height: 42px; border-radius: 3px; box-shadow: 0 0 0 1.5px #b9a0e0, 0 3px 6px rgba(20, 8, 0, 0.5); }
-.staraAhead canvas + canvas { width: 32px; height: 32px; }
 .packetTop .drop {
   display: inline-block; width: 9px; height: 12px;
   border-radius: 50% 50% 50% 50% / 62% 62% 38% 38%;

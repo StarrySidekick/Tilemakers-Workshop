@@ -1,34 +1,33 @@
 // ---------------------------------------------------------------------------
-// Starà's castle walls, seen from above.
+// Starà's town wall, seen from above.
 //
 // Timothy, 2026-11-18: "the perimeter of the square should be top down castle
-// walls. they also end features for the sake of scoring and finishing." The
-// rule is in board.js (`walled`); this is the picture of it.
+// walls. they also end features for the sake of scoring and finishing." Then,
+// on 2026-11-27 (the seventh pass): "having the border on the outside is kind
+// of restricting ... the bigger the castle walls get, the less points you
+// get". So there is no square any more: the wall runs round whatever is
+// built (`wallOf` in modes/stara-city.js has the rule), one STRETCH to every
+// side of a square that faces open ground, and this draws it.
 //
-// A curtain wall round the square: a stone wall-walk on the inside, a parapet
-// of merlons along the outside, a round tower with a conical roof at each
-// corner, two square turrets with pyramid roofs along each side (on the seams
-// between squares, so they never sit where a road could meet the wall), and a
-// gatehouse wherever a laid road runs into the wall, because that is where
-// the road ends. And in the middle of each wall, a TOWN GATE (the third pass,
-// 2026-11-18: "the middle top left right and bottom castle wall is a special
-// gate"): a bigger gatehouse between two round towers, which raises its
-// banners once a road runs out through it. The lamp is up and to the left, so every shadow falls down
-// and to the right, the same way the tiles' do.
+// A curtain wall along every stretch, standing just outside the square's
+// edge: a stone wall-walk on the inside, a parapet of merlons along the
+// outside. A round tower with a conical roof at every corner where the wall
+// turns outward. A gatehouse wherever a street runs out through the wall,
+// and on the high road's gates (the street out on the most sides) the
+// bigger town gate between two round towers, its banners raised. The lamp
+// is up and to the left, so every shadow falls down and to the right, the
+// same way the tiles' do.
 //
 // Drawn with hand-drawn strokes (sketch.js) and then, being drawn once and
-// kept, bent as a whole by ink.js the way the inked tiles are.
+// kept until the wall changes, bent as a whole by ink.js the way the inked
+// tiles are.
 // ---------------------------------------------------------------------------
 
 import { sketchLine, sketchRect, sketchCircle, seedOf } from './sketch.js';
-import { roughen } from './ink.js';
-import { gateRoads } from './modes/stara.js';
-import { paintArch } from './city.js';
 
 /**
- * In tiles: how thick the wall is, and how far past the square the whole
- * castle reaches (the corner towers, and their shadows). The screen is fitted
- * to the reach, so the towers touch its edges and nothing is cut off.
+ * In tiles: how thick the wall is, and how far past the squares the whole
+ * of it reaches (the corner towers, and their shadows).
  */
 export const CASTLE = { band: 0.34, reach: 0.5 };
 
@@ -42,57 +41,18 @@ const ROOF_LIT = '#cd7a55';
 const ROOF_DARK = '#76351f';
 const ROAD = '#d1bb8f';
 
-/**
- * Where laid roads meet the wall: one small gate per road edge that faces
- * out of the square away from the middle, as {s, i}: the wall's side (0 N,
- * 1 E, 2 S, 3 W) and which square along it, from the top or the left. And
- * `towns`, for the four town gates in the middle: whether a road runs out
- * through each.
- */
-export function gatesOf(board) {
-  const gates = [];
-  const b = board.bounds;
-  if (!board.walled || !b) return { gates, towns: [false, false, false, false] };
-  const mid = (b.maxX - b.minX) / 2;
-  for (const cell of board.cells.values()) {
-    for (const s of board.wallSidesAt(cell.x, cell.y)) {
-      if (board.edgeAt(cell, s) !== 'r') continue;
-      const i = s % 2 === 0 ? cell.x - b.minX : cell.y - b.minY;
-      if (i !== mid) gates.push({ s, i });
-    }
-  }
-  gates.sort((p, q) => p.s - q.s || p.i - q.i);
-  return { gates, towns: gateRoads(board).map(Boolean) };
-}
+const STEP = [[0, -1], [1, 0], [0, 1], [-1, 0]];
 
 /**
- * Paint the castle round a square whose top-left corner is (x0, y0), `cols`
- * by `rows` squares of `z` pixels, with gates where `gates` says.
+ * Paint the wall round a city: `wall` is its stretches, `{x, y, s, gate}`
+ * (a square and the side of it that faces open ground), `built(x, y)` says
+ * whether a square is built, `high` is the set of `x,y,s` stretches that
+ * are the high road's gates. Square (x, y) has its top left at
+ * (ox + x z, oy + y z) in pixels.
  */
-export function paintCastle(ctx, { z, x0, y0, cols, rows, gates = [], towns = [false, false, false, false], arch = null }) {
+export function paintCityWall(ctx, { z, ox, oy, wall, built, high = new Set() }) {
   const T = CASTLE.band * z;
-  const w = cols * z, h = rows * z;
   const lw = Math.max(1.1, z * 0.03);
-
-  // A point on side s: `a` along it from its top or left end, `d` out from
-  // the square's edge. The wall's frame, so every side is drawn the same way.
-  const at = (s, a, d) => {
-    if (s === 0) return [x0 + a, y0 - d];
-    if (s === 1) return [x0 + w + d, y0 + a];
-    if (s === 2) return [x0 + a, y0 + h + d];
-    return [x0 - d, y0 + a];
-  };
-  const length = (s) => (s % 2 === 0 ? w : h);
-  /** A box on side s, from a0 to a1 along and d0 to d1 out, as a rect. */
-  const box = (s, a0, a1, d0, d1) => {
-    const [px, py] = at(s, a0, d0), [qx, qy] = at(s, a1, d1);
-    return [Math.min(px, qx), Math.min(py, qy), Math.abs(qx - px), Math.abs(qy - py)];
-  };
-  const ring = (inset0, inset1) => {
-    ctx.beginPath();
-    ctx.rect(x0 - inset1, y0 - inset1, w + inset1 * 2, h + inset1 * 2);
-    ctx.rect(x0 - inset0, y0 - inset0, w + inset0 * 2, h + inset0 * 2);
-  };
   const ink = (alpha = 1, width = lw) => {
     ctx.strokeStyle = INK;
     ctx.globalAlpha = alpha;
@@ -102,62 +62,88 @@ export function paintCastle(ctx, { z, x0, y0, cols, rows, gates = [], towns = [f
     ctx.stroke();
     ctx.globalAlpha = 1;
   };
+  const has = new Set(wall.map((w) => `${w.x},${w.y},${w.s}`));
+  /** A stretch's own frame: `a` along it from its top or left end, `d` out from the square's edge. */
+  const frame = (w) => {
+    const X = ox + w.x * z, Y = oy + w.y * z;
+    const at = (s, a, d) => {
+      if (s === 0) return [X + a, Y - d];
+      if (s === 1) return [X + z + d, Y + a];
+      if (s === 2) return [X + a, Y + z + d];
+      return [X - d, Y + a];
+    };
+    const box = (s, a0, a1, d0, d1) => {
+      const [px, py] = at(s, a0, d0), [qx, qy] = at(s, a1, d1);
+      return [Math.min(px, qx), Math.min(py, qy), Math.abs(qx - px), Math.abs(qy - py)];
+    };
+    return { at, box };
+  };
+  /**
+   * How each end of a stretch meets the rest of the wall: 'out' where the
+   * wall turns outward round the square's corner (a tower), 'in' where it
+   * turns in round a square built across the corner, 'on' where it runs
+   * straight on. End 0 is the top or left end, 1 the other.
+   */
+  const ends = (w) => [0, 1].map((e) => {
+    // The side the end turns toward: for a north stretch, west at its left end, east at its right.
+    const turn = w.s % 2 === 0 ? (e ? 1 : 3) : (e ? 2 : 0);
+    if (has.has(`${w.x},${w.y},${turn}`)) return 'out';
+    const nx = w.x + STEP[turn][0], ny = w.y + STEP[turn][1];
+    if (built(nx + STEP[w.s][0], ny + STEP[w.s][1])) return 'in';
+    return 'on';
+  });
 
-  // What interrupts the run of merlons along a side: the gates and turrets.
-  // Turrets on the seams one square in from the town gate on either side:
-  // seams 2 and 5 on a 7 x 7, 1 and 4 on a 5 x 5.
-  const seams = (n) => { const k = Math.floor(n / 2) - 1; return [k * z, (n - k) * z]; };
-  const turretsAt = seams(cols);
-  const turretsDown = seams(rows);
-  const gateHalf = 0.27 * z, turretHalf = 0.21 * z, townHalf = 0.42 * z;
-  const middle = (s) => (s % 2 === 0 ? cols : rows) * z / 2;
-  const busy = (s, a) => (s % 2 === 0 ? turretsAt : turretsDown).some((t) => Math.abs(a - t) < turretHalf + 0.05 * z)
-    || gates.some((g) => g.s === s && Math.abs(a - (g.i + 0.5) * z) < gateHalf + 0.05 * z)
-    || Math.abs(a - middle(s)) < townHalf + 0.05 * z;
-
-  // 1. The wall's shadow, on the tiles inside and the table outside.
+  // 1. The wall's body: every stretch's band, and a square at every outward
+  // corner, its shadow first.
+  const body = new Path2D();
+  for (const w of wall) {
+    const { box } = frame(w);
+    const [x, y, bw, bh] = box(w.s, 0, z, 0, T);
+    body.rect(x, y, bw, bh);
+    const e = ends(w);
+    for (const k of [0, 1]) {
+      if (e[k] !== 'out') continue;
+      const [cx, cy, cw, ch] = box(w.s, k ? z : -T, k ? z + T : 0, 0, T);
+      body.rect(cx, cy, cw, ch);
+    }
+  }
   ctx.save();
   ctx.shadowColor = 'rgba(22,9,0,0.55)';
   ctx.shadowBlur = z * 0.16;
   ctx.shadowOffsetX = z * 0.05;
   ctx.shadowOffsetY = z * 0.08;
-  ring(0, T);
   ctx.fillStyle = STONE_MID;
-  ctx.fill('evenodd');
+  ctx.fill(body, 'nonzero');
   ctx.restore();
-
-  // 2. The parapet (outside) and the wall-walk (inside).
-  ring(0, T);
   ctx.fillStyle = STONE_MID;
-  ctx.fill('evenodd');
-  ring(0, T * 0.56);
-  ctx.fillStyle = WALK;
-  ctx.fill('evenodd');
+  ctx.fill(body, 'nonzero');
 
-  // 3. Flagstones on the walk: a joint across it every so often, and a
-  // running joint down its middle broken at each of them.
+  // 2. The wall-walk on the inside of each stretch.
+  ctx.fillStyle = WALK;
+  for (const w of wall) {
+    const { box } = frame(w);
+    const e = ends(w);
+    const a0 = e[0] === 'in' ? T * 0.56 : 0, a1 = e[1] === 'in' ? z - T * 0.56 : z;
+    const [x, y, bw, bh] = box(w.s, a0, a1, 0, T * 0.56);
+    ctx.fillRect(x, y, bw, bh);
+  }
+
+  // 3. Flagstones on the walk, and merlons along the outside, each casting a
+  // little shadow; none across a gate.
   ctx.beginPath();
-  for (let s = 0; s < 4; s++) {
-    const L = length(s);
-    for (let a = 0.21 * z, k = 0; a < L; a += 0.23 * z, k++) {
-      const [p, q] = [at(s, a, 0), at(s, a, T * 0.56)];
-      sketchLine(ctx, p[0], p[1], q[0], q[1], { seed: seedOf(s, k, 1), rough: 0.5, passes: 1 });
-      const mid = T * (k % 2 ? 0.2 : 0.36);
-      const [m0, m1] = [at(s, a, mid), at(s, a + 0.23 * z, mid)];
-      if (a + 0.23 * z < L) sketchLine(ctx, m0[0], m0[1], m1[0], m1[1], { seed: seedOf(s, k, 2), rough: 0.4, passes: 1 });
+  const merlons = [];
+  for (const w of wall) {
+    const { at, box } = frame(w);
+    for (let a = 0.12 * z, k = 0; a < z; a += 0.23 * z, k++) {
+      const [p, q] = [at(w.s, a, 0), at(w.s, a, T * 0.56)];
+      sketchLine(ctx, p[0], p[1], q[0], q[1], { seed: seedOf(w.x, w.y, w.s, k), rough: 0.5, passes: 1 });
+    }
+    for (let a = 0.06 * z; a + 0.15 * z <= z; a += 0.235 * z) {
+      if (w.gate && Math.abs(a + 0.075 * z - z / 2) < 0.36 * z) continue;
+      merlons.push(box(w.s, a, a + 0.15 * z, T * 0.56, T + 0.015 * z));
     }
   }
   ink(0.32, lw * 0.8);
-
-  // 4. Merlons along the outside of the parapet, each casting a little shadow.
-  const merlons = [];
-  for (let s = 0; s < 4; s++) {
-    const L = length(s);
-    for (let a = 0.25 * z; a + 0.15 * z < L - 0.22 * z; a += 0.235 * z) {
-      if (busy(s, a + 0.075 * z)) continue;
-      merlons.push(box(s, a, a + 0.15 * z, T * 0.56, T + 0.015 * z));
-    }
-  }
   ctx.fillStyle = 'rgba(30,14,2,0.55)';
   for (const [x, y, bw, bh] of merlons) ctx.fillRect(x + z * 0.025, y + z * 0.04, bw, bh);
   ctx.fillStyle = STONE;
@@ -166,35 +152,44 @@ export function paintCastle(ctx, { z, x0, y0, cols, rows, gates = [], towns = [f
   merlons.forEach(([x, y, bw, bh], k) => sketchRect(ctx, x, y, bw, bh, { seed: seedOf(x, y, k), rough: 0.45, passes: 1 }));
   ink(0.85, lw * 0.85);
 
-  // 5. The wall's own lines: its outer face, the inner face, and the step up
-  // from the walk to the parapet.
+  // 4. The wall's own lines: its outer face, and the step up from the walk
+  // to the parapet, run on round an outward corner and stopped short of an
+  // inward one.
   ctx.beginPath();
-  for (let s = 0; s < 4; s++) {
-    const L = length(s);
-    for (const [d, seed] of [[0, 11], [T, 12], [T * 0.56, 13]]) {
-      const [p, q] = [at(s, -d, d), at(s, L + d, d)];
-      sketchLine(ctx, p[0], p[1], q[0], q[1], { seed: seedOf(s, seed), rough: 0.9 });
+  for (const w of wall) {
+    const { at } = frame(w);
+    const e = ends(w);
+    for (const [d, seed] of [[T, 12], [T * 0.56, 13]]) {
+      const a0 = e[0] === 'out' ? -d : e[0] === 'in' ? d : 0;
+      const a1 = e[1] === 'out' ? z + d : e[1] === 'in' ? z - d : z;
+      const [p, q] = [at(w.s, a0, d), at(w.s, a1, d)];
+      sketchLine(ctx, p[0], p[1], q[0], q[1], { seed: seedOf(w.x, w.y, w.s, seed), rough: 0.9 });
     }
   }
   ink(0.95, lw * 1.1);
 
-  // 6. Gatehouses, where a road ends at the wall.
-  for (const g of gates) gate(ctx, at, box, g, z, T, lw, ink);
-  for (let s = 0; s < 4; s++) townGate(ctx, at, box, s, middle(s), towns[s], z, T, lw, ink);
-  // The day's water arch (Starà's city, 2026-11-23), where the aqueduct comes in.
-  if (arch) paintArch(ctx, { z, x0, y0, cols, rows, s: arch.s, i: arch.i, T });
-
-  // 7. Square turrets on the seams along each side.
-  for (let s = 0; s < 4; s++) {
-    for (const a of s % 2 === 0 ? turretsAt : turretsDown) {
-      tower(ctx, box(s, a - turretHalf, a + turretHalf, -0.02 * z, T + 0.07 * z), z, lw, ink, seedOf(s, a));
-    }
+  // 5. Gatehouses, where a street runs out: the high road's are town gates.
+  for (const w of wall) {
+    if (!w.gate) continue;
+    const { at, box } = frame(w);
+    if (high.has(`${w.x},${w.y},${w.s}`)) townGate(ctx, at, box, w.s, z / 2, true, z, T, lw, ink);
+    else gate(ctx, at, box, { s: w.s, i: 0 }, z, T, lw, ink);
   }
 
-  // 8. A round tower with a conical roof at every corner.
-  const corners = [[x0 - T / 2, y0 - T / 2], [x0 + w + T / 2, y0 - T / 2],
-    [x0 + w + T / 2, y0 + h + T / 2], [x0 - T / 2, y0 + h + T / 2]];
-  corners.forEach(([cx, cy], k) => roundTower(ctx, cx, cy, z, lw, ink, seedOf(cx, cy, k)));
+  // 6. A round tower at every outward corner (once each: two stretches share one).
+  const towers = new Set();
+  for (const w of wall) {
+    const e = ends(w);
+    for (const k of [0, 1]) {
+      if (e[k] !== 'out') continue;
+      const { at } = frame(w);
+      const [cx, cy] = at(w.s, k ? z + T / 2 : -T / 2, T / 2);
+      const key = `${Math.round(cx)},${Math.round(cy)}`;
+      if (towers.has(key)) continue;
+      towers.add(key);
+      roundTower(ctx, cx, cy, z, lw, ink, seedOf(cx, cy, k));
+    }
+  }
 }
 
 /** A square turret, seen from above: a crenellated rim and a pyramid roof. */

@@ -239,6 +239,23 @@ the card, the board and the charter. The plan is the best the search found,
 not a proven best (a 5x5 deal has too many layouts to try on a phone).
 Section 14 of `MODES.md`, the sixth pass, has the rules, the calls and the
 measurements.
+The same day, the seventh pass, a list: pieces dragged "really freeform",
+"the rotate button" and "an additional rotate button somewhere on the
+bottom"; aqueducts "a second layer above all the other stuff" that a road
+can run under; a faster seal; the corner labels gone ("I thought we didn't
+have quarters anymore"); simpler scoring with fewer places ("a cathedral, a
+plaza, housing, aqueducts ... just to start because I'm trying to figure out
+the actual mechanics"); and no border: "the bigger the castle walls get, the
+less points you get", after the Solitaire mode of the old Carcassonne app.
+Asked, he took each recommendation: the wall hugs the city and costs a point
+a stretch; only houses score, for a plaza, water and the cathedral beside
+them; streets meet and leave by gates, the best street out on two or more
+sides a high road. Built: an open table, the plan still a square (the
+cheapest wall), the aqueduct laid over anything from a spring outside, and a
+gate costing a point more than wall (Claude's call: without it the high road
+came free to everyone). Section 14, the seventh pass, has it all, and what is
+open: the high road still comes to every player, and the app's growing
+commissions are the other half of its Solitaire.
 
 **Giardino, the daily walled garden: asked for 2026-11-22.** "based on
 stara ... a little walled garden, and each tile is a plant, and the mechanics

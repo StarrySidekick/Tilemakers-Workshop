@@ -96,9 +96,10 @@
           </div>
         </div>
 
-        <!-- The day's cast, one tag at each corner of the square: its faith,
-             defence, industry and wonder. -->
-        <div id="staraQuarters" class="staraQuarters"></div>
+        <!-- Turn the piece staged on the table: it sits beside the piece. -->
+        <button id="staraTurn" class="staraTurn" hidden title="Turn it" aria-label="Turn the piece">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19 12a7 7 0 1 1-2.05-4.95"/><path d="M19.5 3.5v4.4h-4.4"/></svg>
+        </button>
 
         <!-- Once the day is over: the architect's plan on the table, and the way back. -->
         <div id="staraPlanBar" class="staraPlanBar" hidden>
@@ -116,8 +117,10 @@
             <div id="staraPileWrap" class="staraPile"><span id="staraPile">0</span></div>
             <!-- Your hand: three pieces in the city, one plant in the garden. -->
             <div id="staraCards" class="staraCards"></div>
-            <!-- What the wizard's tower lets you see: the next tiles in the pile. -->
-            <div id="staraAhead" class="staraAhead" hidden></div>
+            <!-- Turn the piece held up, in hand or on the table. -->
+            <button id="staraRotate" class="staraTurn inTray" title="Turn it" aria-label="Turn the piece">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19 12a7 7 0 1 1-2.05-4.95"/><path d="M19.5 3.5v4.4h-4.4"/></svg>
+            </button>
           </div>
           <div id="staraCaption" class="staraCaption"></div>
         </div>

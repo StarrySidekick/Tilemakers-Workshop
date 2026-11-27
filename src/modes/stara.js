@@ -1,5 +1,5 @@
 // ---------------------------------------------------------------------------
-// Starà — the daily square, a walled city-state.
+// Starà — the daily city-state.
 //
 // Timothy, 2026-11-18: "new mode, going to be daily, and based around the idea
 // of fitting tiles into the area of your phone screen ... a square area of say
@@ -8,69 +8,77 @@
 // the 18th (MODES.md section 14): the castle walls, no followers, the two
 // sizes, the town gates, the hand, the keep and the four quarters. The fifth,
 // on the 23rd, made it "the walls of an illustrious city-state ... like the
-// city of Lucca": one place to a tile, each paid for what stands round it,
-// a cast of four places dealt per day, and an aqueduct from an arch in the
-// wall.
+// city of Lucca": one place to a tile, each paid for what stands round it.
+// The sixth, on the 27th, dealt a day as a PLAN cut into pieces of one to
+// four squares, sealed with a hold, lifted again for a point.
 //
-// The sixth pass, 2026-11-27, in his words:
+// The seventh pass, later on 2026-11-27, in his words:
 //
-//   "tap a tile to rotate it, tap and hold to seal the tile (place it). the
-//   animation start when you start holding, then over about a second or so
-//   it sort of seals to the table like a wax seal."   (stara-ui.js)
-//   "tiles can be more than one tile big, sort of like tetris."
-//   "you start with the choice of three tiles instead of working up to that"
-//   "tiles can be picked up and placed again by paying a point"
-//   "5x5 levels should have 25 tiles, and it's about the order you place
-//   them and where that the skill lies ... there is a layout ... that is
-//   theoretically 'perfect' ... so the player has the correct set of tiles
-//   to reach towards this perfection"                 (stara-plan.js)
-//   "things that score points in different way should be clearly color
-//   coded"                                              (stara-city.js, WAYS)
+//   "You should be able to pick up and place and drag tiles as you see fit
+//   ... really freeform ... tapping and holding still seals them ... because
+//   we now have Tetris pieces, I think we should probably have the rotate
+//   button ... an additional rotate button somewhere on the bottom"
+//                                                         (stara-ui.js)
+//   "I feel like aqueducts should be like a second layer above all the other
+//   stuff ... you should be able to have a road go under an aqueduct"
+//   "the tap and hold to place should be a bit faster"     (stara-ui.js)
+//   "I don't understand what the labels in the all four corners are, like
+//   the convent and the tannery and stuff. I thought we didn't have
+//   quarters anymore."                       (the day's cast is gone)
+//   "the mechanics for points should be a little simpler ... a cathedral, a
+//   plaza, housing, aqueducts, maybe one or two other things just to start"
+//   "having the border on the outside is kind of restricting ... the bigger
+//   the castle walls get, the less points you get ... the solitary version
+//   of Carcassonne that's in the old Carcassonne mobile app"
 //
-// So a day is a PLAN cut into PIECES. The level maker draws a whole city,
-// the best it can find, and deals it as pieces of one to four squares, each
-// one place (a terrace of houses, a big farm, a run of aqueduct), exactly
-// enough to fill the square with the Comune in the middle. You hold three,
-// lay one a turn wherever it fits, and draw back up to three. The city you
-// build is scored the way it always was, square by square; the plan's worth
-// is the day's target, shown from the first turn. A piece already down can
-// be lifted back into your hand for a point.
+// Asked, he took the three recommendations (stara-city.js has them in full):
+// the wall hugs the city and costs a point a stretch; only houses score,
+// for a plaza, water and the cathedral beside them; streets meet streets and
+// leave the city by gates, and a street out on two or more sides is a high
+// road.
 //
-// Calls of Claude's, each with why (MODES.md section 14, the sixth pass):
-//   - THE PLAN IS THE TARGET, NOT A PROOF. A 5 x 5 deal has from tens of
-//     thousands to millions of ways to fill the square (measured), too many
-//     to try on a phone, so the plan is the best city the level maker's
-//     search found, and a player who beats it is told so.
-//   - THE 7 x 7 IS MADE THE SAME WAY, 49 squares' worth.
-//   - NOTHING IS SET ASIDE ANY MORE: every piece has its square in the plan.
-//     A piece that fits nowhere now waits in your hand; when none of the
-//     three fits, lift a piece (a point) or end the day.
-//   - THE CHURCH'S EXTRA TILE IS GONE: you hold three from the start, which
-//     was what it was working up to.
-//   - A PIECE IS THAT MANY SQUARES OF ITS PLACE: a terrace of three houses
-//     pays as three houses, each for what is round it, never for the rest of
-//     its own piece.
+// So there is no border. The Comune is laid in the middle of an open table,
+// and each piece goes down beside what is built, its streets meeting
+// streets. The wall is drawn round whatever stands, and its length is the
+// day's cost. The aqueduct is laid over the city, or out over the country
+// to the day's spring, and takes no square of it. The day is still a plan:
+// the architect's city, a square (the shortest wall there is round that
+// many squares), cut into the pieces you are dealt; its worth is the target.
 //
-// Kept: the town gates and their high roads ("besides the castle wall gates
-// for connecting roads, that's fun", 2026-11-19), the keep as a fifth gate,
-// the water arch, the day's cast, the wizard's sight, and the square that
-// may be built from its walls inward as well as from the middle out.
+// Calls of Claude's, each with why (MODES.md section 14, the seventh pass):
+//   - THE COMUNE IS A PLAZA: the town hall's square is the one plaza every
+//     day has, in the middle from the first turn.
+//   - "BESIDE" IS THE EIGHT SQUARES ROUND IT, as "round it" was before; the
+//     water is the square itself or the four beside it, as before.
+//   - A HOLE IN THE CITY IS WALLED ROUND TOO: every side of a square facing
+//     open ground is a stretch, wherever it is.
+//   - A HIGH ROAD PAYS 4 A SIDE OF THE CITY IT LEAVES BY, from two sides
+//     up. With a gate wherever a street leaves, gates are easy to make; the
+//     four sides are what is hard to join.
+//   - THE SPRING is two squares out from one side of the plan's square, so
+//     every day the aqueduct has open country to cross.
+//   - THE AQUEDUCT IS LIFTED FIRST: a hold on a square with an aqueduct over
+//     it lifts the aqueduct, the top layer.
+//   - A STAGED PIECE MAY SIT WHERE IT DOES NOT FIT (freeform), drawn in red
+//     there, and only seals where it fits.
+//
+// Kept from the sixth pass: the plan, three in hand, hold to seal, lift for a
+// point, the colours by way, the plan shown once the day is over.
 // ---------------------------------------------------------------------------
 
 import { Mode } from './mode.js';
 import { TILES, opposite, edgesMeet, SIDE_STEP } from '../tiles.js';
 import {
-  PLACES, WAYS, CAST, RULES, KEEP, COMUNE, kindOf, appraise, appraiseCity, describe, cityOf, boardCity,
-  entryOf, networksOf, waterOf, gatesOf, archSquare, isWatered, SHAPES, SPANS, CITY_TILES,
+  PLACES, WAYS, RULES, COMUNE, kindOf, appraise, appraiseCity, describe, cityOf, boardCity,
+  entryOf, spanEntry, networksOf, waterOf, wallOf, isWatered, SHAPES, SPANS, CITY_TILES,
 } from './stara-city.js';
-import { makeLevel, rngOf } from './stara-plan.js';
+import { makeLevel, springFor } from './stara-plan.js';
 
 export {
-  PLACES, WAYS, CAST, RULES, KEEP, COMUNE, kindOf, appraise, describe, isWatered, archSquare,
-  SHAPES, SPANS, CITY_TILES,
+  PLACES, WAYS, RULES, COMUNE, kindOf, appraise, describe, isWatered, wallOf, SHAPES, SPANS, CITY_TILES,
 };
-export { WAY, LOSS, PLACE_IDS, appraiseCity, boardCity } from './stara-city.js';
-export { makeLevel } from './stara-plan.js';
+export { WAY, LOSS, PLACE_IDS, appraiseCity, boardCity, cityOf, spanEntry } from './stara-city.js';
+export { makeLevel, springFor } from './stara-plan.js';
 
 /** The first day there was a Starà, so day numbers start at 1. */
 const FIRST_DAY = Date.UTC(2026, 10, 18);
@@ -79,24 +87,6 @@ const FIRST_DAY = Date.UTC(2026, 10, 18);
 export const STARA_KINDS = WAYS.map((w) => [w.id, w.name]);
 
 // --- the day ----------------------------------------------------------------
-
-/** The day's cast: {faith: 'cathedral', defence: 'keep', ...}, the same for everyone. */
-export function castFor(seed) {
-  const r = rngOf(seed ^ 0xC17A57);
-  return Object.fromEntries(CAST.map((c) => [c.id, c.of[Math.floor(r() * c.of.length)]]));
-}
-
-/**
- * Where the day's water comes in: a side of the wall (0 N, 1 E, 2 S, 3 W)
- * and a square along it, never a town gate's.
- */
-export function archFor(seed, side) {
-  const r = rngOf(seed ^ 0xA9EDC7);
-  const s = Math.floor(r() * 4);
-  const mid = (side - 1) / 2;
-  const along = [...Array(side).keys()].filter((i) => i !== mid);
-  return { s, i: along[Math.floor(r() * along.length)] };
-}
 
 /**
  * Today, by the calendar where you are: its number, its date, and the seed
@@ -119,26 +109,8 @@ export function staraDay(now = new Date(), side = 7) {
 
 const keyOf = (x, y) => `${x},${y}`;
 
-/** The aqueduct's span on a cell, in the world's frame. */
-export const spanOf = (cell) => (cell.type.span || []).map((s) => (s + cell.rot) % 4);
-
-/** The squares with running water on a board. */
-export const runningWater = (board, arch) => waterOf(boardCity(board), arch);
-
-/** The town gates of a board's square. */
-export const gateSquares = (board) => gatesOf(board.bounds);
-
-/** The street networks on a board, each with its squares and the gates it reaches. */
+/** The street networks on a board, each with its squares, its gates and the sides it leaves by. */
 export const highways = (board) => networksOf(boardCity(board)).list;
-
-/** Which gates a street runs out through, by side. */
-export function gateRoads(board) {
-  const city = boardCity(board);
-  return gatesOf(board.bounds).map((g) => {
-    const c = city.get(g.x, g.y);
-    return !!(c && !c.arched && c.streets & (1 << g.s));
-  });
-}
 
 // --- pieces -----------------------------------------------------------------------
 
@@ -162,18 +134,24 @@ export function gripOf(cells) {
   return best;
 }
 
+/** A piece's squares at turn `rot`, each knowing which of the piece's own squares it is (`i`). */
+export const tagged = (piece, rot) => turnPiece({ cells: piece.cells.map((c, i) => ({ ...c, i })) }, rot);
+
+/** Is this piece the aqueduct, laid over the city rather than on it? */
+export const isAbove = (piece) => !!TILES[piece?.cells?.[0]?.type]?.above;
+
 // --- the mode ----------------------------------------------------------------
 
 export class Stara extends Mode {
   get side() { return this.spec.side; }
+  /** The plan's squares: the Comune and every place piece. */
   get squares() { return this.side * this.side; }
 
   /** The day's plan, and the pieces cut from it in the order they are dealt. */
   deck() {
     const g = this.game;
-    this.cast = castFor(g.seed);
-    this.arch = archFor(g.seed, this.side);
-    this.level = makeLevel(g.seed, this.side, this.cast, this.arch);
+    this.spring = springFor(g.seed, this.side);
+    this.level = makeLevel(g.seed, this.side, this.spring);
     this.pieces = this.level.pieces;
     // The pile is dealt from the END.
     return this.level.order.slice().reverse();
@@ -183,8 +161,9 @@ export class Stara extends Mode {
 
   setup() {
     this.day = staraDay(new Date(), this.side);
-    this.cast ||= castFor(this.game.seed);
-    this.arch ||= archFor(this.game.seed, this.side);
+    this.spring ||= springFor(this.game.seed, this.side);
+    // THE WATER LAYER: the aqueduct's spans, by square, over the city.
+    this.water = { spring: { x: this.spring.x, y: this.spring.y }, spans: new Map(), version: 0 };
     this.hand = [];
     this.sel = 0;
     this.rots = {};
@@ -194,28 +173,18 @@ export class Stara extends Mode {
     this.rescore();
   }
 
+  /** Changes whenever the board or the water does: what caches key on. */
+  get version() { return `${this.game.board.version}.${this.water.version}`; }
+
   /** Work the city out again: the score is its worth, less a point for every lift. */
   rescore() {
-    this.city = appraise(this.game.board, this.arch);
+    this.city = appraise(this.game.board, this.water);
     this.game.players[0].score = this.city.total - this.lifts * RULES.lift;
     this.tally = { ...this.city.ways, lifts: -this.lifts * RULES.lift };
   }
 
   /** How many pieces you hold. */
   get handSize() { return RULES.hand; }
-
-  /** How many pieces ahead you see: the wizard's tower's, while it stands. */
-  get foresight() {
-    let n = 0;
-    for (const c of this.game.board.cells.values()) n = Math.max(n, PLACES[kindOf(c)]?.scry || 0);
-    return n;
-  }
-
-  /** The next pieces in the pile, as far as the wizard lets you see. */
-  ahead() {
-    const d = this.game.deck;
-    return d.slice(Math.max(0, d.length - this.foresight)).reverse();
-  }
 
   /** The piece in hand that is held up. */
   get held() { return this.pieces[this.hand[this.sel]] || null; }
@@ -225,7 +194,7 @@ export class Stara extends Mode {
    * fill the hand back up to three from the pile and hold up whichever was
    * held before. Nothing is set aside: every piece has its square in the
    * plan, and one that fits nowhere now waits in your hand. With nothing in
-   * hand and nothing in the pile, the square is full.
+   * hand and nothing in the pile, the day is done.
    */
   drawNext() {
     const g = this.game;
@@ -264,7 +233,7 @@ export class Stara extends Mode {
   }
 
   /** For the panel's redraw: what is in hand and which is held up. */
-  signature() { return `${this.hand.join('.')}/${this.sel}/${this.game.board.size}/${this.lifts}`; }
+  signature() { return `${this.hand.join('.')}/${this.sel}/${this.version}/${this.lifts}`; }
 
   finalFarms = false;
   onClosed() {}
@@ -275,20 +244,24 @@ export class Stara extends Mode {
   shape(rot = this.game.rot, piece = this.held) { return piece ? turnPiece(piece, rot) : []; }
 
   /**
-   * Can these squares go down with their top left at (ax, ay)? Every square
-   * in the wall and empty, every edge meeting what is already there (the
-   * piece's own seams were cut to meet), and the piece touching a square
-   * already built or the town wall.
+   * Can these squares of a PLACE go down with their top left at (ax, ay)?
+   * Every square empty (the aqueduct over a square does not fill it), every
+   * edge meeting what is already there (the piece's own seams were cut to
+   * meet), and the piece touching a square already built. There is no
+   * border.
    */
-  fitsAt(ax, ay, cells) {
+  placeFits(ax, ay, cells) {
     const b = this.game.board;
     const own = new Set(cells.map((c) => keyOf(ax + c.dx, ay + c.dy)));
-    for (const c of cells) if (!b.inBounds(ax + c.dx, ay + c.dy) || b.get(ax + c.dx, ay + c.dy)) return false;
+    const sp = this.water.spring;
+    for (const c of cells) {
+      const x = ax + c.dx, y = ay + c.dy;
+      if (b.get(x, y) || (x === sp.x && y === sp.y)) return false;
+    }
     let touches = false;
     for (const c of cells) {
       const x = ax + c.dx, y = ay + c.dy;
       const probe = { x, y, type: TILES[c.type], rot: c.rot };
-      if (b.wallSidesAt(x, y).length) touches = true;
       for (let s = 0; s < 4; s++) {
         const nx = x + SIDE_STEP[s][0], ny = y + SIDE_STEP[s][1];
         if (own.has(keyOf(nx, ny))) continue;
@@ -302,70 +275,132 @@ export class Stara extends Mode {
   }
 
   /**
-   * The city as it would be with these squares of `piece` down at (ax, ay),
-   * without touching the board: the scorer reads a list of squares, so a
-   * trial is the board's list and the piece's. The board's is kept until
-   * the board changes.
+   * Can these spans of AQUEDUCT go up with their top left at (ax, ay)? Over
+   * anything, built or not, but never over a span already up or the spring
+   * itself; and touching the city (over it or beside it), the spring, or a
+   * span already up.
    */
-  trialCity(piece, ax, ay, cells) {
-    const b = this.game.board;
-    if (this.baseKey !== b.version || this.baseBoard !== b) {
-      this.baseKey = b.version;
-      this.baseBoard = b;
-      this.base = [...b.cells.values()].map(entryOf);
+  spanFits(ax, ay, cells) {
+    const b = this.game.board, sp = this.water.spring, spans = this.water.spans;
+    let touches = false;
+    for (const c of cells) {
+      const x = ax + c.dx, y = ay + c.dy;
+      if (spans.has(keyOf(x, y)) || (x === sp.x && y === sp.y)) return false;
+      if (b.get(x, y)) touches = true;
+      for (const [dx, dy] of SIDE_STEP) {
+        const nx = x + dx, ny = y + dy;
+        if (b.get(nx, ny) || spans.has(keyOf(nx, ny)) || (nx === sp.x && ny === sp.y)) touches = true;
+      }
     }
-    const extra = cells.map((c) => entryOf({ x: ax + c.dx, y: ay + c.dy, type: TILES[c.type], rot: c.rot, piece: piece.id }));
-    return cityOf(b.bounds, [...this.base, ...extra]);
+    return touches;
+  }
+
+  /** Can these squares of `piece` go down (or up) with their top left at (ax, ay)? */
+  fitsAt(ax, ay, cells, piece = this.held) {
+    return isAbove(piece) ? this.spanFits(ax, ay, cells) : this.placeFits(ax, ay, cells);
   }
 
   /**
-   * Where the held piece goes when (x, y) is touched at turn `rot`: its top
-   * left, with the square it is held by on (x, y) if it fits that way, or
-   * the nearest other square of it that lets it fit. Null if it fits over
-   * (x, y) no way at that turn.
+   * The city as it would be with these squares of `piece` at (ax, ay),
+   * without touching the board: the scorer reads lists of squares and
+   * spans, so a trial is the board's lists and the piece's. The board's are
+   * kept until either changes.
    */
-  anchorFor(x, y, rot = this.game.rot, piece = this.held) {
-    const cells = this.shape(rot, piece);
-    if (!cells.length) return null;
-    const grip = gripOf(cells);
-    const order = cells.slice().sort((a, b) => ((a.dx - grip.dx) ** 2 + (a.dy - grip.dy) ** 2) - ((b.dx - grip.dx) ** 2 + (b.dy - grip.dy) ** 2));
-    for (const c of order) {
-      const ax = x - c.dx, ay = y - c.dy;
-      if (this.fitsAt(ax, ay, cells)) return { x: ax, y: ay, cells };
+  trialCity(piece, ax, ay, cells) {
+    const b = this.game.board;
+    if (this.baseKey !== this.version || this.baseBoard !== b) {
+      this.baseKey = this.version;
+      this.baseBoard = b;
+      this.base = [...b.cells.values()].map(entryOf);
+      this.baseSpans = [...this.water.spans.values()];
     }
-    return null;
+    if (isAbove(piece)) {
+      const extra = cells.map((c) => spanEntry(ax + c.dx, ay + c.dy, c.type, c.rot, piece.id));
+      return cityOf(this.base, [...this.baseSpans, ...extra], this.water.spring);
+    }
+    const extra = cells.map((c) => entryOf({ x: ax + c.dx, y: ay + c.dy, type: TILES[c.type], rot: c.rot, piece: piece.id }));
+    return cityOf([...this.base, ...extra], this.baseSpans, this.water.spring);
+  }
+
+  /** The squares a piece might touch from: where to look for ways to lay it. */
+  touchSquares(piece) {
+    const b = this.game.board;
+    const out = new Map();
+    const add = (x, y) => out.set(keyOf(x, y), { x, y });
+    for (const f of b.frontier()) add(f.x, f.y);
+    if (isAbove(piece)) {
+      for (const c of b.cells.values()) add(c.x, c.y);
+      const sp = this.water.spring;
+      for (const s of [...this.water.spans.values(), sp]) for (const [dx, dy] of SIDE_STEP) add(s.x + dx, s.y + dy);
+    }
+    return [...out.values()];
+  }
+
+  /**
+   * Where the held piece goes when it is put down over (x, y) at turn
+   * `rot`, held by square `grip` of it (an index into its squares; its
+   * middle, by default): its top left, the square it is held by, and
+   * whether it fits there. With `magnet`, a piece that does not fit exactly
+   * so is moved to the nearest way it fits that still covers (x, y),
+   * nearest the grip first; one that fits no way over (x, y) stays where it
+   * was put, not fitting (the seventh pass: "really freeform").
+   */
+  stageAt(x, y, rot = this.game.rot, { grip = null, magnet = true, piece = this.held } = {}) {
+    if (!piece) return null;
+    const cells = tagged(piece, rot);
+    const g = (grip != null && cells.find((c) => c.i === grip)) || gripOf(cells);
+    const at = { x, y, rot, ax: x - g.dx, ay: y - g.dy, grip: g.i };
+    if (this.fitsAt(at.ax, at.ay, cells, piece)) return { ...at, fits: true };
+    if (magnet) {
+      const order = cells.slice().sort((a, b) => ((a.dx - g.dx) ** 2 + (a.dy - g.dy) ** 2) - ((b.dx - g.dx) ** 2 + (b.dy - g.dy) ** 2));
+      for (const c of order) {
+        if (this.fitsAt(x - c.dx, y - c.dy, cells, piece)) return { ...at, ax: x - c.dx, ay: y - c.dy, grip: c.i, fits: true };
+      }
+    }
+    return { ...at, fits: false };
+  }
+
+  /**
+   * A staged piece turned a quarter (or back), about the square it is held
+   * by: that square stays where it is and the rest swings round it, so the
+   * piece turns in place. Not moved to fit: it shows whether it does.
+   */
+  turnStaged(p, dir = 1) {
+    const cells = tagged(this.held, p.rot);
+    const g = cells.find((c) => c.i === p.grip) || gripOf(cells);
+    return this.stageAt(p.ax + g.dx, p.ay + g.dy, (p.rot + dir + 4) % 4, { grip: g.i, magnet: false });
   }
 
   /** Every way the held piece can go down now: `{x, y, rot, cells}`, its top left. */
-  placements(piece = this.held) {
+  placements(piece = this.held, rots = [0, 1, 2, 3]) {
     const out = [];
     if (!piece) return out;
-    const b = this.game.board;
     const seen = new Set();
-    for (let rot = 0; rot < 4; rot++) {
+    const touch = this.touchSquares(piece);
+    for (const rot of rots) {
       const cells = turnPiece(piece, rot);
       const sig = JSON.stringify(cells.map((c) => [c.dx, c.dy, c.type, c.rot]));
       if (seen.has(sig)) continue;
       seen.add(sig);
       const tried = new Set();
-      for (const { x, y } of b.frontier()) {
+      for (const { x, y } of touch) {
         for (const c of cells) {
           const ax = x - c.dx, ay = y - c.dy, k = `${ax},${ay}`;
           if (tried.has(k)) continue;
           tried.add(k);
-          if (this.fitsAt(ax, ay, cells)) out.push({ x: ax, y: ay, rot, cells });
+          if (this.fitsAt(ax, ay, cells, piece)) out.push({ x: ax, y: ay, rot, cells });
         }
       }
     }
     return out;
   }
 
-  /** Every square the held piece could cover somewhere: the squares lit for it. */
+  /** Every square the held piece could cover, turned the way it is now: the squares lit for it. */
   litSquares() {
-    const key = `${this.hand[this.sel]}|${this.game.board.version}`;
+    const key = `${this.hand[this.sel]}|${this.game.rot}|${this.version}`;
     if (this.litKey === key) return this.litValue;
     const out = new Set();
-    for (const p of this.placements()) for (const c of p.cells) out.add(keyOf(p.x + c.dx, p.y + c.dy));
+    for (const p of this.placements(this.held, [this.game.rot])) for (const c of p.cells) out.add(keyOf(p.x + c.dx, p.y + c.dy));
     this.litKey = key;
     this.litValue = out;
     return out;
@@ -373,10 +408,10 @@ export class Stara extends Mode {
 
   /** Can this piece go down anywhere at all, any way round? Stops at the first way. */
   fitsAnywhere(piece) {
-    const front = this.game.board.frontier();
+    const touch = this.touchSquares(piece);
     for (let rot = 0; rot < 4; rot++) {
       const cells = turnPiece(piece, rot);
-      for (const { x, y } of front) for (const c of cells) if (this.fitsAt(x - c.dx, y - c.dy, cells)) return true;
+      for (const { x, y } of touch) for (const c of cells) if (this.fitsAt(x - c.dx, y - c.dy, cells, piece)) return true;
     }
     return false;
   }
@@ -389,37 +424,55 @@ export class Stara extends Mode {
   /** The host asks this for each square and turn: can the held piece go over (x, y)? */
   canPlaceAt(x, y) {
     if (this.game.phase !== 'place' || !this.held) return false;
-    return !!this.anchorFor(x, y);
+    return !!this.stageAt(x, y)?.fits;
   }
 
-  /** Lay the held piece over (x, y), at the game's turn. */
+  /** Lay the held piece over (x, y), at the game's turn (the workshop's click, and Enter). */
   placeAt(x, y) {
     const g = this.game;
     if (g.phase !== 'place' || !this.held) return false;
-    const at = this.anchorFor(x, y);
-    if (!at) return false;
-    return this.lay(this.held, at.x, at.y, g.rot);
+    const at = this.stageAt(x, y);
+    if (!at?.fits) return false;
+    return this.lay(this.held, at.ax, at.ay, g.rot);
   }
 
-  /** Put piece `piece` down with its top left at (ax, ay), turned `rot`. */
+  /** Lay the held piece with its top left at (ax, ay), turned `rot`: a staged piece, sealed. */
+  layAnchored(ax, ay, rot) {
+    if (this.game.phase !== 'place' || !this.held) return false;
+    return this.lay(this.held, ax, ay, rot);
+  }
+
+  /** Put piece `piece` down (or up, an aqueduct) with its top left at (ax, ay), turned `rot`. */
   lay(piece, ax, ay, rot) {
     const g = this.game, b = g.board;
     const cells = turnPiece(piece, rot);
-    if (!this.fitsAt(ax, ay, cells)) return false;
-    const laid = cells.map((c) => {
-      const cell = b.place(ax + c.dx, ay + c.dy, TILES[c.type], c.rot, { owner: 0 });
-      cell.piece = piece.id;
-      return cell;
-    });
+    if (!this.fitsAt(ax, ay, cells, piece)) return false;
+    let laid;
+    if (isAbove(piece)) {
+      laid = cells.map((c) => {
+        const x = ax + c.dx, y = ay + c.dy;
+        const s = { ...spanEntry(x, y, c.type, c.rot, piece.id), type: c.type, rot: c.rot };
+        this.water.spans.set(keyOf(x, y), s);
+        return s;
+      });
+      this.water.version++;
+    } else {
+      laid = cells.map((c) => {
+        const cell = b.place(ax + c.dx, ay + c.dy, TILES[c.type], c.rot, { owner: 0 });
+        cell.piece = piece.id;
+        return cell;
+      });
+    }
     this.laid.set(piece.id, { x: ax, y: ay, rot });
     const i = this.hand.indexOf(piece.id);
     if (i >= 0) this.hand.splice(i, 1);
     delete this.rots[piece.id];
-    g.lastPlaced = laid[0];
+    g.lastPlaced = b.get(laid[0].x, laid[0].y) || laid[0];
     g.tile = null;
     g.tileKey = null;
-    // Sealed where it sits: it does not fly in from anywhere.
-    g.emit('place', { cells: laid, still: true });
+    // Sealed where it sits: it does not fly in from anywhere. An aqueduct is
+    // not a board cell, so nothing on the board is veiled for it.
+    if (!isAbove(piece)) g.emit('place', { cells: laid, still: true });
     const was = this.city;
     this.rescore();
     this.announce(was, laid);
@@ -430,7 +483,7 @@ export class Stara extends Mode {
 
   signed(n) { return `${n >= 0 ? '+' : '−'}${Math.abs(n)}`; }
 
-  /** Each square whose worth changed says by how much, where it stands; and the high roads. */
+  /** Each square whose worth changed says by how much, where it stands; and the wall and the high roads. */
   announce(was, laid) {
     const g = this.game;
     for (const [k, now] of this.city.per) {
@@ -439,7 +492,10 @@ export class Stara extends Mode {
       const [x, y] = k.split(',').map(Number);
       g.emit('score', { points: d, players: [0], at: { x: x + 0.5, y: y + 0.5 } });
     }
-    const roads = this.city.roads.reduce((a, r) => a + r.pts, 0) - was.roads.reduce((a, r) => a + r.pts, 0);
+    const mid = { x: laid[0].x + 0.5, y: laid[0].y + 0.5 };
+    const wall = this.city.ways.wall - was.ways.wall;
+    if (wall) g.emit('score', { points: wall, players: [0], at: { x: mid.x, y: mid.y - 0.3 } });
+    const roads = this.city.ways.roads - was.ways.roads;
     if (roads) {
       const best = [...this.city.roads].sort((a, b) => b.pts - a.pts)[0];
       const [x, y] = (best?.tiles[0] || `${laid[0].x},${laid[0].y}`).split(',').map(Number);
@@ -449,13 +505,18 @@ export class Stara extends Mode {
 
   // --- lifting a piece --------------------------------------------------------
 
-  /** The piece standing on (x, y), if it is one you may lift (never the Comune). */
+  /**
+   * The piece on top at (x, y), if it is one you may lift (never the
+   * Comune): the aqueduct over a square before the place under it.
+   */
   pieceAt(x, y) {
+    const span = this.water.spans.get(keyOf(x, y));
+    if (span && this.laid.has(span.piece)) return span.piece;
     const id = this.game.board.get(x, y)?.piece;
     return id != null && this.laid.has(id) ? id : null;
   }
 
-  /** The squares a laid piece stands on. */
+  /** The squares a laid piece stands on (or over). */
   squaresOf(id) {
     const at = this.laid.get(id);
     if (!at) return [];
@@ -470,10 +531,14 @@ export class Stara extends Mode {
   lift(id) {
     const g = this.game;
     if (g.phase !== 'place' || !this.laid.has(id)) return false;
-    const was = this.city;
     const at = this.laid.get(id);
-    for (const s of this.squaresOf(id)) g.board.remove(s.x, s.y, { quiet: true });
-    g.board.rebuild();
+    if (isAbove(this.pieces[id])) {
+      for (const s of this.squaresOf(id)) this.water.spans.delete(keyOf(s.x, s.y));
+      this.water.version++;
+    } else {
+      for (const s of this.squaresOf(id)) g.board.remove(s.x, s.y, { quiet: true });
+      g.board.rebuild();
+    }
     this.laid.delete(id);
     this.lifts++;
     if (this.hand.length) this.rots[this.hand[this.sel]] = g.rot;
@@ -504,34 +569,52 @@ export class Stara extends Mode {
     return true;
   }
 
-  /** The square is full, or the day was ended: the day is done. */
+  /** Anything still to lay? The day is done when the hand and the pile are empty, or it is ended. */
   anythingLeft() {
-    return (this.hand.length > 0 || this.game.deck.length > 0) && this.game.board.size < this.squares;
+    return this.hand.length > 0 || this.game.deck.length > 0;
   }
 
   finish() {
     const g = this.game;
-    for (const r of this.city.roads) g.say(`A high road through ${r.gates} gates → ${r.pts}`);
+    for (const r of this.city.roads) g.say(`A high road out on ${r.sides} sides → ${r.pts}`);
     const lifts = this.lifts ? `, less ${this.lifts} for lifting` : '';
-    g.say(`Starà No. ${this.day.n}, ${this.side}×${this.side}: the city is worth ${this.city.total}${lifts}; the plan was worth ${this.par}. ${g.board.size} of ${this.squares} squares built.`);
+    g.say(`Starà No. ${this.day.n}, ${this.side}×${this.side}: the city is worth ${this.city.total}${lifts}, its wall ${this.city.wall.length} long; the plan was worth ${this.par}.`);
+  }
+
+  /**
+   * Where the city is on the table: the squares built, the aqueduct's and
+   * the spring's, as a box (`minX` to `maxX` inclusive). The screen keeps it
+   * in view.
+   */
+  extent() {
+    const b = this.game.board;
+    const pts = [...b.cells.values(), ...this.water.spans.values(), this.water.spring];
+    return {
+      minX: Math.min(...pts.map((p) => p.x)), maxX: Math.max(...pts.map((p) => p.x)),
+      minY: Math.min(...pts.map((p) => p.y)), maxY: Math.max(...pts.map((p) => p.y)),
+    };
   }
 
   // --- the plan ---------------------------------------------------------------
 
-  /** The day's plan as a board of its own, to be looked at once the day is over. */
+  /** The day's plan as a board and a water layer of its own, to be looked at once the day is over. */
   planBoard() {
     if (this.planned) return this.planned;
     const B = this.game.board;
-    const b = new B.constructor({ bounds: B.bounds, walled: B.walled, builtFromWall: B.builtFromWall });
+    const b = new B.constructor({});
+    const water = { spring: this.water.spring, spans: new Map(), version: 0 };
     b.place(0, 0, TILES[COMUNE], 0, {});
     for (const p of this.level.plan) {
-      for (const c of this.pieces[p.id].cells) {
-        const cell = b.place(p.x + c.dx, p.y + c.dy, TILES[c.type], c.rot, { owner: 0 });
+      const piece = this.pieces[p.id];
+      for (const c of piece.cells) {
+        const x = p.x + c.dx, y = p.y + c.dy;
+        if (isAbove(piece)) { water.spans.set(keyOf(x, y), { ...spanEntry(x, y, c.type, c.rot, p.id), type: c.type, rot: c.rot }); continue; }
+        const cell = b.place(x, y, TILES[c.type], c.rot, { owner: 0 });
         cell.piece = p.id;
       }
     }
-    this.planned = b;
-    return b;
+    this.planned = { board: b, water };
+    return this.planned;
   }
 
   /**
@@ -542,11 +625,14 @@ export class Stara extends Mode {
     const g = this.game;
     if (g.phase !== 'over') return false;
     if (on && !this.mine) {
-      this.mine = { board: g.board, city: this.city };
-      g.board = this.planBoard();
-      this.city = appraise(g.board, this.arch);
+      this.mine = { board: g.board, water: this.water, city: this.city };
+      const plan = this.planBoard();
+      g.board = plan.board;
+      this.water = plan.water;
+      this.city = appraise(g.board, this.water);
     } else if (!on && this.mine) {
       g.board = this.mine.board;
+      this.water = this.mine.water;
       this.city = this.mine.city;
       this.mine = null;
     }
@@ -558,57 +644,66 @@ export class Stara extends Mode {
   // --- what the picture and the interface ask -----------------------------------
 
   /**
-   * How a square looks: its place, whether water runs on it and whether it
-   * is watered, which sides it joins the rest of its piece on, and which
-   * piece it is (so a piece's squares are drawn as one place: one crop
-   * across a farm, one terrace of roofs).
+   * How a square looks: its place, whether it is watered (its fountain
+   * plays), which sides it joins the rest of its piece on, and which piece it
+   * is (so a piece's squares are drawn as one place).
    */
   lookOf(cell) {
     const k = keyOf(cell.x, cell.y);
-    const run = this.city?.running.has(k) ? 'r' : '';
     const wet = this.city?.per.get(k)?.wet ? 'w' : '';
     const b = this.game.board;
     let joined = '';
     if (cell.piece != null) {
       for (let s = 0; s < 4; s++) if (b.get(cell.x + SIDE_STEP[s][0], cell.y + SIDE_STEP[s][1])?.piece === cell.piece) joined += s;
     }
-    return lookString(kindOf(cell), run + wet, joined, cell.piece);
+    return lookString(kindOf(cell), wet, joined, cell.piece);
+  }
+
+  /** The aqueduct's spans as they stand, each with whether water runs in it. */
+  spansNow() {
+    return [...this.water.spans.values()].map((s) => ({ ...s, run: this.city.running.has(keyOf(s.x, s.y)) }));
   }
 
   /**
-   * What laying the held piece over (x, y) at turn `rot` would do: where it
-   * goes, how each of its squares would look, the city's worth after, the
-   * difference by way, every square whose worth would change (with by how
-   * much, and which way most), and where the piece's own points come from.
-   * Tried on the board and taken off again, once per square and turn (the
-   * staged piece is drawn every frame).
+   * What the held piece would do with its top left at (ax, ay), turned
+   * `rot`: whether it fits; how each of its squares would look; and, where
+   * it fits, the city's worth after, the difference by way, every square
+   * whose worth would change (with by how much, and which way most), where
+   * the piece's own points come from, and the stretches of wall it would
+   * add. Worked out once per place and turn (the staged piece is drawn every
+   * frame).
    */
-  preview(x, y, rot) {
+  preview(ax, ay, rot) {
     const g = this.game, piece = this.held;
     if (!piece) return null;
-    const key = `${piece.id}|${x},${y}|${rot}|${g.board.version}`;
+    const key = `${piece.id}|${ax},${ay}|${rot}|${this.version}`;
     if (this.previewKey === key) return this.previewValue;
-    let out = null;
-    const at = this.anchorFor(x, y, rot);
-    if (at) {
-      const after = appraiseCity(this.trialCity(piece, at.x, at.y, at.cells), this.arch, { sources: true });
-      const mine = new Set(at.cells.map((c) => keyOf(at.x + c.dx, at.y + c.dy)));
-      const looks = at.cells.map((c) => {
-        const lx = at.x + c.dx, ly = at.y + c.dy, k = keyOf(lx, ly);
-        let joined = '';
-        for (let s = 0; s < 4; s++) if (mine.has(keyOf(lx + SIDE_STEP[s][0], ly + SIDE_STEP[s][1]))) joined += s;
-        const flags = (after.running.has(k) ? 'r' : '') + (after.per.get(k)?.wet ? 'w' : '');
-        return { x: lx, y: ly, rot: c.rot, type: TILES[c.type], look: lookString(piece.kind, flags, joined, piece.id) };
-      });
-      const own = new Set(looks.map((l) => keyOf(l.x, l.y)));
+    const cells = this.shape(rot, piece);
+    const above = isAbove(piece);
+    const fits = this.fitsAt(ax, ay, cells, piece);
+    const mine = new Set(cells.map((c) => keyOf(ax + c.dx, ay + c.dy)));
+    let after = null;
+    if (fits) after = appraiseCity(this.trialCity(piece, ax, ay, cells), { sources: true });
+    const looks = cells.map((c) => {
+      const lx = ax + c.dx, ly = ay + c.dy, k = keyOf(lx, ly);
+      let joined = '';
+      for (let s = 0; s < 4; s++) if (mine.has(keyOf(lx + SIDE_STEP[s][0], ly + SIDE_STEP[s][1]))) joined += s;
+      const flags = after?.per.get(k)?.wet ? 'w' : '';
+      return {
+        x: lx, y: ly, rot: c.rot, type: TILES[c.type], look: lookString(piece.kind, flags, joined, piece.id),
+        span: above ? spanEntry(lx, ly, c.type, c.rot).span : 0, run: !!after?.running.has(k),
+      };
+    });
+    let out = { x: ax, y: ay, rot, above, fits, cells: looks };
+    if (fits) {
       const changes = [];
       for (const [k, now] of after.per) {
-        if (own.has(k)) continue;
+        if (mine.has(k) && !above) continue;
         const was = this.city.per.get(k);
         const d = now.pts - (was?.pts || 0);
         if (!d) continue;
         const [cx, cy] = k.split(',').map(Number);
-        let way = 'near', most = 0;
+        let way = 'houses', most = 0;
         for (const w of WAYS) {
           const dw = (now.ways[w.id] || 0) - (was?.ways[w.id] || 0);
           if (Math.abs(dw) > most) { most = Math.abs(dw); way = w.id; }
@@ -617,14 +712,14 @@ export class Stara extends Mode {
       }
       const ways = {};
       for (const w of WAYS) ways[w.id] = (after.ways[w.id] || 0) - (this.city.ways[w.id] || 0);
-      // Where the piece's own points come from: the squares round it it
-      // likes or dislikes, and its sides on the wall.
       const from = [];
-      for (const k of own) for (const f of after.per.get(k)?.from || []) from.push(f);
-      const roads = after.roads.reduce((a, r) => a + r.pts, 0) - this.city.roads.reduce((a, r) => a + r.pts, 0);
+      for (const k of mine) for (const f of after.per.get(k)?.from || []) from.push({ ...f, for: k });
+      // The wall it would add: stretches in the new city that were not there.
+      const had = new Set(this.city.wall.map((w) => `${w.x},${w.y},${w.s}`));
+      const wallAdded = after.wall.filter((w) => !had.has(`${w.x},${w.y},${w.s}`));
       out = {
-        x: at.x, y: at.y, cells: looks, total: after.total, gain: after.total - this.city.total,
-        ways, changes, from, roads, wet: looks.some((l) => after.per.get(keyOf(l.x, l.y))?.wet),
+        ...out, total: after.total, gain: after.total - this.city.total, ways, changes, from, wallAdded,
+        wet: looks.some((l) => after.per.get(keyOf(l.x, l.y))?.wet),
       };
     }
     this.previewKey = key;
@@ -640,16 +735,12 @@ export class Stara extends Mode {
     return { ...d, squares: p.cells.length };
   }
 
-  /** Which gates a street runs out through, by side: for the castle's banners. */
-  gatesReached() { return gateRoads(this.game.board); }
-
   // --- advice for the computer player -----------------------------------------
 
   /** What laying these cells is worth: what they add to the city, all of it. */
   botPlaceBonus() {
-    return appraise(this.game.board, this.arch).total - this.city.total;
+    return appraise(this.game.board, this.water).total - this.city.total;
   }
-
 
   /**
    * The bot's whole turn: every piece in hand, every way it fits, keeping
@@ -672,7 +763,7 @@ export class Stara extends Mode {
     this.hand.forEach((id, i) => {
       const piece = this.pieces[id];
       for (const m of this.placements(piece)) {
-        const v = appraiseCity(this.trialCity(piece, m.x, m.y, m.cells), this.arch).total;
+        const v = appraiseCity(this.trialCity(piece, m.x, m.y, m.cells)).total;
         if (!best || v > best.v) best = { i, v, x: m.x, y: m.y, rot: m.rot };
       }
     });
@@ -680,16 +771,14 @@ export class Stara extends Mode {
   }
 
   status() {
-    return `No. ${this.day.n} · ${this.game.board.size}/${this.squares} squares`;
+    return `No. ${this.day.n} · ${this.laid.size} of ${Object.keys(this.pieces).length} pieces`;
   }
 
   panel() {
     const g = this.game, p = g.players[0];
-    const cast = CAST.map((c) => PLACES[this.cast[c.id]].name).join(', ');
     return `
       <div class="advTop"><span>Starà No. ${this.day.n}, ${this.side}×${this.side}</span><span>Worth <b>${p.score}</b> of ${this.par}</span></div>
-      <div class="advTop"><span>${g.board.size}/${this.squares} squares</span><span>${this.hand.length} in hand, ${g.deck.length} in the pile</span></div>
-      <p class="hint">Today: ${cast}.</p>
+      <div class="advTop"><span>A wall ${this.city.wall.length} long</span><span>${this.hand.length} in hand, ${g.deck.length} in the pile</span></div>
       <p class="hint">${this.spec.hint}</p>`;
   }
 }
@@ -701,7 +790,6 @@ export function lookString(kind, flags, joined, piece) {
 
 /** The two sizes, as two daily puzzles: 7 x 7 is `stara`, 5 x 5 `stara5`. */
 function specFor(side, Mode) {
-  const r = (side - 1) / 2;
   return {
     id: side === 7 ? 'stara' : `stara${side}`,
     name: `Starà ${side}×${side} (daily)`,
@@ -714,19 +802,14 @@ function specFor(side, Mode) {
     market: false,
     // The interface: one piece at a time on a wooden table (src/stara-ui.js).
     table: true,
-    // The town wall round the square (board.js): it ends streets, and a piece
-    // may be laid against it as well as beside another.
-    walled: true,
-    builtFromWall: true,
-    // The city's own pictures (src/city.js).
+    // The city's own pictures (src/city.js), and the wall round it (castle.js).
     city: true,
     inked: true,
     antique: true,
     seedFor: () => staraDay(new Date(), side).seed,
     playerName: () => 'You',
-    bounds: { minX: -r, maxX: r, minY: -r, maxY: r },
-    opening: `Today's city, ${side}×${side}, walled round. The architect has drawn a plan: build it, or better it.`,
-    hint: `Daily and solo: a ${side}×${side} walled city-state, dealt as pieces of one to four squares that exactly fill it. Hold three; tap a piece to turn it, touch a lit square to put it there, and hold it to seal it down. Streets must meet streets. Each place is paid for what is round it, its card says how, in colours by way: itself, neighbours (green, a loss in red), variety (violet), water (blue), the wall (black) and gates (gold). The score is always what the whole city is worth, so a piece pays the difference it makes. Hold a laid piece to lift it back into your hand for a point. The architect's plan for the day is the target.`,
+    opening: `Today's city, a ${side}×${side} plan. The wall goes up round whatever you build, and every stretch of it costs a point.`,
+    hint: `Daily and solo: a city-state on an open table, dealt as pieces of one to four squares, the architect's ${side}×${side} plan cut up. Hold three; drag a piece where you want it, turn it with the turn button (or tap it), and hold it to seal it down. Streets must meet streets. Only houses score: 1 a square, +1 beside a plaza (the Comune is one), +1 watered, +1 beside the cathedral. The aqueduct goes over anything, carrying water in from the spring. The wall goes round whatever is built, and every stretch of it costs 1. A street out of the city is a gate; one street out on two or more of the city's sides is a high road, 4 a side. Hold a laid piece to lift it back for a point. The architect's plan for the day is the target.`,
   };
 }
 

@@ -18,9 +18,9 @@ import { DESIGN, rgba } from './design.js';
 import { rotPoint, wallSides, opposite, TILES } from './tiles.js';
 import { liftableCells } from './mechanics.js';
 import { roughen } from './ink.js';
-import { paintCastle, gatesOf, CASTLE, keepSprite } from './castle.js';
+import { paintCityWall, CASTLE, keepSprite } from './castle.js';
 import { gardenSprite, paintGardenWall, GARDEN_WALL } from './garden.js';
-import { citySprite } from './city.js';
+import { citySprite, spanSprite, springSprite, SPAN_PAD } from './city.js';
 import { WAY, LOSS } from './modes/stara-city.js';
 import { sketchLine, sketchRect, seedOf } from './sketch.js';
 
@@ -161,6 +161,8 @@ export class Renderer {
     const k = t * t * (3 - 2 * t);                 // smoothstep: no jerk at either end
     this.cam.x = g.x0 + (g.x1 - g.x0) * k;
     this.cam.y = g.y0 + (g.y1 - g.y0) * k;
+    // A glide may zoom as well (Starà's table, following its city as it grows).
+    if (g.z1 != null) this.cam.zoom = g.z0 + (g.z1 - g.z0) * k;
     if (t >= 1) this.glide = null;
   }
 
@@ -282,8 +284,11 @@ export class Renderer {
 
     if (this.pixel) this.drawGates(game);
     if (game.board.wraps) this.drawSeam(game, fog);
-    // Starà's castle stands taller than the tiles, so it goes over them.
-    if (table && game.board.walled) this.drawCastle(game);
+    // Starà's wall stands taller than the tiles, so it goes over them; and
+    // the aqueduct over everything (the seventh pass: "a second layer
+    // above all the other stuff"), with the spring it rises from.
+    if (table && (game.board.walled || game.spec?.city)) this.drawCastle(game);
+    if (game.spec?.city && game.m.water) this.drawAqueducts(game);
     // Soffiando's Calcolo: a stone on a square of open sky, no tile's.
     if (game.m.calcolo && this.onScreen(game.m.calcolo.x, game.m.calcolo.y)) this.drawCalcolo(game.m.calcolo);
 
@@ -468,7 +473,7 @@ export class Renderer {
 
     // The lamp: warm where the square is, falling away to the corners.
     const [cx, cy] = b ? this.toScreen((b.minX + b.maxX + 1) / 2, (b.minY + b.maxY + 1) / 2)
-      : [w / 2, h / 2];
+      : this.toScreen(0.5, 0.5);
     const reach = Math.hypot(w, h) * 0.62;
     const lamp = t.createRadialGradient(cx, cy, z * 1.5, cx, cy, reach);
     lamp.addColorStop(0, 'rgba(255,214,150,0.10)');
@@ -476,7 +481,29 @@ export class Renderer {
     lamp.addColorStop(1, 'rgba(26,12,2,0.58)');
     t.fillStyle = lamp;
     t.fillRect(0, 0, w, h);
-    if (!b) return;
+    if (!b) {
+      // The open table (Starà's seventh pass): no square to fill, so the
+      // squares are ruled faintly across the whole of it by hand, for laying
+      // pieces true.
+      if (!game?.spec?.city) return;
+      t.save();
+      t.strokeStyle = 'rgba(40,20,4,0.16)';
+      t.lineWidth = 1;
+      t.lineCap = 'round';
+      t.beginPath();
+      const [gx0, gy0] = this.toWorld(0, 0), [gx1, gy1] = this.toWorld(w, h);
+      for (let x = Math.floor(gx0); x <= Math.ceil(gx1); x++) {
+        const [sx] = this.toScreen(x, 0);
+        sketchLine(t, sx, 0, sx, h, { seed: seedOf(x, 1), rough: 0.8, passes: 1 });
+      }
+      for (let y = Math.floor(gy0); y <= Math.ceil(gy1); y++) {
+        const [, sy] = this.toScreen(0, y);
+        sketchLine(t, 0, sy, w, sy, { seed: seedOf(y, 2), rough: 0.8, passes: 1 });
+      }
+      t.stroke();
+      t.restore();
+      return;
+    }
 
     // The floor inside the walls: the table a shade darker, the squares
     // ruled faintly across it by hand, so you can count what is left to fill.
@@ -502,41 +529,71 @@ export class Renderer {
   }
 
   /**
-   * THE CASTLE round Starà's square (castle.js), baked into a layer of its
-   * own with the gates as they stand, and inked by hand: drawn in sketched
-   * strokes, then the whole picture bent by ink.js, the pass the inked tiles
-   * get. Remade only when the camera moves or a road reaches the wall.
+   * THE WALL round Starà's city (castle.js), or Giardino's round its garden.
+   * Starà's runs round whatever is built (the seventh pass), so it is baked
+   * into a layer of its own each time the wall changes, inked by hand: drawn
+   * in sketched strokes, then the whole picture bent by ink.js, the pass the
+   * inked tiles get. While the camera eases to a new zoom the layer already
+   * made is stretched to fit, and made again once it settles.
    */
   drawCastle(game) {
     if (game.spec?.garden) return this.drawGardenWall(game);
-    const b = game.board.bounds;
+    const city = game.m?.city;
+    if (!city?.wall?.length) return;
     const z = this.cam.zoom;
     const dpr = window.devicePixelRatio || 1;
-    const { gates, towns } = gatesOf(game.board);
-    const [bx, by] = this.toScreen(b.minX, b.minY);
-    const cols = b.maxX - b.minX + 1, rows = b.maxY - b.minY + 1;
-    const pad = (CASTLE.reach + 0.2) * z;
-    // The day's water arch in the wall (Starà's city).
-    const arch = game.m?.arch || null;
-    const key = [z, dpr, bx, by, cols, rows, gates.map((g) => `${g.s}${g.i}`).join('.'),
-      towns.map(Number).join(''), arch ? `${arch.s}.${arch.i}` : '-'].join('|');
-    if (this.castleKey !== key) {
-      this.castleKey = key;
-      this.castleLayer ||= document.createElement('canvas');
-      const c = this.castleLayer;
-      c.width = Math.ceil((cols * z + pad * 2) * dpr);
-      c.height = Math.ceil((rows * z + pad * 2) * dpr);
+    const wall = city.wall;
+    const pad = 1;
+    const minX = Math.min(...wall.map((w) => w.x)) - pad, maxX = Math.max(...wall.map((w) => w.x)) + pad;
+    const minY = Math.min(...wall.map((w) => w.y)) - pad, maxY = Math.max(...wall.map((w) => w.y)) + pad;
+    const high = new Set((city.roads[0]?.gates || []).map((g) => `${g.x},${g.y},${g.s}`));
+    const sig = `${wall.map((w) => `${w.x},${w.y},${w.s}${w.gate ? 'g' : ''}`).join(';')}|${[...high].join(';')}`;
+    const key = `${z}|${dpr}|${sig}`;
+    const stretching = this.glide && this.cityWall?.sig === sig;
+    if (this.cityWall?.key !== key && !stretching) {
+      const c = this.cityWall?.canvas || document.createElement('canvas');
+      c.width = Math.ceil((maxX - minX + 1) * z * dpr);
+      c.height = Math.ceil((maxY - minY + 1) * z * dpr);
       const k = c.getContext('2d', { willReadFrequently: true });
       k.setTransform(dpr, 0, 0, dpr, 0, 0);
       k.clearRect(0, 0, c.width, c.height);
-      paintCastle(k, { z, x0: pad, y0: pad, cols, rows, gates, towns, arch });
+      paintCityWall(k, { z, ox: -minX * z, oy: -minY * z, wall, built: (x, y) => !!game.board.get(x, y), high });
       // The nib's wander over the whole wall, then the tooth of the paper.
       roughen(c, { amp: Math.max(0.6, z * dpr * 0.014), grain: (0.42 * z * dpr) / c.width });
       roughen(c, { amp: Math.max(0.3, z * dpr * 0.004), grain: (0.07 * z * dpr) / c.width });
-      this.castlePad = pad;
+      this.cityWall = { key, sig, canvas: c, z, minX, minY };
     }
-    const c = this.castleLayer;
-    this.ctx.drawImage(c, bx - this.castlePad, by - this.castlePad, c.width / dpr, c.height / dpr);
+    const W = this.cityWall;
+    const k = z / W.z;
+    const [bx, by] = this.toScreen(W.minX, W.minY);
+    this.ctx.drawImage(W.canvas, bx, by, (W.canvas.width / dpr) * k, (W.canvas.height / dpr) * k);
+  }
+
+  /**
+   * THE AQUEDUCT, a layer over Starà's city (the seventh pass), and the
+   * spring it rises from: each span drawn over whatever is under it, its
+   * shadow falling on the streets and roofs below.
+   */
+  drawAqueducts(game) {
+    const z = this.cam.zoom, dpr = window.devicePixelRatio || 1;
+    const sp = game.m.water.spring;
+    if (sp && this.onScreen(sp.x, sp.y)) {
+      const [sx, sy] = this.toScreen(sp.x, sp.y);
+      this.ctx.drawImage(springSprite(z * dpr), sx, sy, z + 0.5, z + 0.5);
+    }
+    for (const s of game.m.spansNow()) this.drawSpan(s.x, s.y, s.span, s.run);
+  }
+
+  /** One square of aqueduct, over whatever is there. `mask` is its span's sides. */
+  drawSpan(x, y, mask, run, alpha = 1) {
+    const z = this.cam.zoom, dpr = window.devicePixelRatio || 1;
+    const sides = [0, 1, 2, 3].filter((d) => mask & (1 << d));
+    const img = spanSprite(sides, run, z * dpr);
+    const [sx, sy] = this.toScreen(x - SPAN_PAD, y - SPAN_PAD);
+    const size = z * (1 + 2 * SPAN_PAD);
+    if (alpha !== 1) { this.ctx.save(); this.ctx.globalAlpha = alpha; }
+    this.ctx.drawImage(img, sx, sy, size, size);
+    if (alpha !== 1) this.ctx.restore();
   }
 
   /**
@@ -1571,12 +1628,16 @@ export class Renderer {
     if (p) {
       const [px, py] = this.toScreen(p.x, p.y);
       const z = this.cam.zoom;
-      this.paintTile(p.x, p.y, p.rot, game.tile, 'surface', this.cam.zoom, null, game.m.previewLook?.(p.x, p.y, p.rot) ?? game.board.seq);
-      // On the table, a ring drawn round it by hand, breathing, not marching.
+      const misfit = p.fits === false;
+      if (misfit) { ctx.save(); ctx.globalAlpha = 0.55; }
+      this.paintTile(p.x, p.y, p.rot, game.tile, 'surface', this.cam.zoom, null, (!misfit && game.m.previewLook?.(p.x, p.y, p.rot)) ?? game.board.seq);
+      if (misfit) ctx.restore();
+      // On the table, a ring drawn round it by hand, breathing, not marching;
+      // red where it was put but does not fit (the seventh pass: freeform).
       if (game.spec?.table) {
         const a = 0.75 + Math.sin(performance.now() / 300) * 0.2;
-        this.sketchBox(px + 1, py + 1, z - 2, `rgba(255,242,214,${a})`, seedOf(p.x, p.y, p.rot), 2.6);
-        this.drawCompany(game, p.x, p.y, p.rot);
+        this.sketchBox(px + 1, py + 1, z - 2, misfit ? '#c2412f' : `rgba(255,242,214,${a})`, seedOf(p.x, p.y, p.rot), misfit ? 3 : 2.6);
+        if (!misfit) this.drawCompany(game, p.x, p.y, p.rot);
         return;
       }
       ctx.save();
@@ -1693,26 +1754,29 @@ export class Renderer {
   }
 
   /**
-   * STARÀ'S PIECES (the sixth pass, 2026-11-27): a piece of one to four
-   * squares, lit wherever it could go, staged as a whole, and sealed with a
-   * hold. Lamplight on every square some way of laying it would cover; the
-   * staged piece drawn solid with a ring round its outline; what it would
-   * pay, by way and in each way's colour; and, while a finger is held on it,
-   * the wax seal forming (drawWaxSeal).
+   * STARÀ'S PIECES (the sixth pass, 2026-11-27; freeform since the seventh):
+   * a piece of one to four squares, lit wherever it could go turned the way
+   * it is, staged as a whole wherever it is put, and sealed with a hold.
+   * Lamplight on every square some way of laying it would cover; the staged
+   * piece drawn solid with a ring round its outline where it fits, and
+   * faint, ringed in red, where it does not; what it would pay, by way and
+   * in each way's colour; and, while a finger is held on it, the wax seal
+   * forming (drawWaxSeal). An aqueduct is drawn over the city, and a place
+   * staged under one has the aqueduct drawn back over it.
    */
   drawCityHints(game) {
     const ctx = this.ctx, z = this.cam.zoom;
     const glow = 0.18 + Math.sin(performance.now() / 520) * 0.05;
+    const p = this.pending;
     for (const k of game.m.litSquares()) {
       const [x, y] = k.split(',').map(Number);
       const [sx, sy] = this.toScreen(x, y);
-      ctx.fillStyle = `rgba(255,236,196,${glow})`;
+      ctx.fillStyle = `rgba(255,236,196,${p ? glow * 0.6 : glow})`;
       ctx.fillRect(sx + z * 0.07, sy + z * 0.07, z * 0.86, z * 0.86);
-      this.sketchBox(sx + z * 0.08, sy + z * 0.08, z * 0.84, 'rgba(255,240,212,0.78)', seedOf(x, y, 5), 1.4);
+      this.sketchBox(sx + z * 0.08, sy + z * 0.08, z * 0.84, `rgba(255,240,212,${p ? 0.45 : 0.78})`, seedOf(x, y, 5), 1.4);
     }
-    const p = this.pending;
     if (p) {
-      const pv = game.m.preview(p.x, p.y, p.rot);
+      const pv = game.m.preview(p.ax, p.ay, p.rot);
       if (!pv) return;
       const sealing = this.sealing && this.sealing.kind === 'seal' ? this.sealing : null;
       const t = sealing ? Math.max(0, Math.min(1, (performance.now() - sealing.t0) / sealing.dur)) : 0;
@@ -1723,38 +1787,46 @@ export class Renderer {
         const [cx, cy] = this.pieceCentre(pv.cells);
         ctx.translate(cx, cy); ctx.scale(press, press); ctx.translate(-cx, -cy);
       }
-      for (const c of pv.cells) this.paintTile(c.x, c.y, c.rot, c.type, 'surface', z, null, c.look);
+      this.paintStaged(game, pv, pv.fits ? 1 : 0.55);
       ctx.restore();
+      if (!pv.fits) {
+        this.outlinePiece(pv.cells, '#c2412f', Math.max(3, z * 0.05), seedOf(p.ax, p.ay, p.rot));
+        return;
+      }
       const a = 0.75 + Math.sin(performance.now() / 300) * 0.2;
-      if (!sealing) this.outlinePiece(pv.cells, `rgba(255,242,214,${a})`, 2.6, seedOf(p.x, p.y, p.rot));
+      if (!sealing) this.outlinePiece(pv.cells, `rgba(255,242,214,${a})`, 2.6, seedOf(p.ax, p.ay, p.rot));
       this.drawWays(game, pv);
       return;
     }
+    // A mouse over the table, nothing staged: the piece where a click would put it.
     const h = this.hover;
-    if (!h) return;
-    const pv = game.m.preview(h.x, h.y, game.rot);
-    if (pv) {
-      ctx.save();
-      ctx.globalAlpha = 0.92;
-      for (const c of pv.cells) this.paintTile(c.x, c.y, c.rot, c.type, 'surface', z, null, c.look);
-      ctx.restore();
-      this.outlinePiece(pv.cells, THEME.gold, 3, seedOf(h.x, h.y, 3));
-      this.drawWays(game, pv);
+    if (!h || !this.pointer) return;
+    const at = game.m.stageAt(h.x, h.y, game.rot);
+    const pv = at && game.m.preview(at.ax, at.ay, at.rot);
+    if (!pv) return;
+    ctx.save();
+    this.paintStaged(game, pv, pv.fits ? 0.92 : 0.32);
+    ctx.restore();
+    this.outlinePiece(pv.cells, pv.fits ? THEME.gold : '#a8443a', 3, seedOf(h.x, h.y, 3));
+    if (pv.fits) this.drawWays(game, pv);
+  }
+
+  /** A piece not yet laid, as it would look: its squares, or its spans over the city. */
+  paintStaged(game, pv, alpha) {
+    const ctx = this.ctx, z = this.cam.zoom;
+    if (pv.above) {
+      for (const c of pv.cells) this.drawSpan(c.x, c.y, c.span, c.run, alpha);
       return;
     }
-    // Over an empty square it cannot go on: the piece, faint, ringed in red,
-    // as far as it stays inside the wall.
-    if (game.board.get(h.x, h.y) || !game.board.inBounds(h.x, h.y)) return;
-    const cells = game.m.shape(game.rot).map((c) => ({ ...c }));
-    if (!cells.length) return;
-    const grip = cells.reduce((a, c) => a + c.dx, 0) / cells.length, gripY = cells.reduce((a, c) => a + c.dy, 0) / cells.length;
-    const ox = h.x - Math.round(grip), oy = h.y - Math.round(gripY);
-    const inside = cells.filter((c) => game.board.inBounds(ox + c.dx, oy + c.dy));
     ctx.save();
-    ctx.globalAlpha = 0.32;
-    for (const c of inside) this.paintTile(ox + c.dx, oy + c.dy, c.rot, TILES[c.type], 'surface', z, null, '');
+    ctx.globalAlpha *= alpha;
+    for (const c of pv.cells) this.paintTile(c.x, c.y, c.rot, c.type, 'surface', z, null, c.look);
     ctx.restore();
-    this.outlinePiece(inside.map((c) => ({ x: ox + c.dx, y: oy + c.dy })), '#a8443a', 3, 7);
+    // The aqueduct stays on top of anything staged under it.
+    for (const c of pv.cells) {
+      const s = game.m.water.spans.get(`${c.x},${c.y}`);
+      if (s) this.drawSpan(s.x, s.y, s.span, game.m.city.running.has(`${s.x},${s.y}`));
+    }
   }
 
   /** The middle of a piece's squares on screen, or of square `at` of it. */
@@ -1795,11 +1867,11 @@ export class Renderer {
    * different way should be clearly color coded"). Each way has its colour
    * (stara-city.js, WAYS), and everything that pays is lit in it:
    *
-   *   - the squares round it it likes, ringed in green, and dislikes, in red;
-   *     the different places round a plaza, dotted in violet;
-   *   - its sides on the town wall, a black bar along the wall;
-   *   - a drop of blue on each of its squares the water reaches;
-   *   - each place round it whose worth changes, its +n or −n in the colour
+   *   - the plaza beside a house, ringed in green; the cathedral, in violet;
+   *     a drop of blue on each house the water reaches;
+   *   - the wall it adds, a black bar along each new stretch, gold-pinned
+   *     where a street runs out through it (a gate, which costs more);
+   *   - each square round it whose worth changes, its +n or −n in the colour
    *     of the way that changed most;
    *   - and on the piece a wax tag with the whole difference it makes, over
    *     a row of chips, one per way, each in its colour.
@@ -1826,49 +1898,48 @@ export class Renderer {
       ctx.restore();
       return w;
     };
-    const signed = (n) => (n > 0 ? `+${n}` : `−${Math.abs(n)}`);
-    // Where its own points come from.
+    const signed = (n) => (n > 0 ? `+${n}` : n < 0 ? `−${Math.abs(n)}` : '±0');
+    // Where its houses' points come from.
     const ringed = new Set();
     for (const f of pv.from) {
-      const [sx, sy] = this.toScreen(f.x, f.y);
-      if (f.way === 'wall') {
-        const W = Math.max(3, z * 0.07);
-        ctx.fillStyle = WAY.wall.colour;
-        ctx.globalAlpha = 0.85;
-        if (f.s === 0) ctx.fillRect(sx + z * 0.1, sy - W * 0.2, z * 0.8, W);
-        if (f.s === 2) ctx.fillRect(sx + z * 0.1, sy + z - W * 0.8, z * 0.8, W);
-        if (f.s === 3) ctx.fillRect(sx - W * 0.2, sy + z * 0.1, W, z * 0.8);
-        if (f.s === 1) ctx.fillRect(sx + z - W * 0.8, sy + z * 0.1, W, z * 0.8);
-        ctx.globalAlpha = 1;
+      if (f.way === 'water') {
+        const [hx, hy] = f.for.split(',').map(Number);
+        const [sx, sy] = this.toScreen(hx, hy);
+        this.drop(sx + z * 0.8, sy + z * 0.24, Math.max(4, z * 0.08));
         continue;
       }
       const k = `${f.x},${f.y}|${f.way}`;
       if (ringed.has(k) || own.has(`${f.x},${f.y}`)) continue;
       ringed.add(k);
-      if (f.way === 'variety') {
+      const [sx, sy] = this.toScreen(f.x, f.y);
+      this.sketchBox(sx + z * 0.12, sy + z * 0.12, z * 0.76, WAY[f.way].colour, seedOf(f.x, f.y, 11), Math.max(2.5, z * 0.05));
+    }
+    // The wall it adds.
+    const W = Math.max(3, z * 0.08);
+    for (const w of pv.wallAdded || []) {
+      const [sx, sy] = this.toScreen(w.x, w.y);
+      ctx.fillStyle = WAY.wall.colour;
+      ctx.globalAlpha = 0.85;
+      const r = [[sx + z * 0.08, sy - W * 0.5, z * 0.84, W], [sx + z - W * 0.5, sy + z * 0.08, W, z * 0.84],
+        [sx + z * 0.08, sy + z - W * 0.5, z * 0.84, W], [sx - W * 0.5, sy + z * 0.08, W, z * 0.84]][w.s];
+      ctx.fillRect(...r);
+      ctx.globalAlpha = 1;
+      if (w.gate) {
         ctx.beginPath();
-        ctx.arc(sx + z * 0.82, sy + z * 0.82, Math.max(3.5, z * 0.07), 0, Math.PI * 2);
-        ctx.fillStyle = WAY.variety.colour;
+        ctx.arc(r[0] + r[2] / 2, r[1] + r[3] / 2, W * 0.9, 0, Math.PI * 2);
+        ctx.fillStyle = WAY.roads.colour;
         ctx.fill();
-        ctx.lineWidth = 1.5; ctx.strokeStyle = '#fff1d6'; ctx.stroke();
-        continue;
-      }
-      this.sketchBox(sx + z * 0.12, sy + z * 0.12, z * 0.76, f.v > 0 ? WAY.near.colour : LOSS.colour, seedOf(f.x, f.y, 11), Math.max(2.5, z * 0.05));
-    }
-    if (pv.ways.water > 0) {
-      for (const c of pv.cells) {
-        if (!game.m.city || !pv.wet) break;
-        const [sx, sy] = this.toScreen(c.x, c.y);
-        this.drop(sx + z * 0.8, sy + z * 0.2, Math.max(4, z * 0.08));
+        ctx.lineWidth = 1.5; ctx.strokeStyle = WAY.wall.colour; ctx.stroke();
       }
     }
-    // The places round it whose worth would change.
+    // The squares round it whose worth would change.
     for (const c of pv.changes) {
+      if (own.has(`${c.x},${c.y}`)) continue;
       let near = pv.cells[0], d = Infinity;
       for (const o of pv.cells) { const e = (o.x - c.x) ** 2 + (o.y - c.y) ** 2; if (e < d) { d = e; near = o; } }
       const [cx, cy] = this.toScreen(near.x + 0.5, near.y + 0.5);
       const [nx, ny] = this.toScreen(c.x + 0.5, c.y + 0.5);
-      const way = c.d < 0 ? LOSS : WAY[c.way] || WAY.near;
+      const way = c.d < 0 ? LOSS : WAY[c.way] || WAY.houses;
       tag(cx + (nx - cx) * 0.62, cy + (ny - cy) * 0.62, signed(c.d), way.colour, way.ink, Math.max(8, z * 0.14));
     }
     // On the piece: the whole difference, and under it the ways.
@@ -1880,7 +1951,7 @@ export class Renderer {
     let x = sx + z * 0.08;
     const rc = Math.max(7, z * 0.115);
     for (const [id, v] of chips) {
-      const way = v < 0 ? { colour: LOSS.colour, ink: LOSS.ink } : WAY[id];
+      const way = v < 0 && id !== 'wall' ? { colour: LOSS.colour, ink: LOSS.ink } : WAY[id];
       ctx.save();
       ctx.font = font(rc * 1.05);
       const w = Math.max(rc * 2, ctx.measureText(signed(v)).width + rc * 0.8);

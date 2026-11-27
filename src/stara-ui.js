@@ -42,6 +42,27 @@
 //   - the day's plan is under the title from the first turn, and once the day
 //     is over the charter can show it on the table.
 //
+// The seventh pass (2026-11-27, later): "You should be able to pick up and
+// place and drag tiles as you see fit instead of having to tap somewhere else
+// once they're already played to move them ... really freeform for the most
+// part. And then ... tapping and holding still seals them ... because we now
+// have Tetris pieces, I think we should probably have the rotate button ...
+// an additional rotate button somewhere on the bottom". And "the tap and
+// hold to place should be a bit faster". So:
+//
+//   - a piece is DRAGGED: from its card onto the table, or about the table
+//     once it is there, held by the square your finger took it by; it goes
+//     wherever it is put, drawn in red where it does not fit (and snapped,
+//     when it is let go, to the nearest way it fits under the finger, if
+//     there is one); dragged back onto the tray, it goes back in your hand;
+//   - a TAP on the table puts it there; a tap on it still turns it;
+//   - two TURN buttons: one floating beside the staged piece, one in the tray
+//     beside the hand, which turns the piece whether it is in hand or down;
+//   - the seal sets in about 0.6 s, not 1;
+//   - the table is open (there is no border), and the screen keeps the whole
+//     city in view as it grows, easing out to it after each piece;
+//   - the day's cast is gone, and with it the tags at the square's corners.
+//
 // Giardino (2026-11-22) plays on the same screen: a garden wall for the
 // castle (garden.js), no sizes, the week under the title, and a SEED PACKET
 // under the hand saying what the plant held up needs and who it likes and
@@ -51,10 +72,10 @@
 // a click in the workshop would.
 // ---------------------------------------------------------------------------
 
-import { STARA_KINDS, STARA_SIZES, CAST, PLACES, WAYS, WAY, turnPiece, lookString } from './modes/stara.js';
+import { STARA_KINDS, STARA_SIZES, WAYS, WAY, turnPiece, tagged, lookString } from './modes/stara.js';
 import { GIARDINO_KINDS, PLANTS } from './modes/giardino.js';
 import { CASTLE, keepSprite } from './castle.js';
-import { citySprite } from './city.js';
+import { citySprite, spanSprite, SPAN_PAD } from './city.js';
 import { usePalette } from './theme.js';
 import { TILES } from './tiles.js';
 
@@ -63,17 +84,9 @@ const TILES_OF = (id) => TILES[id];
 const $ = (id) => document.getElementById(id);
 // Today's best, per size: the 7 x 7 keeps the key it has had since day 1.
 const BEST = (mode, iso) => `tilemakers-workshop/${mode}/best/${iso}`;
-const TAUGHT = 'tilemakers-workshop/stara/taught';
+// The seventh pass changed how a piece is handled, so everyone is taught again.
+const TAUGHT = 'tilemakers-workshop/stara/taught7';
 
-/** A small emblem for each kind of the day's cast, drawn in ink on its tag (20 x 20). */
-const EMBLEMS = {
-  faith: '<path d="M10 2 V18 M5 7 H15"/>',
-  defence: '<path d="M4 17 V6 H6 V4 H8 V6 H12 V4 H14 V6 H16 V17 Z M9 17 V13 H11 V17"/>',
-  industry: '<circle cx="10" cy="10" r="6"/><path d="M10 2 V18 M2 10 H18 M4.5 4.5 L15.5 15.5 M15.5 4.5 L4.5 15.5"/>',
-  wonder: '<path d="M10 2 L12 8 L18 8 L13 12 L15 18 L10 14 L5 18 L7 12 L2 8 L8 8 Z"/>',
-};
-/** Each kind's tincture, for its tag's underline. */
-const TINCTURES = { faith: '#3e66b0', defence: '#b23a2c', industry: '#d9a338', wonder: '#7b4f93' };
 const DRAG_PX = 10;
 
 /**
@@ -81,9 +94,13 @@ const DRAG_PX = 10;
  * starts to run after WAIT, short enough that a hold shows itself at once
  * (2026-11-27: "so you can tell that like holding does something") and long
  * enough that a quick tap barely flickers it; the piece is sealed SEAL after
- * that, about a second in all. Lifting a piece takes a little less.
+ * that. About 0.6 s in all since the seventh pass ("the tap and hold to
+ * place should be a bit faster"; it was a second). Lifting takes as long.
  */
-const TAP = 220, WAIT = 70, SEAL = 950, LIFT = 800;
+const TAP = 200, WAIT = 60, SEAL = 560, LIFT = 560;
+
+/** Squares of open table kept in view round the city, for laying the next piece beyond it. */
+const MARGIN = 1;
 
 /** localStorage that never throws: a private window just forgets. */
 const store = {
@@ -137,6 +154,13 @@ export function drawPiece(ctx, piece, rot, px) {
     const type = TILES[c.type];
     const x = ox + c.dx * cs, y = oy + c.dy * cs;
     if (type.keep) { ctx.drawImage(keepSprite(cs), x, y, cs + 0.5, cs + 0.5); continue; }
+    if (type.above) {
+      // An aqueduct, drawn on nothing, as it will stand over the city.
+      const sides = (type.span || []).map((d) => (d + c.rot) % 4);
+      const pad = SPAN_PAD * cs;
+      ctx.drawImage(spanSprite(sides, false, cs), x - pad, y - pad, cs + pad * 2, cs + pad * 2);
+      continue;
+    }
     let joined = '';
     for (let s = 0; s < 4; s++) if (own.has(`${c.dx + step[s][0]},${c.dy + step[s][1]}`)) joined += s;
     ctx.drawImage(citySprite(type, c.rot, lookString(type.place, '', joined, piece.id), cs), x, y, cs + 0.5, cs + 0.5);
@@ -158,7 +182,6 @@ export class StaraUI {
     this.layoutKey = '';
     this.press = null;         // a finger on a card: tap, or the start of a drag
     this.held = null;          // a finger held on the board: sealing, or lifting
-    this.swallowNext = false;  // the release that ended a hold is not a tap
     this.wire();
   }
 
@@ -196,6 +219,11 @@ export class StaraUI {
       const el = e.target?.nodeType === 1 ? e.target : e.target?.parentElement;
       if (this.on && el?.closest?.('#stage')) e.preventDefault();
     });
+    // The two turn buttons (the seventh pass): beside the staged piece, and in the tray.
+    for (const id of ['staraTurn', 'staraRotate']) {
+      $(id).addEventListener('pointerdown', (e) => e.stopPropagation());
+      $(id).onclick = (e) => { e.preventDefault(); this.turn(1); };
+    }
     $('staraMenu').onclick = () => this.togglePanel();
     $('staraAgain').onclick = () => this.h.newGame(this.game.mode);
     $('staraShare').onclick = () => this.share();
@@ -245,41 +273,58 @@ export class StaraUI {
     $('staraPile').textContent = g.deck.length;
     $('staraPileWrap').title = `${g.deck.length} ${this.city ? 'pieces' : 'tiles'} left in the pile`;
     this.drawHand();
-    this.drawCast();
-    this.drawAhead();
     this.drawStuck();
+    this.placeTurn();
     this.showEnd();
   }
 
   /**
-   * The square fills the band between the top bar and the tray, as big as
-   * fits, and stays exactly there: no panning, no zoom. Starà is a phone
-   * screen's worth of table, and you should never have to look for it.
+   * The board fills the band between the top bar and the tray, as big as
+   * fits, and stays exactly there: no panning, no zoom by hand. Giardino's
+   * square is fitted edge to edge. Starà's city has no border (the seventh
+   * pass), so the screen keeps the whole of it in view, the spring and the
+   * aqueduct with it and MARGIN squares of open table round it, never less
+   * than its plan's size and two; when the city grows past that, the camera
+   * eases out to it after the piece is sealed, never while you are placing.
    */
   fit(force = false) {
     const stage = $('stage').getBoundingClientRect();
     const top = $('staraTop').getBoundingClientRect().height;
     const tray = $('staraTray').getBoundingClientRect().height;
-    const b = this.game.board.bounds;
-    const key = [stage.width, stage.height, top, tray, b.maxX - b.minX].join('|');
-    if (!force && key === this.layoutKey) return;
-    this.layoutKey = key;
+    const g = this.game;
     const r = this.h.renderer;
-    const across = b.maxX - b.minX + 1, down = b.maxY - b.minY + 1;
-    // Edge to edge (2026-11-18: "push the square to the edge of the left and
-    // right"): the castle's corner towers touch the sides of the screen. Room
-    // is kept above and below for the cast's tags.
-    const gutter = 30;
-    const reach = CASTLE.reach * 2;
+    const open = this.city && g.m.extent;
+    const b = open ? g.m.extent() : g.board.bounds;
+    const key = [stage.width, stage.height, top, tray, b.minX, b.maxX, b.minY, b.maxY].join('|');
+    if (!force && key === this.layoutKey) return;
+    if (this.held?.dragging || this.press?.dragging) return;       // never while a piece is in the hand
+    const first = !this.layoutKey || force;
+    this.layoutKey = key;
+    let across = b.maxX - b.minX + 1, down = b.maxY - b.minY + 1;
+    let gutter, reach;
+    if (open) {
+      const least = g.m.side + 2;
+      across = Math.max(least, across + MARGIN * 2);
+      down = Math.max(least, down + MARGIN * 2);
+      gutter = 8;
+      reach = 0;
+    } else {
+      // Edge to edge (2026-11-18: "push the square to the edge of the left
+      // and right"): the wall's corner towers touch the sides of the screen.
+      gutter = 30;
+      reach = CASTLE.reach * 2;
+    }
     const availW = stage.width;
     const availH = stage.height - top - tray - gutter * 2;
-    const zoom = Math.floor(Math.min(availW / (across + reach), availH / (down + reach)));
-    r.cam.zoom = Math.max(24, Math.min(150, zoom));
+    const zoom = Math.max(24, Math.min(150, Math.floor(Math.min(availW / (across + reach), availH / (down + reach)))));
     const midY = top + gutter + availH / 2;
-    r.cam.x = (b.minX + b.maxX + 1) / 2;
-    r.cam.y = (b.minY + b.maxY + 1) / 2 - (midY - stage.height / 2) / r.cam.zoom;
-    r.glide = null;
-    this.quarterKey = '';
+    const x = (b.minX + b.maxX + 1) / 2;
+    const y = (b.minY + b.maxY + 1) / 2 - (midY - stage.height / 2) / zoom;
+    if (first || !open) {
+      r.cam.zoom = zoom; r.cam.x = x; r.cam.y = y; r.glide = null;
+    } else {
+      r.glide = { x0: r.cam.x, y0: r.cam.y, x1: x, y1: y, z0: r.cam.zoom, z1: zoom, t0: performance.now(), dur: 420 };
+    }
   }
 
   /** Fit again on the next sync: a new game, or the window changed. */
@@ -400,8 +445,8 @@ export class StaraUI {
     if (this.taughtFor !== key) { this.taughtFor = key; store.set(TAUGHT, String(taught + 1)); }
     if (taught >= 10) return '';
     const it = this.city ? 'piece' : 'tile';
-    return pending ? `Tap the ${it} to turn it. Hold it down to seal it.`
-      : `Touch a lit square to put the ${it} there. Tap a card to turn it.`;
+    return pending ? `Drag the ${it} where you like, turn it with the button, and hold it still to seal it.`
+      : `Drag a card onto the table, or touch a lit square to put the ${it} there.`;
   }
 
   /**
@@ -462,51 +507,89 @@ export class StaraUI {
     $('staraTray').classList.toggle('stuck', stuck);
   }
 
-  // --- the day's cast -----------------------------------------------------------
+  // --- turning ------------------------------------------------------------------
 
   /**
-   * A tag at each corner of the square, above it for the first two and below
-   * it for the last two: the kind's emblem and the place the day dealt for
-   * it. Placed when the layout changes.
+   * Turn the piece held up a quarter: on the table, about the square it is
+   * held by (it shows in red if it no longer fits there); in hand, as it
+   * will go down. The turn buttons, the tap on a staged piece, R and a right
+   * click all come here.
    */
-  drawCast() {
-    const g = this.game, b = g.board.bounds, r = this.h.renderer;
-    const host = $('staraQuarters');
-    if (!g.m.cast || !this.city) { host.innerHTML = ''; this.castKey = ''; return; }
-    const layout = `${this.layoutKey}|${g.mode}|${JSON.stringify(g.m.cast)}`;
-    if (this.castKey === layout) return;
-    this.castKey = layout;
-    const stage = $('stage').getBoundingClientRect();
-    const cv = r.canvas.getBoundingClientRect();
-    const ox = cv.left - stage.left, oy = cv.top - stage.top;
-    const z = r.cam.zoom;
-    const [x0, y0] = r.toScreen(b.minX, b.minY), [x1, y1] = r.toScreen(b.maxX + 1, b.maxY + 1);
-    const reach = CASTLE.reach * z;
-    const at = [[x0, y0 - reach, 'n', true], [x1, y0 - reach, 'n', false], [x0, y1 + reach, 's', true], [x1, y1 + reach, 's', false]];
-    host.innerHTML = CAST.map((c, i) => {
-      const place = PLACES[g.m.cast[c.id]];
-      const [x, y, side, west] = at[i];
-      const style = `${west ? 'left' : 'right'}:${west ? ox + x + 4 : stage.width - (ox + x) + 4}px;`
-        + `${side === 'n' ? 'bottom' : 'top'}:${side === 'n' ? stage.height - (oy + y) + 2 : oy + y + 2}px`;
-      return `<div class="staraQuarter" data-kind="${c.id}" style="${style};--q:${TINCTURES[c.id]}" title="Today's ${c.name.toLowerCase()}: ${place.name.toLowerCase()}. ${place.about}">`
-        + `<svg viewBox="0 0 20 20" aria-hidden="true">${EMBLEMS[c.id]}</svg>`
-        + `<span class="name">${place.name}</span></div>`;
-    }).join('');
+  turn(dir = 1) {
+    const g = this.game;
+    if (!this.on || g.phase !== 'place' || !g.tile) return false;
+    const p = this.h.pending();
+    if (!p) {
+      g.rotate(dir);
+      this.h.sound?.('rotate');
+      this.h.sync();
+      return true;
+    }
+    if (this.city) {
+      const st = g.m.turnStaged(p, dir);
+      if (!st) return false;
+      g.rot = st.rot;
+      this.h.setPending({ ...p, ...st });
+    } else {
+      const rot = (p.rot + dir + 4) % 4;
+      g.rot = rot;
+      this.h.setPending({ ...p, rot, fits: this.h.legal(p.x, p.y).includes(rot) });
+    }
+    this.h.sound?.('rotate');
+    return true;
   }
 
   /**
-   * THE WIZARD'S SIGHT: while a wizard's tower stands, the next pieces in the
-   * pile face up beside it, smallest last, so luck becomes something to plan.
+   * The turn button beside the staged piece: just off its upper right
+   * corner (its upper left, if that would leave the screen), and hidden
+   * while nothing is staged or a piece is being dragged.
    */
-  drawAhead() {
-    const g = this.game, host = $('staraAhead');
-    const ahead = this.city && g.phase === 'place' ? g.m.ahead() : [];
-    const key = ahead.join('.');
-    if (host.dataset.key === key) return;
-    host.dataset.key = key;
-    host.hidden = !ahead.length;
-    host.innerHTML = ahead.map((id, i) => `<canvas width="${i ? 64 : 84}" height="${i ? 64 : 84}" title="${i ? 'After that' : 'Next'}: ${g.m.nameOf(id)}"></canvas>`).join('');
-    [...host.children].forEach((cv, i) => drawPiece(cv.getContext('2d'), g.m.pieces[ahead[i]], 0, cv.width));
+  placeTurn() {
+    const btn = $('staraTurn');
+    const g = this.game, p = this.h.pending();
+    const show = this.on && g.phase === 'place' && !!p && !this.held?.dragging && !this.press?.dragging;
+    $('staraRotate').hidden = !(this.on && g.phase === 'place' && g.tile);
+    if (!show) { btn.hidden = true; return; }
+    const cells = this.pendingCells();
+    const r = this.h.renderer;
+    const stage = $('stage').getBoundingClientRect(), cv = r.canvas.getBoundingClientRect();
+    const maxX = Math.max(...cells.map((c) => c.x)) + 1, minX = Math.min(...cells.map((c) => c.x));
+    const minY = Math.min(...cells.map((c) => c.y));
+    let [sx, sy] = r.toScreen(maxX, minY);
+    sx += cv.left - stage.left + 6;
+    sy += cv.top - stage.top - 22;
+    if (sx + 48 > stage.width) sx = r.toScreen(minX, minY)[0] + cv.left - stage.left - 50;
+    btn.style.left = `${Math.round(sx)}px`;
+    btn.style.top = `${Math.round(Math.max(sy, $('staraTop').getBoundingClientRect().height + 4))}px`;
+    btn.hidden = false;
+  }
+
+  /** Is this pointer over the tray (where a piece goes back into the hand)? */
+  overTray(e) { return e.clientY >= $('staraTray').getBoundingClientRect().top; }
+
+  /**
+   * Put the held piece on the table over (x, y), held by square `grip` of it,
+   * turned `rot`: staged there whether it fits or not (freeform), and with
+   * `magnet`, moved to the nearest way it fits under (x, y) if there is one.
+   * In the garden a plant is one square, kept inside the wall, and a tap
+   * turns it to a way it fits if the way it is held does not.
+   */
+  put(x, y, { grip = null, magnet = true, rot = this.game.rot } = {}) {
+    const g = this.game;
+    if (g.phase !== 'place' || !g.tile) return false;
+    if (this.city) {
+      const st = g.m.stageAt(x, y, rot, { grip, magnet });
+      if (!st) return false;
+      g.rot = st.rot;
+      this.h.setPending({ x: st.x, y: st.y, rot: st.rot, rots: [0, 1, 2, 3], ax: st.ax, ay: st.ay, grip: st.grip, fits: st.fits });
+      return true;
+    }
+    if (!g.board.inBounds(x, y) || g.board.get(x, y)) return false;
+    const rots = this.h.legal(x, y);
+    const turned = magnet && rots.length && !rots.includes(rot) ? rots[0] : rot;
+    g.rot = turned;
+    this.h.setPending({ x, y, rot: turned, rots: [0, 1, 2, 3], fits: rots.includes(turned) });
+    return true;
   }
 
   // --- touching the cards -----------------------------------------------------
@@ -530,6 +613,16 @@ export class StaraUI {
   /** The card a finger is on (by its place in the hand, which the redraw keeps). */
   cardAt(i) { return $('staraCards').querySelector(`.staraCard[data-i="${i}"]`); }
 
+  /** The square of the table under a pointer, if it is over the table and not the tray. */
+  tableCell(e) {
+    const r = this.h.renderer, cv = r.canvas.getBoundingClientRect();
+    const inside = e.clientX >= cv.left && e.clientX <= cv.right && e.clientY >= cv.top && e.clientY <= cv.bottom;
+    if (!inside || this.overTray(e) || e.clientY <= $('staraTop').getBoundingClientRect().bottom) return null;
+    const c = r.cellAt(e.clientX - cv.left, e.clientY - cv.top);
+    if (!this.city && !this.game.board.inBounds(c.x, c.y)) return null;
+    return c;
+  }
+
   move(e) {
     const p = this.press;
     if (!p || p.id !== e.pointerId) return;
@@ -540,45 +633,46 @@ export class StaraUI {
       p.dragging = true;
       if (this.h.pending()) this.h.clear();
       wrap.classList.add('lifted');
+      this.placeTurn();
     }
     if (!p.dragging) return;
     // Picked up, the card shrinks to the size its piece will be on the board
-    // and follows the finger; over the square it hands over to the board's
-    // own ghost, which snaps to the square it would land on.
+    // and follows the finger; over the table the piece itself is put down
+    // under the finger, square by square, fitting or not, and the card
+    // steps aside for it.
     const r = this.h.renderer;
     const span = Number(wrap.dataset.span || 1);
     wrap.style.translate = `${dx}px ${dy}px`;
     wrap.style.scale = String(Math.min(1, (r.cam.zoom * span) / wrap.offsetWidth));
-    const cv = r.canvas.getBoundingClientRect();
-    const inside = e.clientX >= cv.left && e.clientX <= cv.right && e.clientY >= cv.top && e.clientY <= cv.bottom;
-    const cell = inside ? r.cellAt(e.clientX - cv.left, e.clientY - cv.top) : null;
-    const onSquare = cell && this.game.board.inBounds(cell.x, cell.y);
-    // Over a square it fits but not the way it is held, it turns to fit,
-    // which is what dropping it there would do anyway (see stagePending).
-    if (onSquare) {
-      const rots = this.h.legal(cell.x, cell.y);
-      if (rots.length && !rots.includes(this.game.rot)) this.game.rot = rots[0];
+    const cell = this.tableCell(e);
+    if (cell && (cell.x !== p.last?.x || cell.y !== p.last?.y)) {
+      p.last = cell;
+      this.put(cell.x, cell.y, { magnet: false });
+    } else if (!cell && p.last) {
+      p.last = null;
+      this.h.clear();
     }
-    r.hover = onSquare ? cell : null;
-    wrap.classList.toggle('snapped', !!onSquare);
+    wrap.classList.toggle('snapped', !!cell);
   }
 
   up(e) {
     const p = this.press;
     if (!p || p.id !== e.pointerId) return;
-    const r = this.h.renderer;
     if (!p.dragging) {
       this.press = null;
       // A touch on the card already held up turns it; on another, it was
       // held up by the touch, and that is all.
-      if (!p.picked) this.game.rotate(1);
+      if (!p.picked) this.turn(1);
       this.h.sync();
       return;
     }
-    const drop = r.hover;
+    const cell = this.tableCell(e);
     this.cancelDrag();
-    if (drop && this.h.stage(drop.x, drop.y)) return;
-    this.h.deny(drop);
+    // Let go over the table, it stays there, snapped to a way it fits under
+    // the finger if it has one; anywhere else, it is back in your hand.
+    if (cell) this.put(cell.x, cell.y, { grip: this.h.pending()?.grip ?? null, magnet: true });
+    else if (this.h.pending()) this.h.clear();
+    this.h.sync();
   }
 
   cancelDrag() {
@@ -588,22 +682,28 @@ export class StaraUI {
       card.style.translate = '';
       card.style.scale = '';
     }
-    if (this.press?.dragging) this.h.renderer.hover = null;
     this.press = null;
   }
 
-  // --- holding on the board -----------------------------------------------------
+  // --- touching the table -------------------------------------------------------
 
   /** The squares the staged piece stands on, or the staged tile's one. */
   pendingCells() {
     const p = this.h.pending();
     if (!p) return [];
     if (!this.city) return [{ x: p.x, y: p.y }];
-    return this.game.m.preview(p.x, p.y, p.rot)?.cells || [{ x: p.x, y: p.y }];
+    return this.game.m.preview(p.ax, p.ay, p.rot)?.cells || [{ x: p.x, y: p.y }];
   }
 
-  /** Is (x, y) under the staged piece? A tap there turns it, wherever on it. */
+  /** Is (x, y) under the staged piece? */
   inPending(c) { return !!c && this.pendingCells().some((s) => s.x === c.x && s.y === c.y); }
+
+  /** Which of the held piece's own squares is on (x, y), staged as `p`. */
+  gripAt(p, c) {
+    if (!this.city) return null;
+    const sq = tagged(this.game.m.held, p.rot).find((k) => p.ax + k.dx === c.x && p.ay + k.dy === c.y);
+    return sq ? sq.i : p.grip;
+  }
 
   cellUnder(e) {
     const r = this.h.renderer, cv = r.canvas.getBoundingClientRect();
@@ -611,59 +711,97 @@ export class StaraUI {
   }
 
   /**
-   * A finger down on the board. On the staged piece it may be the start of a
-   * seal; on a piece already down (in the city), the start of a lift. Which
-   * it is depends on how long it stays: see boardUp.
+   * A finger down on the table. On the staged piece it is the start of a
+   * seal if it stays still (where the piece fits), a drag if it moves, and
+   * a turn if it comes straight up. On a piece already down (in the city,
+   * with nothing staged) it is the start of a lift, or, quick, a tap. Anywhere
+   * else, a tap puts the piece there. main.js leaves the table to this
+   * while Starà or Giardino is on.
    */
   boardDown(e) {
     const g = this.game;
-    this.swallowNext = false;
     if (!this.on) return;
     // Anything a long press elsewhere left selected goes.
     try { window.getSelection?.()?.removeAllRanges(); } catch { /* nothing selected */ }
-    if (g.phase !== 'place' || this.held) return;
+    if (g.phase !== 'place' || this.held || !g.tile) return;
     const c = this.cellUnder(e);
     const now = performance.now();
     const r = this.h.renderer;
-    if (this.inPending(c)) {
-      this.held = { id: e.pointerId, kind: 'seal', x: e.clientX, y: e.clientY, t0: now, at: c };
-      r.sealing = { kind: 'seal', t0: now + WAIT, dur: SEAL, at: c, cells: this.pendingCells() };
-      this.holdTimer = setTimeout(() => this.finishHold(), WAIT + SEAL);
+    const p = this.h.pending();
+    const base = { id: e.pointerId, x: e.clientX, y: e.clientY, t0: now, at: c };
+    if (p && this.inPending(c)) {
+      this.held = { ...base, kind: 'staged', grip: this.gripAt(p, c) };
+      if (p.fits !== false) {
+        r.sealing = { kind: 'seal', t0: now + WAIT, dur: SEAL, at: c, cells: this.pendingCells() };
+        this.holdTimer = setTimeout(() => this.finishHold(), WAIT + SEAL);
+      } else {
+        // Where it does not fit, holding cannot seal it: say so, once.
+        this.holdTimer = setTimeout(() => { if (this.held && !this.held.dragging) { this.held.denied = true; this.h.deny(c); } }, WAIT + SEAL * 0.5);
+      }
       return;
     }
-    const id = this.city && !this.h.pending() ? g.m.pieceAt(c.x, c.y) : null;
+    const id = this.city && !p ? g.m.pieceAt(c.x, c.y) : null;
     if (id != null) {
-      this.held = { id: e.pointerId, kind: 'lift', piece: id, x: e.clientX, y: e.clientY, t0: now, at: c };
+      this.held = { ...base, kind: 'lift', piece: id };
       r.sealing = { kind: 'lift', t0: now + WAIT, dur: LIFT, at: c, cells: g.m.squaresOf(id) };
       this.holdTimer = setTimeout(() => this.finishHold(), WAIT + LIFT);
+      return;
     }
+    this.held = { ...base, kind: 'tap' };
   }
 
   boardMove(e) {
     const h = this.held;
     if (!h || h.id !== e.pointerId || h.done) return;
-    if (Math.hypot(e.clientX - h.x, e.clientY - h.y) > DRAG_PX) this.cancelHold();
+    const moved = Math.hypot(e.clientX - h.x, e.clientY - h.y) > DRAG_PX;
+    if (h.kind === 'staged' && (moved || h.dragging)) {
+      if (!h.dragging) {
+        h.dragging = true;
+        clearTimeout(this.holdTimer);
+        this.h.renderer.sealing = null;
+        this.placeTurn();
+      }
+      const c = this.cellUnder(e);
+      const p = this.h.pending();
+      if (p && (c.x !== h.last?.x || c.y !== h.last?.y)) {
+        h.last = c;
+        this.put(c.x, c.y, { grip: h.grip, magnet: false, rot: p.rot });
+      }
+      return;
+    }
+    if (moved) this.cancelHold();
   }
 
   /**
-   * The finger comes up. Quick, it was a tap, and main.js turns the piece.
-   * Held, it was a seal or a lift, finished or let go of early; either way
-   * the release is not a tap, and main.js is told to leave it alone.
+   * The finger comes up. From a drag: over the tray the piece goes back in
+   * your hand, over the table it stays, snapped to a way it fits under the
+   * finger if it has one. Quick on the staged piece, it turns; quick
+   * anywhere else, the piece is put there. A hold that sealed or lifted has
+   * already done its work.
    */
   boardUp(e) {
     const h = this.held;
     if (!h || h.id !== e.pointerId) return;
     const quick = performance.now() - h.t0 < TAP;
-    if (!h.done) this.cancelHold();
+    clearTimeout(this.holdTimer);
     this.held = null;
-    this.swallowNext = !quick || h.done;
-  }
-
-  /** Did a hold just end? Then the release is not a tap (main.js asks). */
-  swallow() {
-    const s = this.swallowNext;
-    this.swallowNext = false;
-    return s;
+    const r = this.h.renderer;
+    if (!h.done) r.sealing = null;
+    if (e.pointerType && e.pointerType !== 'mouse') r.hover = null;
+    if (h.done) return;
+    if (h.kind === 'staged') {
+      if (h.dragging) {
+        if (this.overTray(e)) { this.h.clear(); return; }
+        const c = this.cellUnder(e);
+        const p = this.h.pending();
+        this.put(c.x, c.y, { grip: h.grip, magnet: true, rot: p?.rot ?? this.game.rot });
+        this.h.sync();
+        return;
+      }
+      if (quick && !h.denied) this.turn(1);
+      return;
+    }
+    if (quick) this.put(h.at.x, h.at.y);
   }
 
   cancelHold() {
@@ -679,7 +817,7 @@ export class StaraUI {
     if (!h || h.done) return;
     h.done = true;
     r.sealing = null;
-    if (h.kind === 'seal') {
+    if (h.kind === 'staged') {
       const [sx, sy] = r.toScreen(h.at.x + 0.5, h.at.y + 0.5);
       const cv = r.canvas.getBoundingClientRect();
       this.sealedAt = { x: cv.left + sx, y: cv.top + sy, t: performance.now() };
@@ -733,9 +871,11 @@ export class StaraUI {
       if (t.lifts) rows.push(`<div class="w-lift"><span><em class="dot lift"></em>Lifted</span><i></i><b>${num(t.lifts)}</b></div>`);
       $('staraEndRows').innerHTML = rows.join('');
     }
+    const wall = this.city ? g.m.city.wall : [];
+    const gates = wall.filter((w) => w.gate).length;
     $('staraEndFill').textContent = garden
       ? `${g.m.picked} pickings in ${g.m.week} weeks; ${g.m.lost.length} still green at the frost`
-      : `${g.board.size} of ${g.m.squares} squares built`;
+      : `A wall ${wall.length} stretches long, ${gates} of them gates; ${g.m.laid.size} of ${Object.keys(g.m.pieces).length} pieces laid`;
     $('staraEndPar').hidden = garden;
     $('staraPlan').hidden = garden;
     if (!garden) {
@@ -763,7 +903,7 @@ export class StaraUI {
     const g = this.game;
     const text = g.spec.garden
       ? `Giardino No. ${g.m.day.n}: ${g.players[0].score} points, ${g.m.picked} pickings, ${g.m.lost.length} lost to the frost.`
-      : `Starà No. ${g.m.day.n} (${g.m.side}×${g.m.side}): a city worth ${g.players[0].score}, the plan ${g.m.par}, ${g.board.size}/${g.m.squares} squares.`;
+      : `Starà No. ${g.m.day.n} (${g.m.side}×${g.m.side}): a city worth ${g.players[0].score}, the plan ${g.m.par}, a wall ${g.m.city.wall.length} long.`;
     const btn = $('staraShare');
     try {
       if (navigator.share) await navigator.share({ text });

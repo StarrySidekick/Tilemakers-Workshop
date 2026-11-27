@@ -372,8 +372,20 @@ function clearPending() {
   syncPanel();
 }
 
+/**
+ * Stage exactly this placement, legal or not (Starà's and Giardino's table,
+ * since the seventh pass: a piece may sit where it does not fit, drawn red,
+ * and only seals where it does). stara-ui.js works out what it is.
+ */
+function setPending(p) {
+  pending = p;
+  renderer.pending = p;
+  syncPanel();
+}
+
 /** Turn a staged tile to its next legal rotation. */
 function turnPending(dir = 1) {
+  if (stara.on) return stara.turn(dir);
   if (!pending) return false;
   const i = pending.rots.indexOf(pending.rot);
   pending.rot = pending.rots[(i + dir + pending.rots.length) % pending.rots.length];
@@ -401,11 +413,13 @@ function flipInHand() {
 /** Lock it in. This is the one place a staged tile reaches the engine. */
 function commitPending() {
   if (!pending) return false;
-  const { x, y, rot } = pending;
+  if (pending.fits === false) { deny(pending); return false; }
+  const { x, y, rot, ax, ay } = pending;
   pending = null;
   renderer.pending = null;
   game.rot = rot;
-  const done = game.placeAt(x, y);
+  // A Starà piece is staged by its top left, wherever it was put.
+  const done = ax != null && game.m.layAnchored ? game.m.layAnchored(ax, ay, rot) : game.placeAt(x, y);
   if (!done) sfx.play('deny');
   return done;
 }
@@ -448,6 +462,8 @@ const stara = new StaraUI({
   renderer,
   pending: () => pending,
   stage: stagePending,
+  setPending,
+  sound: (name) => sfx.play(name),
   clear: clearPending,
   legal: legalRotationsAt,
   turn: turnPending,
@@ -572,9 +588,9 @@ canvas.addEventListener('pointerup', (e) => {
   const wasDrag = (drag && drag.moved > 4) || gestured;
   liftPointer(e);
   if (pointers.size) return;          // still touching — not a tap yet
-  // Starà's hold (stara-ui.js): a finger kept down to seal a piece or lift
-  // one is not a tap when it comes up, finished or let go of early.
-  if (stara.on && stara.swallow()) { drag = null; return; }
+  // Starà's and Giardino's table (stara-ui.js) handles its own taps, drags
+  // and holds: nothing a finger does there is the workshop's.
+  if (stara.on) { drag = null; return; }
   const { x: sx, y: sy } = local(e);
   drag = null;
   if (wasDrag) { gestured = false; return; }
