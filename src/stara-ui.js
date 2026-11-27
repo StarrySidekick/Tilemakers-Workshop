@@ -79,7 +79,7 @@ import { CASTLE, keepSprite } from './castle.js';
 import { citySprite, spanSprite, SPAN_PAD } from './city.js';
 import { usePalette } from './theme.js';
 import { TILES } from './tiles.js';
-import { VIEWS, fitPoints, LEVEL } from './lowpoly.js';
+import { VIEWS, VIEW_ANGLES, fitPoints, LEVEL } from './lowpoly.js';
 
 const TILES_OF = (id) => TILES[id];
 
@@ -92,6 +92,8 @@ const TAUGHT = 'tilemakers-workshop/stara/taught7';
 const VIEW_KEY = 'tilemakers-workshop/stara/view';
 /** A new player sees the model in isometric (2026-11-27: "let's redo ... to make a 3D aesthetic"). */
 const DEFAULT_VIEW = 'iso';
+// Each model view's tilt and turn where the sliders left them, {iso: {tilt, turn}, top: …}.
+const ANGLES_KEY = 'tilemakers-workshop/stara/angles';
 
 const DRAG_PX = 10;
 
@@ -190,6 +192,12 @@ export class StaraUI {
     this.held = null;          // a finger held on the board: sealing, or lifting
     const [kind, q] = (store.get(VIEW_KEY) || `${DEFAULT_VIEW}:0`).split(':');
     host.renderer.setView(VIEWS.some((v) => v.id === kind) ? kind : DEFAULT_VIEW, Number(q) || 0);
+    let angles = null;
+    try { angles = JSON.parse(store.get(ANGLES_KEY) || 'null'); } catch { /* none kept */ }
+    for (const id of Object.keys(VIEW_ANGLES)) {
+      const a = angles?.[id];
+      if (a && Number.isFinite(a.tilt) && Number.isFinite(a.turn)) host.renderer.setAngles(id, { tilt: a.tilt, turn: a.turn });
+    }
     this.wire();
   }
 
@@ -253,6 +261,65 @@ export class StaraUI {
       const id = e.target.closest('button')?.dataset.view;
       if (id) this.look(id);
     };
+    // The tilt and turn of the view in use (2026-11-27: "add some sliders
+    // for me to adjust how tilted in both directions isometric and top
+    // are"). They move the camera as they are dragged.
+    $('staraTiltBtn').onclick = () => this.showTune($('staraTune').hidden);
+    $('staraTuneClose').onclick = () => this.showTune(false);
+    $('staraTuneReset').onclick = () => this.tune(null);
+    for (const id of ['staraTiltRange', 'staraTurnRange']) {
+      $(id).addEventListener('input', () => this.tune({ tilt: Number($('staraTiltRange').value), turn: Number($('staraTurnRange').value) }));
+      $(id).addEventListener('pointerdown', (e) => e.stopPropagation());
+    }
+  }
+
+  /** Open or close the tilt and turn sliders. */
+  showTune(open) {
+    const r = this.h.renderer;
+    const on = !!open && r.viewKind !== 'ink';
+    $('staraTune').hidden = !on;
+    $('staraTiltBtn').classList.toggle('on', on);
+    $('staraTiltBtn').setAttribute('aria-expanded', String(on));
+    if (on) this.tuneShown();
+  }
+
+  /** The sliders, as the view in use stands: its tilt, and its turn (with the isometric quarter turns in it). */
+  tuneShown() {
+    const r = this.h.renderer, kind = r.viewKind;
+    if (kind === 'ink') return;
+    const v = { ...VIEW_ANGLES[kind], ...(r.viewAngles[kind] || {}) };
+    const q = kind === 'iso' ? r.viewQuarter : 0;
+    const turn = (((v.turn + q * 90) % 360) + 360) % 360;
+    $('staraTuneName').textContent = kind === 'iso' ? 'Isometric' : 'Top';
+    $('staraTiltRange').value = String(v.tilt);
+    $('staraTurnRange').value = String(Math.round(turn));
+    $('staraTiltValue').textContent = `${v.tilt}°`;
+    $('staraTurnValue').textContent = `${Math.round(turn)}°`;
+    const tab = $('staraTiltWrap').getBoundingClientRect(), stage = $('stara').getBoundingClientRect();
+    $('staraTune').style.top = `${tab.bottom - stage.top + 6}px`;
+  }
+
+  /**
+   * Set the view in use to a tilt and turn (the slider's turn counts the
+   * isometric quarter turns, so they are taken back out), or back to how it
+   * was (null). Kept in the browser; the camera is fitted again at once.
+   */
+  tune(angles) {
+    const r = this.h.renderer, kind = r.viewKind;
+    if (kind === 'ink') return;
+    if (angles) {
+      const q = kind === 'iso' ? r.viewQuarter : 0;
+      r.setAngles(kind, { tilt: angles.tilt, turn: (((angles.turn - q * 90) % 360) + 360) % 360 });
+    } else {
+      r.setAngles(kind, null);
+      if (kind === 'iso') r.setView('iso', 0);
+      store.set(VIEW_KEY, `${r.viewKind}:${r.viewQuarter}`);
+    }
+    store.set(ANGLES_KEY, JSON.stringify(r.viewAngles));
+    this.tuneShown();
+    this.fit(true);
+    this.drawHand();
+    this.placeTurn();
   }
 
   /** Look at the city another way, or turn the isometric view a quarter. */
@@ -265,6 +332,8 @@ export class StaraUI {
     this.h.sound?.('rotate');
     this.refit();
     this.h.sync();
+    // The sliders follow the view: the new one's angles, or away on the inked table.
+    if (!$('staraTune').hidden) this.showTune(id !== 'ink');
   }
 
   // --- the frame ------------------------------------------------------------
@@ -305,6 +374,9 @@ export class StaraUI {
       b.classList.toggle('on', id === r.viewKind);
       b.innerHTML = id === 'iso' && r.viewKind === 'iso' ? `${VIEWS[2].name}<span class="turnGlyph">↻</span>` : VIEWS.find((v) => v.id === id).name;
     }
+    $('staraTiltBtn').hidden = !this.city || r.viewKind === 'ink';
+    $('staraTiltWrap').style.top = `${$('staraTop').getBoundingClientRect().height + 4}px`;
+    if (!this.city || r.viewKind === 'ink') this.showTune(false);
     const score = $('staraScore');
     score.textContent = p.score;
     if (this.lastScore != null && p.score > this.lastScore) {
@@ -339,7 +411,7 @@ export class StaraUI {
     const open = this.city && g.m.extent;
     const b = open ? g.m.extent() : g.board.bounds;
     r.applyView(g);
-    const key = [stage.width, stage.height, top, tray, b.minX, b.maxX, b.minY, b.maxY, r.view.kind, r.view.quarter].join('|');
+    const key = [stage.width, stage.height, top, tray, b.minX, b.maxX, b.minY, b.maxY, r.view.sig].join('|');
     if (!force && key === this.layoutKey) return;
     if (this.held?.dragging || this.press?.dragging) return;       // never while a piece is in the hand
     const first = !this.layoutKey || force;
@@ -364,7 +436,7 @@ export class StaraUI {
     const midY = top + gutter + availH / 2;
     let x = (b.minX + b.maxX + 1) / 2;
     let y = (b.minY + b.maxY + 1) / 2 - (midY - stage.height / 2) / zoom;
-    if (open && r.model3d && r.view.kind === 'iso') {
+    if (open && r.angled) {
       // The isometric view: every square built (and the spring, and the
       // aqueduct's spans) with MARGIN squares of table round it, its towers
       // standing up out of it, and at least a box of the plan's size less
@@ -452,7 +524,7 @@ export class StaraUI {
     const cards = [...host.children];
     // In the model's views the cards are the model too (lowpoly.js), drawn again when the view changes.
     const r = this.h.renderer;
-    const look = this.city && r.model3d ? `${r.view.kind}${r.view.quarter}` : 'ink';
+    const look = this.city && r.model3d ? r.view.sig : 'ink';
     const drawn = `${key}|${look}`;
     cards.forEach((card, i) => {
       const held = i === sel;
@@ -464,7 +536,7 @@ export class StaraUI {
       if (was === rot && card.dataset.drawn === drawn) return;
       // A turn is seen as a turn; an isometric picture turned flat on the
       // screen is not the piece turned, so there it is simply drawn again.
-      if (held && was != null && was !== rot && look.slice(0, 3) !== 'iso') this.spin(canvas, rot - was);
+      if (held && was != null && was !== rot && !r.angled) this.spin(canvas, rot - was);
       this.shown.rots[i] = rot;
       card.dataset.drawn = drawn;
       const ctx = canvas.getContext('2d');
@@ -647,7 +719,7 @@ export class StaraUI {
     if (sx + 48 > stage.width) {
       // In the isometric view the squares to the left of a piece are the
       // city behind it, so the button goes over the piece instead.
-      const over = r.model3d && r.view.kind === 'iso' && y0 + oy - 56 >= top;
+      const over = r.angled && y0 + oy - 56 >= top;
       if (over) { sx = (x0 + x1) / 2 + ox - 23; sy = y0 + oy - 56; } else sx = x0 + ox - 50;
     }
     btn.style.left = `${Math.round(sx)}px`;

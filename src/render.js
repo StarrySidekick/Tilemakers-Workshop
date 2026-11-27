@@ -100,6 +100,7 @@ export class Renderer {
     // is what is drawn (only for a city, and only where WebGL works).
     this.viewKind = 'ink';
     this.viewQuarter = 0;
+    this.viewAngles = {};   // each model view's tilt and turn, where the sliders moved them
     this.view = viewOf('ink');
     this.model3d = false;
     this.inPlan = false;    // drawing an overlay in top-down coordinates, under the ground's map
@@ -112,6 +113,11 @@ export class Renderer {
   setView(kind, quarter = 0) {
     this.viewKind = kind;
     this.viewQuarter = quarter & 3;
+  }
+
+  /** Set a model view's tilt and turn (`{tilt, turn}` in degrees), or put it back as it was (null). */
+  setAngles(kind, angles) {
+    if (angles) this.viewAngles[kind] = { ...angles }; else delete this.viewAngles[kind];
   }
 
   /**
@@ -130,7 +136,7 @@ export class Renderer {
       this.glCanvas = gl;
     }
     if (on && !this.low.ok) on = false;
-    this.view = viewOf(on ? this.viewKind : 'ink', this.viewQuarter);
+    this.view = viewOf(on ? this.viewKind : 'ink', this.viewQuarter, this.viewAngles[this.viewKind]);
     this.model3d = on;
     if (this.glCanvas) this.glCanvas.hidden = !on;
     const m = game?.m;
@@ -149,15 +155,22 @@ export class Renderer {
   }
 
   /**
-   * World to screen. In the isometric view the screen is the projection of
-   * the ground; while an overlay is being drawn under the ground's map
+   * Does the screen show the table through a tilted or turned camera? The
+   * isometric view always; the top view once its sliders move it off
+   * straight down and unturned. Everything below that maps a point asks this.
+   */
+  get angled() { return this.model3d && !this.view.flat; }
+
+  /**
+   * World to screen. Seen at an angle the screen is the projection of the
+   * ground; while an overlay is being drawn under the ground's map
    * (`inPlan`), it is top-down coordinates as ever, nudged so a point on a
    * hill lands on the hill.
    */
   toScreen(wx, wy) {
     const sx = (wx - this.cam.x) * this.cam.zoom + this.w / 2;
     const sy = (wy - this.cam.y) * this.cam.zoom + this.h / 2;
-    if (!this.model3d || this.view.kind !== 'iso') return [sx, sy];
+    if (!this.angled) return [sx, sy];
     const h = this.ground(wx, wy);
     if (this.inPlan) {
       if (!h) return [sx, sy];
@@ -168,13 +181,13 @@ export class Renderer {
   }
 
   toWorld(sx, sy) {
-    if (this.model3d && this.view.kind === 'iso' && !this.inPlan) return unproject(this.view, this.cam, this.w, this.h, sx, sy, 0);
+    if (this.angled && !this.inPlan) return unproject(this.view, this.cam, this.w, this.h, sx, sy, 0);
     return [(sx - this.w / 2) / this.cam.zoom + this.cam.x,
             (sy - this.h / 2) / this.cam.zoom + this.cam.y];
   }
 
   cellAt(sx, sy) {
-    if (this.model3d && this.view.kind === 'iso' && !this.inPlan) return this.pickCell(sx, sy);
+    if (this.angled && !this.inPlan) return this.pickCell(sx, sy);
     const [wx, wy] = this.toWorld(sx, sy);
     return { x: Math.floor(wx), y: Math.floor(wy) };
   }
@@ -495,7 +508,7 @@ export class Renderer {
     this.low.render(game, this, { ghost, sealing: this.sealing, lit, dim: !!this.pending });
     usePalette('town');
     this.floatFace = "'Cinzel', ui-serif, Georgia, serif";
-    const iso = this.view.kind === 'iso';
+    const iso = this.angled;
     if (iso) {
       const A = planAffine(this.view, this.w, this.h);
       ctx.setTransform(dpr * A[0], dpr * A[1], dpr * A[2], dpr * A[3], dpr * A[4], dpr * A[5]);
@@ -2113,7 +2126,7 @@ export class Renderer {
     const [sx, sy] = this.toScreen(top.x, top.y);
     const r = Math.max(10, z * 0.19);
     // In the isometric view the tag stands over the piece's middle, upright, and the chips in a row under it.
-    const iso = this.model3d && this.view.kind === 'iso';
+    const iso = this.angled;
     const [gx, gy] = iso ? this.pieceCentre(pv.cells) : [sx + z * 0.24, sy + z * 0.2];
     tag(gx, gy, signed(pv.gain), pv.gain >= 0 ? '#8e2a1e' : '#4a1a12', '#fff6e4', r);
     const chips = Object.entries(pv.ways).filter(([, v]) => v);

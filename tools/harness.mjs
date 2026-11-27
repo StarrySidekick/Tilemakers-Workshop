@@ -3138,7 +3138,9 @@ function checkLowPoly() {
   };
   const rng = mulberry(5);
   let worst = 0, affine = 0, lift = 0;
-  for (const view of [viewOf('top'), viewOf('iso', 0), viewOf('iso', 1), viewOf('iso', 2), viewOf('iso', 3)]) {
+  // Every view, and as the sliders can leave them (any tilt from 10 to 90, any turn).
+  const tuned = [[10, 0], [33, 117], [60, 300], [89, 45], [90, 20]].flatMap(([tilt, turn]) => [viewOf('top', 0, { tilt, turn }), viewOf('iso', 2, { tilt, turn })]);
+  for (const view of [viewOf('top'), viewOf('iso', 0), viewOf('iso', 1), viewOf('iso', 2), viewOf('iso', 3), ...tuned]) {
     for (let i = 0; i < 200; i++) {
       const cam = { x: rng() * 10 - 5, y: rng() * 10 - 5, zoom: 20 + rng() * 80 };
       const wx = rng() * 20 - 10, wz = rng() * 20 - 10, h = view.cp ? rng() * 2 : 0;
@@ -3156,6 +3158,9 @@ function checkLowPoly() {
     }
   }
   ok('screen to table undoes table to screen, every view', worst < 1e-9, `worst ${worst.toExponential(1)} squares`);
+  ok('straight down and unturned is the flat view; any other angle is not',
+    viewOf('top').flat && viewOf('top', 0, { tilt: 90, turn: 0 }).flat && !viewOf('top', 0, { tilt: 60, turn: 0 }).flat
+    && !viewOf('top', 0, { tilt: 90, turn: 20 }).flat && !viewOf('iso').flat && viewOf('iso', 0, { tilt: 5 }).tilt === 10);
   ok('the ground\'s affine map is the projection', affine < 1e-6 && lift < 1e-6, `worst ${Math.max(affine, lift).toExponential(1)} px`);
   ok('the top view is the inked table\'s own camera', (() => {
     const [sx, sy] = project(viewOf('top'), { x: 1, y: 2, zoom: 40 }, 390, 700, 3, 4, 1);
