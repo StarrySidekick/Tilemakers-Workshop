@@ -1081,72 +1081,121 @@ await page.selectOption('#tilesPerTurn', '1');
   if (screen.panel !== 'none') problems.push('the workshop panel is still showing');
   if (!screen.fits) problems.push('the 7x7 square does not fit between the top bar and the tray');
 
-  // Touching the card turns the tile in hand.
+  // Three pieces in hand from the first turn (2026-11-27).
+  const hand0 = await page.evaluate(() => ({ cards: document.querySelectorAll('.staraCard').length, hand: window.LAB.game.m.hand.length }));
+  if (hand0.cards !== 3 || hand0.hand !== 3) problems.push(`the first turn holds ${hand0.hand} pieces on ${hand0.cards} cards, not three`);
+
+  // Touching the card turns the piece in hand.
   const rot0 = await page.evaluate(() => window.LAB.game.rot);
   const card = await page.locator('.staraCard.held canvas').boundingBox();
   await page.mouse.click(card.x + card.width / 2, card.y + card.height / 2);
-  if (await page.evaluate((r0) => window.LAB.game.rot === r0, rot0)) problems.push('touching the card did not turn the tile');
+  if (await page.evaluate((r0) => window.LAB.game.rot === r0, rot0)) problems.push('touching the card did not turn the piece');
 
-  // A lit square stages it; the checkmark lays it.
-  const lit = await page.evaluate(() => {
-    const g = window.LAB.game, r = window.LAB.renderer;
-    const s = g.board.legalPlacements(g.tile, g.placeOpts())[0];
-    const [sx, sy] = r.toScreen(s.x + 0.5, s.y + 0.5);
+  // A lit square stages it, whole.
+  const at = (k) => page.evaluate((key) => {
+    const r = window.LAB.renderer;
+    const [x, y] = key.split(',').map(Number);
+    const [sx, sy] = r.toScreen(x + 0.5, y + 0.5);
     const cv = r.canvas.getBoundingClientRect();
     return { x: sx + cv.left, y: sy + cv.top };
-  });
+  }, k);
+  const litKey = await page.evaluate(() => [...window.LAB.game.m.litSquares()][0]);
+  const lit = await at(litKey);
   await page.mouse.click(lit.x, lit.y);
   await page.waitForTimeout(120);
-  if (!(await page.evaluate(() => document.querySelector('#staraGo.shown')))) problems.push('a lit square did not stage the tile');
-  // Staged, it leaves the tray, and the seal comes to sit by it on the board.
   const staged = await page.evaluate(() => {
-    const r = window.LAB.renderer, p = window.LAB.game.m && r.pending;
+    const g = window.LAB.game, r = window.LAB.renderer, p = r.pending;
+    const pv = p && g.m.preview(p.x, p.y, p.rot);
     const held = document.querySelector('.staraCard.held');
-    const seal = document.getElementById('staraGo').getBoundingClientRect();
-    const cv = r.canvas.getBoundingClientRect();
-    const z = r.cam.zoom;
-    const [tx, ty] = r.toScreen(p.x, p.y);
-    const tile = { l: cv.left + tx, t: cv.top + ty, r: cv.left + tx + z, b: cv.top + ty + z };
-    const d = Math.hypot(seal.left + seal.width / 2 - (tile.l + z / 2), seal.top + seal.height / 2 - (tile.t + z / 2));
-    const clear = seal.right <= tile.l || seal.left >= tile.r || seal.bottom <= tile.t || seal.top >= tile.b;
-    return { inTray: !!held && getComputedStyle(held).display !== 'none', near: d < z * 2.2, clear };
+    return {
+      on: !!pv, squares: pv ? pv.cells.length : 0, want: g.m.held.cells.length,
+      inTray: !!held && getComputedStyle(held).display !== 'none',
+      button: !!document.getElementById('staraGo'),
+    };
   });
-  if (staged.inTray) problems.push('the staged tile is still in the tray');
-  if (!staged.near) problems.push('the seal is not beside the staged tile');
-  if (!staged.clear) problems.push('the seal overlaps the staged tile, where a touch to turn it could land on it');
-  // The city (2026-11-23): the day's cast at the corners, the card of the
-  // place held up under the hand, and what the staged tile would pay.
+  if (!staged.on) problems.push('a lit square did not stage the piece');
+  else if (staged.squares !== staged.want) problems.push(`a piece of ${staged.want} squares staged on ${staged.squares}`);
+  if (staged.inTray) problems.push('the staged piece is still in the tray');
+  if (staged.button) problems.push('the seal button is still on the page: a hold seals now');
+  // The city: the day's cast at the corners, the card of the place held up
+  // under the hand in the colours of the ways, the plan under the title, and
+  // what the staged piece would pay.
   const city = await page.evaluate(() => {
     const g = window.LAB.game, r = window.LAB.renderer;
     const tags = [...document.querySelectorAll('#staraQuarters .staraQuarter .name')].map((e) => e.textContent);
-    const card = document.getElementById('staraCaption').textContent;
+    const cardText = document.getElementById('staraCaption').textContent;
+    const chips = [...document.querySelectorAll('#staraCaption .way')].map((e) => [e.className, getComputedStyle(e).backgroundColor]);
     const p = r.pending;
     const pv = p && g.m.preview(p.x, p.y, p.rot);
-    return { tags, cast: Object.values(g.m.cast), card, name: g.m.nameOf(g.tileKey), gain: pv ? pv.gain : null, total: pv ? pv.total : null, score: g.players[0].score };
+    const ways = pv ? Object.values(pv.ways).reduce((a, b) => a + b, 0) : null;
+    return {
+      tags, cardText, chips, name: g.m.card(g.tileKey).name, gain: pv ? pv.gain : null, total: pv ? pv.total : null, ways,
+      score: g.players[0].score, day: document.getElementById('staraDay').textContent, par: g.m.par,
+    };
   });
   if (city.tags.length !== 4) problems.push(`${city.tags.length} cast tags, not 4`);
-  if (!city.card.includes(city.name)) problems.push(`the card under the hand does not name the ${city.name}`);
-  if (city.gain == null || city.total !== city.score + city.gain) problems.push(`the staged tile's gain does not add up: ${JSON.stringify(city)}`);
-  const size0 = await page.evaluate(() => window.LAB.game.board.size);
-  // A church's worth of hand, so the next turn deals two to choose from.
-  await page.evaluate(() => { window.LAB.game.m.churches += 1; });
-  await page.click('#staraGo');
+  if (!city.cardText.includes(city.name)) problems.push(`the card under the hand does not name the ${city.name}`);
+  if (!city.chips.length || new Set(city.chips.map(([c]) => c)).size !== new Set(city.chips.map(([, b]) => b)).size) problems.push(`the card's chips are not coloured by way: ${JSON.stringify(city.chips)}`);
+  if (!city.day.includes(String(city.par))) problems.push(`the plan's worth is not under the title: "${city.day}"`);
+  if (city.gain == null || city.total !== city.score + city.gain || city.ways !== city.gain) problems.push(`the staged piece's gain does not add up: ${JSON.stringify(city)}`);
+
+  // A tap on the staged piece turns it; a hold let go of early lays nothing.
+  const before = await page.evaluate(() => ({ size: window.LAB.game.board.size, rot: window.LAB.renderer.pending.rot, rots: window.LAB.renderer.pending.rots.length }));
+  await page.mouse.click(lit.x, lit.y);
   await page.waitForTimeout(120);
-  const laid = await page.evaluate((n) => ({ size: window.LAB.game.board.size, phase: window.LAB.game.phase }), size0);
-  if (laid.size !== size0 + 1) problems.push('the checkmark did not lay the tile');
+  const tapped = await page.evaluate(() => ({ size: window.LAB.game.board.size, rot: window.LAB.renderer.pending?.rot }));
+  if (tapped.size !== before.size) problems.push('a tap on the staged piece laid it');
+  if (before.rots > 1 && tapped.rot === before.rot) problems.push('a tap on the staged piece did not turn it');
+  await page.mouse.move(lit.x, lit.y);
+  await page.mouse.down();
+  await page.waitForTimeout(450);
+  const midway = await page.evaluate(() => !!window.LAB.renderer.sealing);
+  await page.mouse.up();
+  await page.waitForTimeout(100);
+  const early = await page.evaluate(() => ({ size: window.LAB.game.board.size, pending: !!window.LAB.renderer.pending, rot: window.LAB.renderer.pending?.rot }));
+  if (!midway) problems.push('holding the staged piece did not start the seal');
+  if (early.size !== before.size || !early.pending) problems.push(`a hold let go of early did something: ${JSON.stringify(early)}`);
+  if (early.rot !== tapped.rot) problems.push('a hold let go of early turned the piece as if it were a tap');
 
-  // No followers: the seal is the whole turn, and the next tile is in hand.
-  if (laid.phase !== 'place') problems.push(`after the seal the phase is "${laid.phase}", not the next tile`);
+  // Held for a second, it is sealed to the table; the hand is three again.
+  const size0 = before.size;
+  const want = staged.want;
+  await page.mouse.down();
+  await page.waitForTimeout(1200);
+  await page.mouse.up();
+  await page.waitForTimeout(150);
+  const laid = await page.evaluate(() => ({ size: window.LAB.game.board.size, phase: window.LAB.game.phase, hand: window.LAB.game.m.hand.length, cards: document.querySelectorAll('.staraCard').length }));
+  if (laid.size !== size0 + want) problems.push(`the hold did not lay the piece: ${size0} squares, then ${laid.size}`);
+  if (laid.phase !== 'place') problems.push(`after the seal the phase is "${laid.phase}", not the next piece`);
+  if (laid.hand !== 3 || laid.cards !== 3) problems.push(`after the seal ${laid.hand} pieces on ${laid.cards} cards, not three`);
 
-  // Two in hand: touching the other card holds it up.
-  const two = await page.evaluate(() => ({ n: document.querySelectorAll('.staraCard').length, hand: window.LAB.game.m.hand.slice() }));
-  if (two.n !== 2 || two.hand.length !== 2) problems.push(`a hand of two shows ${two.n} cards for ${two.hand.length} tiles`);
-  else {
+  // Touching another card holds it up.
+  {
+    const two = await page.evaluate(() => window.LAB.game.m.hand.slice());
     const other = await page.locator('.staraCard[data-i="1"] canvas').boundingBox();
     await page.mouse.click(other.x + other.width / 2, other.y + other.height / 2);
     await page.waitForTimeout(120);
     const held = await page.evaluate(() => ({ sel: window.LAB.game.m.sel, tile: window.LAB.game.tileKey, ring: document.querySelector('.staraCard.held')?.dataset.i }));
-    if (held.sel !== 1 || held.tile !== two.hand[1] || held.ring !== '1') problems.push(`touching the second card held up ${JSON.stringify(held)}`);
+    if (held.sel !== 1 || held.tile !== two[1] || held.ring !== '1') problems.push(`touching the second card held up ${JSON.stringify(held)}`);
+  }
+
+  // Held on a piece already down, it lifts back into the hand for a point.
+  {
+    const id = await page.evaluate(() => [...window.LAB.game.m.laid.keys()][0]);
+    const sq = await page.evaluate((pid) => window.LAB.game.m.squaresOf(pid)[0], id);
+    const p0 = await at(`${sq.x},${sq.y}`);
+    const was = await page.evaluate(() => ({ score: window.LAB.game.players[0].score, worth: window.LAB.game.m.city.total }));
+    await page.mouse.move(p0.x, p0.y);
+    await page.mouse.down();
+    await page.waitForTimeout(1100);
+    await page.mouse.up();
+    await page.waitForTimeout(150);
+    const lifted = await page.evaluate((pid) => {
+      const g = window.LAB.game;
+      return { inHand: g.m.hand.includes(pid), held: g.tileKey === pid, lifts: g.m.lifts, score: g.players[0].score, worth: g.m.city.total, size: g.board.size };
+    }, id);
+    if (!lifted.inHand || !lifted.held || lifted.lifts !== 1) problems.push(`a hold on a laid piece did not lift it: ${JSON.stringify(lifted)}`);
+    else if (lifted.score !== lifted.worth - 1) problems.push(`a lift did not cost a point: ${JSON.stringify({ was, lifted })}`);
   }
 
   // The size switch: the 5 x 5 comes up, and going back finds the 7 x 7 as it was left.
@@ -1158,19 +1207,13 @@ await page.selectOption('#tilesPerTurn', '1');
   await page.waitForTimeout(150);
   const seven = await page.evaluate(() => ({ mode: window.LAB.game.mode, size: window.LAB.game.board.size }));
   await page.waitForTimeout(100);
-  if (seven.mode !== 'stara' || seven.size !== laid.size) problems.push(`going back did not find the 7x7 as it was: ${JSON.stringify(seven)}`);
+  if (seven.mode !== 'stara' || seven.size !== laid.size - want) problems.push(`going back did not find the 7x7 as it was: ${JSON.stringify(seven)}`);
 
   // Play the rest out; the end card adds up, and today's best is kept.
   const end = await page.evaluate(async () => {
     const g = window.LAB.game;
     let guard = 0;
-    while (g.phase !== 'over' && guard++ < 400) {
-      if (g.phase === 'place') {
-        const s = g.board.legalPlacements(g.tile, g.placeOpts())[0];
-        g.rot = s.rot; g.placeAt(s.x, s.y); continue;
-      }
-      break;
-    }
+    while (g.phase === 'place' && guard++ < 100) g.m.botAction();
     await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
     return {
       over: g.phase === 'over',
@@ -1184,6 +1227,16 @@ await page.selectOption('#tilesPerTurn', '1');
   if (!end.over || !end.shown) problems.push('no end card at the end of the day');
   else if (end.card !== end.score || end.sum !== end.score) problems.push(`the end card does not add up: ${JSON.stringify(end)}`);
   else if (end.best !== end.score) problems.push('today\'s best was not kept');
+
+  // The architect's plan, on the table once the day is over, and back.
+  await page.click('#staraPlan');
+  await page.waitForTimeout(200);
+  const plan = await page.evaluate(() => ({ on: window.LAB.game.m.showingPlan, bar: !document.getElementById('staraPlanBar').hidden, full: window.LAB.game.board.size === window.LAB.game.m.squares, card: document.getElementById('staraEnd').hidden }));
+  if (!plan.on || !plan.bar || !plan.full || !plan.card) problems.push(`the plan did not come up whole: ${JSON.stringify(plan)}`);
+  await page.click('#staraBack');
+  await page.waitForTimeout(150);
+  const back = await page.evaluate(() => ({ on: window.LAB.game.m.showingPlan, end: !document.getElementById('staraEnd').hidden }));
+  if (back.on || !back.end) problems.push(`back from the plan: ${JSON.stringify(back)}`);
 
   await page.click('#staraAgain');
   await page.waitForTimeout(150);
@@ -1200,7 +1253,7 @@ await page.selectOption('#tilesPerTurn', '1');
 
   if (errors.length) problems.push(errors[0].split('\n')[0]);
   if (problems.length) { failures++; console.log(`  ✗ starà on a phone: ${problems.join(' · ')}`); }
-  else console.log(`  ✓ starà on a phone     walled, edge to edge at ${screen.tile}px a tile; card, seal clear of the tile, cast, gain, hand, sizes, charter, replay`);
+  else console.log(`  ✓ starà on a phone     walled, edge to edge at ${screen.tile}px a tile; three in hand, pieces staged whole, tap turns, hold seals, early let-go lays nothing, lift for a point, ways coloured, plan, sizes, charter, replay`);
   await page.setViewportSize({ width: 1280, height: 820 });
 }
 
@@ -1253,8 +1306,12 @@ await page.selectOption('#tilesPerTurn', '1');
   });
   await page.mouse.click(lit.x, lit.y);
   await page.waitForTimeout(150);
-  if (!(await page.evaluate(() => document.querySelector('#staraGo.shown')))) problems.push('a lit square did not stage the plant');
-  await page.click('#staraGo');
+  if (!(await page.evaluate(() => !!window.LAB.renderer.pending))) problems.push('a lit square did not stage the plant');
+  // Held down on the staged plant for a second, it is sealed into its bed (2026-11-27).
+  await page.mouse.move(lit.x, lit.y);
+  await page.mouse.down();
+  await page.waitForTimeout(1200);
+  await page.mouse.up();
   await page.waitForTimeout(150);
   const sown = await page.evaluate(() => ({ week: window.LAB.game.m.week, beds: window.LAB.game.m.beds.size, day: document.getElementById('staraDay').textContent, phase: window.LAB.game.phase }));
   if (sown.week !== 1 || sown.beds !== 1 || !/week 1/.test(sown.day) || sown.phase !== 'place') problems.push(`sowing gave ${JSON.stringify(sown)}`);

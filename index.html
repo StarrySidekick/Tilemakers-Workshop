@@ -59,8 +59,9 @@
            (src/stara-ui.js). Shown only while a Starà game is running; the
            workshop's panel, HUD and claim box step aside for it. Medieval
            throughout (2026-11-18): a blackletter title, a shield for the
-           score, a wax seal to lay a tile, a charter at the end,
-           and every drawn line passed through #staraHand to waver. -->
+           score, a wax seal to lay a tile (held, since 2026-11-27: drawn on
+           the board by render.js), a charter at the end, and every drawn
+           line passed through #staraHand to waver. -->
       <svg class="staraDefs" width="0" height="0" aria-hidden="true" focusable="false">
         <!-- The hand: a line displaced by smooth noise, the way a nib wanders.
              Applied to borders and shapes only, never to text. -->
@@ -99,19 +100,21 @@
              defence, industry and wonder. -->
         <div id="staraQuarters" class="staraQuarters"></div>
 
-        <!-- The seal sits on the board, beside the tile you are about to lay. -->
-        <button id="staraGo" class="staraGo" title="Seal it: lay it here (Enter)" aria-label="Lay it here">
-          <svg viewBox="0 0 64 64" aria-hidden="true">
-            <path class="wax" d="M32 4c6 0 9 4 14 5s9 4 10 9-1 9 1 14-1 10-5 13-6 8-11 9-8 4-13 3-10-2-14-5-7-7-8-12 1-9-1-13 0-10 4-13 6-6 11-7 6-3 12-3z"/>
-            <circle class="rim" cx="32" cy="32" r="19"/>
-            <path class="mark" d="M22 33l7 7 13-15"/>
-          </svg>
-        </button>
+        <!-- Once the day is over: the architect's plan on the table, and the way back. -->
+        <div id="staraPlanBar" class="staraPlanBar" hidden>
+          <span id="staraPlanText">The architect's plan.</span>
+          <button id="staraBack" class="staraInk">My city</button>
+        </div>
 
         <div id="staraTray" class="staraTray">
+          <!-- None of the pieces in hand fits anywhere: lift one, or end the day. -->
+          <div id="staraStuck" class="staraStuck" hidden>
+            <span>None of these fits. Hold a piece on the board to lift it (−1), or</span>
+            <button id="staraFinish" class="staraInk">End the day</button>
+          </div>
           <div class="staraHand">
             <div id="staraPileWrap" class="staraPile"><span id="staraPile">0</span></div>
-            <!-- Your hand: one tile, and one more for every church laid. -->
+            <!-- Your hand: three pieces in the city, one plant in the garden. -->
             <div id="staraCards" class="staraCards"></div>
             <!-- What the wizard's tower lets you see: the next tiles in the pile. -->
             <div id="staraAhead" class="staraAhead" hidden></div>
@@ -126,11 +129,13 @@
             <div id="staraEndScore" class="staraEndScore">0</div>
             <div id="staraEndRows" class="staraEndRows"></div>
             <div id="staraEndFill" class="staraEndDim"></div>
+            <div id="staraEndPar" class="staraEndDim"></div>
             <div id="staraEndBest" class="staraEndBest"></div>
             <div class="staraEndBtns">
               <button id="staraAgain" class="staraWax">Play again</button>
               <button id="staraShare" class="staraInk">Share</button>
             </div>
+            <button id="staraPlan" class="staraLink">See the architect's plan</button>
           </div>
         </div>
       </div>

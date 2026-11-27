@@ -48,6 +48,32 @@ const A = 0.35, B = 0.65;        // the street band
 const BANDS = [[G, A - 0.02], [A, B], [B + 0.02, 1 - G]];
 const SIDE_MID = [[0.5, 0], [1, 0.5], [0.5, 1], [0, 0.5]];
 
+/**
+ * The sides of the square being drawn that run on into more of the same
+ * piece (the sixth pass, 2026-11-27: "tiles can be more than one tile big").
+ * A terrace of houses has no lane between its squares and a farm no hedge,
+ * so on those sides the picture runs to the edge. Set by paintCityTile for
+ * the square it is drawing; drawing is synchronous, so one square at a time.
+ */
+let JOIN = [false, false, false, false];
+/** Where a rect's near and far edges stand on each axis: G off a free side, 0 off a joined one. */
+const edgeX = (g = G) => [JOIN[3] ? 0 : g, JOIN[1] ? 1 : 1 - g];
+const edgeY = (g = G) => [JOIN[0] ? 0 : g, JOIN[2] ? 1 : 1 - g];
+/** The whole square less its lanes, as [x, y, w, h], run to the edge where it joins. */
+function inner(g = G) {
+  const [x0, x1] = edgeX(g), [y0, y1] = edgeY(g);
+  return [x0, y0, x1 - x0, y1 - y0];
+}
+/** Ink round a rect on its free sides only. */
+function inkFree(ctx, x, y, w, h, wd, a) {
+  ctx.beginPath();
+  if (!JOIN[0]) { ctx.moveTo(x, y); ctx.lineTo(x + w, y); }
+  if (!JOIN[1]) { ctx.moveTo(x + w, y); ctx.lineTo(x + w, y + h); }
+  if (!JOIN[2]) { ctx.moveTo(x, y + h); ctx.lineTo(x + w, y + h); }
+  if (!JOIN[3]) { ctx.moveTo(x, y); ctx.lineTo(x, y + h); }
+  ink(ctx, wd, a);
+}
+
 // --- small helpers (unit space) ---------------------------------------------
 
 function ink(ctx, w = 0.008, a = 0.85) {
@@ -211,7 +237,12 @@ function freeCells(sides) {
   return free;
 }
 
-const cellRect = (row, col) => [BANDS[col][0], BANDS[row][0], BANDS[col][1] - BANDS[col][0], BANDS[row][1] - BANDS[row][0]];
+/** One of the nine cells of the grid, run to the edge on a joined side. */
+function cellRect(row, col) {
+  const bx = col === 0 ? [edgeX()[0], BANDS[0][1]] : col === 2 ? [BANDS[2][0], edgeX()[1]] : BANDS[1];
+  const by = row === 0 ? [edgeY()[0], BANDS[0][1]] : row === 2 ? [BANDS[2][0], edgeY()[1]] : BANDS[1];
+  return [bx[0], by[0], bx[1] - bx[0], by[1] - by[0]];
+}
 
 /** The streets: paved arms from each side's middle to the tile's middle. */
 function drawStreets(ctx, sides, R, stub = false) {
@@ -246,10 +277,11 @@ function drawStreets(ctx, sides, R, stub = false) {
 /** The free area left by a lone lane in from side `s`: the far part of the tile. */
 function beyondLane(s) {
   const d = 0.4;
-  if (s === 0) return [G, d, 1 - 2 * G, 1 - G - d];
-  if (s === 2) return [G, G, 1 - 2 * G, 1 - G - d];
-  if (s === 3) return [d, G, 1 - G - d, 1 - 2 * G];
-  return [G, G, 1 - G - d, 1 - 2 * G];
+  const [x0, x1] = edgeX(), [y0, y1] = edgeY();
+  if (s === 0) return [x0, d, x1 - x0, y1 - d];
+  if (s === 2) return [x0, y0, x1 - x0, 1 - d - y0];
+  if (s === 3) return [d, y0, x1 - d, y1 - y0];
+  return [x0, y0, 1 - d - x0, y1 - y0];
 }
 
 /** Houses in every free cell: a long row along a side with no street, else one to a corner. */
@@ -346,7 +378,7 @@ const PLACE_ART = {
 
   garden(ctx, o) {
     const free = freeCells(o.sides);
-    const lane = o.sides.length === 1 ? beyondLane(o.sides[0]) : [G, G, 1 - 2 * G, 1 - 2 * G];
+    const lane = o.sides.length === 1 ? beyondLane(o.sides[0]) : inner();
     const [x, y, w, h] = lane;
     ctx.fillStyle = o.wet ? GRASS : shade(GRASS, -0.08);
     ctx.fillRect(x, y, w, h);
@@ -366,11 +398,12 @@ const PLACE_ART = {
   },
 
   farm(ctx, o) {
-    const [x, y, w, h] = o.sides.length === 1 ? beyondLane(o.sides[0]) : [G * 0.5, G * 0.5, 1 - G, 1 - G];
-    const kind = Math.floor(o.R() * 3);
+    const [x, y, w, h] = o.sides.length === 1 ? beyondLane(o.sides[0]) : inner(G * 0.5);
+    // One crop across the whole of a farm of several squares.
+    const kind = o.crop ?? Math.floor(o.R() * 3);
     ctx.fillStyle = kind === 2 ? '#d9b960' : GRASS;
     ctx.fillRect(x, y, w, h);
-    ctx.beginPath(); ctx.rect(x, y, w, h); ink(ctx, 0.006, 0.5);
+    inkFree(ctx, x, y, w, h, 0.006, 0.5);
     if (kind === 0) {
       // Vines in rows.
       for (let t = y + 0.05; t < y + h - 0.02; t += 0.07) {
@@ -465,7 +498,7 @@ const PLACE_ART = {
   },
 
   convent(ctx, o) {
-    const [x, y, w, h] = o.sides.length === 1 ? beyondLane(o.sides[0]) : [G, G, 1 - 2 * G, 1 - 2 * G];
+    const [x, y, w, h] = o.sides.length === 1 ? beyondLane(o.sides[0]) : inner();
     cloister(ctx, x, y, w, h, o.R, '#b3613f');
     tree(ctx, x + w / 2, y + h / 2, Math.min(w, h) * 0.12);
   },
@@ -510,10 +543,10 @@ const PLACE_ART = {
   },
 
   tannery(ctx, o) {
-    const [x, y, w, h] = o.sides.length === 1 ? beyondLane(o.sides[0]) : [G, G, 1 - 2 * G, 1 - 2 * G];
+    const [x, y, w, h] = o.sides.length === 1 ? beyondLane(o.sides[0]) : inner();
     // The pits: round vats of lime and dye in a honeycomb of stone, a shed.
     ctx.fillStyle = '#d6c49c'; ctx.fillRect(x, y, w, h);
-    ctx.beginPath(); ctx.rect(x, y, w, h); ink(ctx, 0.006, 0.5);
+    inkFree(ctx, x, y, w, h, 0.006, 0.5);
     const dyes = ['#e6e0cf', '#c9a13a', '#a8392c', '#5b7fb0', '#7a5134', '#c27a3a'];
     const r = Math.min(w, h) * 0.085;
     for (let row = 0; row < 3; row++) {
@@ -679,10 +712,17 @@ function drawSpan(ctx, span, run) {
  */
 export function paintCityTile(ctx, type, rot, look = '') {
   const kind = type.place;
-  const flags = look.startsWith(kind) ? look.slice(kind.length) : '';
+  // The mode's look (stara.js lookString): the place and its water flags,
+  // then the sides the square joins the rest of its piece on, then the piece.
+  const [head, ...rest] = look.split('|');
+  const flags = head.startsWith(kind) ? head.slice(kind.length) : '';
   const run = flags.includes('r');
   const wet = flags.includes('w');
-  const R = hand(seedOf(type.id.length, rot, type.id.charCodeAt(2) || 1, (type.id.charCodeAt(type.id.length - 1) || 0)));
+  const joined = rest.find((p) => p[0] === 'j')?.slice(1) || '';
+  const piece = rest.find((p) => p[0] === 'p')?.slice(1) || '';
+  JOIN = [0, 1, 2, 3].map((s) => joined.includes(String(s)));
+  const pn = Number(piece.replace(/\D/g, '')) || 0;
+  const R = hand(seedOf(type.id.length, rot, type.id.charCodeAt(2) || 1, (type.id.charCodeAt(type.id.length - 1) || 0) + pn * 7));
   const sides = (type.feats.find((f) => f.type === 'road')?.sides || []).map((s) => (s + rot) % 4);
   const span = (type.span || []).map((s) => (s + rot) % 4);
   ctx.save();
@@ -690,8 +730,10 @@ export function paintCityTile(ctx, type, rot, look = '') {
   ctx.fillStyle = GROUND; ctx.fillRect(0, 0, 1, 1);
   const stub = !['plaza', 'comune', 'aqueduct'].includes(kind);
   if (!['comune', 'plaza', 'aqueduct'].includes(kind)) drawStreets(ctx, sides, R, stub);
-  (PLACE_ART[kind] || PLACE_ART.house)(ctx, { sides, wet, run, R, span });
+  const crop = piece ? pn % 3 : null;
+  (PLACE_ART[kind] || PLACE_ART.house)(ctx, { sides, wet, run, R, span, crop });
   ctx.restore();
+  JOIN = [false, false, false, false];
 }
 
 const sprites = new Map();
