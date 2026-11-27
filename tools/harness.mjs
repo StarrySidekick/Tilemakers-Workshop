@@ -29,6 +29,8 @@ import {
   describe as describePlace, isAbove,
 } from '../src/modes/stara.js';
 import { giardinoDay, runningWater, isWatered, PLANTS, PLANT_IDS, FRIENDS, FOES, relation, DECK_SIZE } from '../src/modes/giardino.js';
+import { makeLand, COMMISSIONS, COMMISSION_PAY, piecesFor, TOP_LEVEL } from '../src/modes/contado.js';
+import { viewOf, project, unproject, planAffine, planLift, fitPoints, modelOf, buildScene, pieceModel, ghostOf } from '../src/lowpoly.js';
 
 const ALL_GROUPS = GROUPS.map((g) => g.id);
 
@@ -3122,6 +3124,166 @@ function checkStara() {
   ok('the plan is a target: quick players seldom reach it', under >= N - 2, `${under}/${N} games at or under it`);
 }
 
+/**
+ * STARÀ AS A MODEL (src/lowpoly.js, 2026-11-27): the camera's arithmetic,
+ * which every tap in the isometric view is worked back through, and the
+ * model itself, built off a real game: finite, and a house as tall as it
+ * is worth.
+ */
+function checkLowPoly() {
+  console.log('\nstarà as a model');
+  const ok = (what, pass, detail = '') => {
+    if (pass) console.log(`  ✓ ${what.padEnd(50)} ${detail}`);
+    else { failures++; console.log(`  ✗ ${what} ${detail}`); }
+  };
+  const rng = mulberry(5);
+  let worst = 0, affine = 0, lift = 0;
+  for (const view of [viewOf('top'), viewOf('iso', 0), viewOf('iso', 1), viewOf('iso', 2), viewOf('iso', 3)]) {
+    for (let i = 0; i < 200; i++) {
+      const cam = { x: rng() * 10 - 5, y: rng() * 10 - 5, zoom: 20 + rng() * 80 };
+      const wx = rng() * 20 - 10, wz = rng() * 20 - 10, h = view.cp ? rng() * 2 : 0;
+      const [sx, sy] = project(view, cam, 390, 700, wx, wz, h);
+      const [bx, bz] = unproject(view, cam, 390, 700, sx, sy, h);
+      worst = Math.max(worst, Math.hypot(bx - wx, bz - wz));
+      // The ground's affine map takes top-down coordinates to the ground's projection…
+      const A = planAffine(view, 390, 700);
+      const px = (wx - cam.x) * cam.zoom + 195, py = (wz - cam.y) * cam.zoom + 350;
+      const [gx, gy] = project(view, cam, 390, 700, wx, wz, 0);
+      affine = Math.max(affine, Math.hypot(A[0] * px + A[2] * py + A[4] - gx, A[1] * px + A[3] * py + A[5] - gy));
+      // …and a point raised by planLift lands where the raised point projects.
+      const [lx, ly] = planLift(view, cam.zoom, h);
+      lift = Math.max(lift, Math.hypot(A[0] * (px + lx) + A[2] * (py + ly) + A[4] - sx, A[1] * (px + lx) + A[3] * (py + ly) + A[5] - sy));
+    }
+  }
+  ok('screen to table undoes table to screen, every view', worst < 1e-9, `worst ${worst.toExponential(1)} squares`);
+  ok('the ground\'s affine map is the projection', affine < 1e-6 && lift < 1e-6, `worst ${Math.max(affine, lift).toExponential(1)} px`);
+  ok('the top view is the inked table\'s own camera', (() => {
+    const [sx, sy] = project(viewOf('top'), { x: 1, y: 2, zoom: 40 }, 390, 700, 3, 4, 1);
+    return sx === 195 + 80 && sy === 350 + 80;
+  })());
+  const iso = viewOf('iso', 0);
+  const pts = [];
+  for (let i = 0; i < 30; i++) pts.push([rng() * 12 - 6, rng() * 12 - 6, rng()]);
+  const f = fitPoints(iso, pts, 390, 500, 40);
+  const shot = pts.map(([x, z, h]) => project(iso, { x: f.x, y: f.y, zoom: f.zoom }, 390, 844, x, z, h));
+  const xs = shot.map((p) => p[0]), ys = shot.map((p) => p[1]);
+  ok('a fitted camera frames every point, centred where asked',
+    Math.min(...xs) >= -1e-6 && Math.max(...xs) <= 390 + 1e-6 && Math.abs((Math.min(...ys) + Math.max(...ys)) / 2 - (422 + 40)) < 1e-6
+    && Math.abs(Math.max(Math.max(...xs) - Math.min(...xs) - 390, Math.max(...ys) - Math.min(...ys) - 500)) < 1e-6,
+    `zoom ${f.zoom.toFixed(1)}`);
+
+  // The model of a real city.
+  const g = new Game({ mode: 'stara', seed: 9 });
+  for (let i = 0; i < 12 && g.phase === 'place'; i++) g.m.botAction();
+  const model = modelOf(g);
+  const box = { x0: -12, x1: 12, z0: -12, z1: 12 };
+  const scene = buildScene(model, { view: iso, box, reserve: () => false });
+  const finite = scene.mesh.a.every(Number.isFinite) && scene.shadows.a.every(Number.isFinite);
+  ok('the model of a city is built, every number finite', finite && scene.mesh.count > 1000,
+    `${Math.round(scene.mesh.count / 3)} triangles, ${Math.round(scene.shadows.count / 3)} of shadow`);
+  // A house is as tall as it is worth: the same city with every house at 1 and at 4.
+  const at = (worth) => buildScene({ ...model, cells: model.cells.map((c) => (c.kind === 'house' ? { ...c, worth } : c)) }, { view: iso, box, reserve: () => false });
+  const low = at(1), high = at(4);
+  const house = model.cells.find((c) => c.kind === 'house');
+  const k = `${house.x},${house.y}`;
+  ok('a house is as tall as it is worth', high.tops.get(k) > low.tops.get(k) + 0.3,
+    `worth 1 stands ${low.tops.get(k).toFixed(2)}, worth 4 ${high.tops.get(k).toFixed(2)} squares`);
+  const pieces = Object.values(g.m.pieces);
+  const kinds = new Set();
+  let built = true;
+  for (const p of pieces) {
+    const pm = pieceModel(turnPiece(p, 1));
+    kinds.add(p.kind);
+    built &&= pm.cells.length + pm.spans.length === p.cells.length;
+  }
+  ok('every piece of the day can be drawn on its card', built, `${pieces.length} pieces of ${[...kinds].join(', ')}`);
+  const pv = g.m.held && g.m.preview(...(() => { const m = g.m.bestMove(); return [m.x, m.y, m.rot]; })());
+  const ghost = pv && ghostOf(pv);
+  ok('a staged piece is modelled whole', !!ghost && ghost.cells.length + ghost.spans.length === pv.cells.length);
+}
+
+/**
+ * CONTADO, Starà's long form (src/modes/contado.js, 2026-11-27): the land
+ * and the spring, the two rules the land makes, the years and their
+ * commissions, a run replayed from its moves, and how long a greedy
+ * player's runs last.
+ */
+function checkContado() {
+  console.log('\ncontado, the long form');
+  const ok = (what, pass, detail = '') => {
+    if (pass) console.log(`  ✓ ${what.padEnd(50)} ${detail}`);
+    else { failures++; console.log(`  ✗ ${what} ${detail}`); }
+  };
+  // The land.
+  let levelsOk = true, steps = 0, springs = [];
+  for (let seed = 1; seed <= 40; seed++) {
+    const L = makeLand(seed);
+    for (let x = -8; x <= 8; x++) for (let y = -8; y <= 8; y++) { const l = L.level(x, y); if (!(l >= 0 && l <= TOP_LEVEL && Number.isInteger(l))) levelsOk = false; }
+    const d = Math.max(Math.abs(L.spring.x), Math.abs(L.spring.y));
+    springs.push({ d, up: L.springLevel - L.level(0, 0) });
+    if (makeLand(seed).springLevel !== L.springLevel || makeLand(seed).level(3, -2) !== L.level(3, -2)) steps++;
+  }
+  ok('every square of the land is a level from 0 to 4', levelsOk);
+  ok('the same seed makes the same land', steps === 0);
+  ok('the spring rises two or three squares from the Comune', springs.every((s) => s.d >= 2 && s.d <= 3));
+  ok('…and up the hill from it', springs.filter((s) => s.up >= 0).length >= 36, `${springs.filter((s) => s.up > 0).length}/40 above it, ${springs.filter((s) => s.up === 0).length} level`);
+
+  // The two rules the land makes, on a city built by hand.
+  const land = { level: (x, y) => (y < 0 ? 2 : 1), spring: 2 };
+  const house = (x, y, streets = 0) => ({ x, y, kind: 'house', streets, piece: null });
+  const flat = appraiseCity(cityOf([house(0, -1), house(0, 0)]));
+  // Built across a step, every stretch faces ground as high as its own: all six cost.
+  const hill = appraiseCity(cityOf([house(0, -1), house(0, 0)], [], null, land));
+  // Built on a rise of its own, every stretch faces lower ground: none does.
+  const top = { level: (x, y) => (x === 0 && y >= -1 && y <= 0 ? 2 : 1), spring: 2 };
+  const brow = appraiseCity(cityOf([house(0, -1), house(0, 0)], [], null, top));
+  ok('a stretch of wall facing lower ground costs nothing', flat.ways.wall === -6 && hill.ways.wall === -6 && brow.ways.wall === 0,
+    `two houses: ${flat.ways.wall} on the flat, ${brow.ways.wall} on a brow`);
+  const gate = appraiseCity(cityOf([house(0, -1), house(0, 0, 4)], [], null, top));
+  ok('…but a gate there still costs its gatehouse', gate.ways.wall === -RULES.gate, `${gate.ways.wall}`);
+  // Water does not climb: a span over ground higher than the spring stays dry.
+  const span = (x, y, mask) => ({ x, y, span: mask, piece: null });
+  const wet = cityOf([house(0, 0)], [span(1, 0, 0b1010), span(2, 0, 0b1010)], { x: 3, y: 0 }, { level: (x) => (x === 1 ? 3 : 1), spring: 2 });
+  const low = cityOf([house(0, 0)], [span(1, 0, 0b1010), span(2, 0, 0b1010)], { x: 3, y: 0 }, { level: () => 1, spring: 2 });
+  ok('water does not climb past the spring\'s level', appraiseCity(low).ways.water === 1 && appraiseCity(wet).ways.water === 0);
+
+  // The years.
+  const g = new Game({ mode: 'contado', seed: 3 });
+  ok('year 1 asks for houses and deals six pieces', g.m.year === 1 && g.m.commission.ask === 'houses' && g.m.hand.length + g.deck.length >= piecesFor(1));
+  const a = new Game({ mode: 'contado', seed: 11 }), b = new Game({ mode: 'contado', seed: 11 });
+  ok('the same seed deals the same run', a.m.hand.join() === b.m.hand.join() && a.deck.join() === b.deck.join());
+  let paid = 0, repeats = 0, already = 0, years = 0;
+  for (let seed = 1; seed <= 6; seed++) {
+    const r = new Game({ mode: 'contado', seed });
+    for (let i = 0; i < 200 && r.phase !== 'over' && r.m.year <= 5; i++) {
+      const y = r.m.year;
+      r.m.botAction();
+      if (r.m.year !== y) {
+        years++;
+        const met = r.m.met[r.m.met.length - 1];
+        if (met.met) paid++;
+        if (r.m.commission.ask === met.ask) repeats++;
+        if (COMMISSIONS[r.m.commission.ask].of(r.m.city) >= r.m.commission.target) already++;
+      }
+    }
+    ok(`seed ${seed}: the score is the city and the commissions`, r.players[0].score === r.m.city.total - r.m.lifts * RULES.lift + r.m.bonus
+      && r.m.bonus === COMMISSION_PAY * r.m.met.filter((m) => m.met).length);
+  }
+  ok('a met commission pays and deals the next year', paid === years && years > 0, `${years} years turned`);
+  ok('never the same commission twice running, never one already met', repeats === 0 && already === 0);
+
+  // A run picked up again: the moves replayed on the same seed make the same city.
+  const run = new Game({ mode: 'contado', seed: 21 });
+  for (let i = 0; i < 9 && run.phase !== 'over'; i++) run.m.botAction();
+  run.m.lift([...run.m.laid.keys()][0]);
+  for (let i = 0; i < 3 && run.phase !== 'over'; i++) run.m.botAction();
+  const again = new Game({ mode: 'contado', seed: 21 });
+  again.m.pendingReplay = run.m.runLog.slice();
+  again.m.replay();
+  ok('a run replayed from its moves is the same run', again.players[0].score === run.players[0].score && again.m.laid.size === run.m.laid.size
+    && again.m.year === run.m.year && again.m.hand.join() === run.m.hand.join(), `${run.m.runLog.length} moves, worth ${run.players[0].score}`);
+}
+
 const avg = (l) => l.reduce((a, b) => a + b, 0) / (l.length || 1);
 
 async function main() {
@@ -3148,6 +3310,8 @@ async function main() {
   }
 
   checkStara();
+  checkLowPoly();
+  checkContado();
   checkGiardino();
 
   console.log('\nmodes');

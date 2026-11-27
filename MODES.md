@@ -1985,8 +1985,9 @@ the fix is the number, not the rule.
 ## 14. Starà — the daily square
 
 > **Built 2026-11-18, in four passes, made a city-state on 2026-11-23, dealt
-> as a plan cut into pieces on 2026-11-27, and taken off its square onto an
-> open table the same day** — `src/modes/stara.js` (the mode),
+> as a plan cut into pieces on 2026-11-27, taken off its square onto an
+> open table the same day, and made a low-poly model with a long form
+> (section 16) later that day** — `src/modes/stara.js` (the mode),
 > `src/modes/stara-city.js` (the places, the ways, the wall and the one
 > scorer), `src/modes/stara-plan.js` (the level maker), `src/city.js` (the
 > places' pictures, the aqueduct and the spring), `src/castle.js` (the wall
@@ -1995,9 +1996,11 @@ the fix is the number, not the rule.
 > `drawCityHints`, `drawWays` and `drawWaxSeal` in `src/render.js` (the table,
 > the wall and the water, pieces and their pay by way, and the seal),
 > `src/sketch.js` (hand-drawn strokes), `assets/table-oak.jpg` and
-> `assets/fonts/` (see `assets/CREDITS.md`). Checked by `checkStara` in the
-> harness and "starà on a phone" and "stara5 by touch" in the smoke test;
-> measured by `tools/stara-sim.mjs`.
+> `assets/fonts/` (see `assets/CREDITS.md`), and `src/lowpoly.js` (the city
+> as a low-poly model, from above or in isometric) with `drawModel` and
+> `pickCell` in `src/render.js`. Checked by `checkStara` and `checkLowPoly`
+> in the harness and "starà on a phone", "stara5 by touch" and "starà as a
+> model" in the smoke test; measured by `tools/stara-sim.mjs`.
 
 Timothy, 2026-11-18: *"new mode, going to be daily, and based around the idea
 of fitting tiles into the area of your phone screen. so like let's define a
@@ -2010,8 +2013,88 @@ real wood"*.
 
 **Question:** is Carcassonne a daily puzzle once the table has an edge?
 
-**Where it stands now (the seventh pass)** comes first; how it got there
-follows, pass by pass, newest first.
+**Where it stands now (the eighth pass, a look on top of the seventh's
+rules)** comes first; how it got there follows, pass by pass, newest first.
+Its long form, Contado, is section 16; how the two are meant to relate is
+**[`docs/STARA-FORMS.md`](docs/STARA-FORMS.md)**.
+
+### The eighth pass: the city as a model (2026-11-27)
+
+Timothy, later the same day: *"I want to see what this game would look like
+if it was kind of pseudo pixel 3D in some way, and also kind of displayed
+isometrically, so you can kind of see some elevation change as you build ...
+I think it would also engage with the kind of the gameplay style a little
+better ... a 3D aesthetic, like I'm saying, like a Nintendo 64, I would say,
+is what we'd be targeting, and then have an isometric view and a regular
+top-down view like we have now."* And the long form (section 16).
+
+**No rule changed.** It is a way to look, three of them now, switched under
+the title beside the sizes: **Ink** (the hand-drawn table, as it was), **Top**
+(the model from straight above) and **Iso** (the model in isometric; a touch
+on Iso again turns the view a quarter, so what a tower hides can be seen).
+The choice is kept in the browser.
+
+**What makes it read as the N64** (`src/lowpoly.js`, WebGL with no library,
+in the spirit of `relief.html`): few polygons with flat faces (a house is a
+box and a gabled roof, a tower an octagon and a cone); Gouraud light, one sun
+and an ambient term worked out per vertex; small grey textures painted at
+start (roof tiles, windows and shutters, flagstones, brick, ashlar, marble
+bands, water) coloured by the vertex and smeared by bilinear filtering; fog
+over the country a few squares past the city; and the whole drawn at about
+250 pixels across the short side of the screen, blown up without smoothing,
+every colour cut to 5 bits a channel through a 4 × 4 ordered dither, the look
+of the 16-bit framebuffer.
+
+**What it shows.** Plaster houses in ochre, sienna and cream under terracotta,
+their windows a storey apart; the plazas in brick with a fountain; the Comune's
+palazzo and its tower, the tallest thing in the city; the cathedral's nave in
+banded marble, its dome and its campanile; the aqueduct on piers with water
+running in its channel; the spring in a ring of stone under its rocks; the
+wall with merlons, round towers at the corners, gatehouses with their roads
+out, and banners on the high road's gates; the country in a patchwork of
+meadow, wheat, vines and ploughland with cypresses, umbrella pines and olives;
+and the cards in the tray are the model too, in the same view.
+
+Calls of Claude's, each with why:
+
+- **A house is as tall as it is worth** (one to four storeys: 1, +1 for a
+  plaza, +1 watered, +1 for the cathedral), easing up or down as the city
+  round it changes. This is the elevation he asked to see as he builds, and
+  it is the score made visible: a well-placed house stands tall, and San
+  Gimignano's families built their towers for exactly that reason.
+- **Isometric is the pixel artist's 2:1** (a pitch of 30°), which is what most
+  people mean by isometric in a game.
+- **The sun stays at the upper left of the screen** whichever way the view is
+  turned, so the faces toward you on the left are lit and the right in shade,
+  the convention that makes a block read as a block. Shadows are the N64's:
+  flat and dark, each footprint swept away from the sun by its height, never
+  doubled where two overlap.
+- **Isometric is the default for a new player**, since the look is what was
+  asked for; Ink and Top are a touch away.
+- **Everything that is not the city stays drawn by the 2D renderer, on top**:
+  the staged piece's outline, what it would pay, the seal and the floating
+  scores. In the isometric view it is drawn in top-down coordinates under the
+  affine map that takes the ground to the screen (an orthographic camera turns
+  a plane into a parallelogram, which a canvas transform can do exactly), so
+  all of it lies on the ground at full resolution with none of its code
+  changed. Labels and drops are carried through the map and drawn upright.
+  The lit squares are drawn in the model instead, so a wall in front of one
+  hides it.
+- **A tap is worked back through the camera, height first** (`pickCell`):
+  down the ray from the screen, the first square whose model stands as high
+  as the ray is there. So a tap on a roof is that house's, not the square
+  behind it that the ground under the roof belongs to. Holding a piece to
+  lift it raises it off the table as the hold goes on; a staged piece floats
+  over the table, bobbing, and is pressed down onto it as the seal sets.
+- **The isometric camera fits the city's own shape**, not a box round it: a
+  square's diamond is wide and a phone is narrow. On a 390-pixel phone a
+  finished 7 × 7 still stands at about 30 pixels a square, which is the
+  honest cost of isometric on a phone; Top keeps the inked table's framing.
+
+**Open**: the hold's wax seal lies flat on the ground in isometric (it reads
+as wax on the table, but it is squashed); the top bar and tray are still the
+inked table's parchment; and Relief's tile extrusion (`docs/RELIEF.md`) is a
+different thing, still tabled.
 
 ### The seventh pass: an open table, and the wall you pay for (2026-11-27)
 
@@ -2986,6 +3069,109 @@ frost):
 - **Marigold may be too easy a friend** (every vegetable likes it) and fennel
   too easy a loner (it ripens 94% of the time at 5); both are one number to
   tune if play says so.
+
+---
+
+## 16. Contado — Starà's long form
+
+> **Built 2026-11-27, one pass** — `src/modes/contado.js` (the land, the
+> years, the commissions, the deal, keeping a run), the land's two rules in
+> `src/modes/stara-city.js` (`cityOf`'s `land`, `wallOf`'s `slope`,
+> `waterOf`), and terraces, cut earth and step shadows in `src/lowpoly.js`;
+> Starà's screen (`src/stara-ui.js`) taught a year and a commission under the
+> title, End the year, and a run's end card. Checked by `checkContado` in the
+> harness and "contado on a phone" in the smoke test; measured by
+> `tools/contado-sim.mjs`. **[`docs/STARA-FORMS.md`](docs/STARA-FORMS.md)**
+> is how it and the daily are meant to relate.
+
+Timothy, 2026-11-27: *"I also want to kind of start creating the idea that
+there's a long form version of this mode and a short form, and that we can
+kind of want to design them to be related to each other, but also like not
+necessarily the same. Like one is the daily mode and one is a longer form
+mode that might become like an actual video game."*
+
+**Question:** what does Starà become when the city does not end with the day?
+
+**The name.** The *contado* was the land a city-state ruled outside its
+walls. The daily is a city in a day; this is a city and its land over years.
+A working title.
+
+**Shared with the daily**, through the one scorer: the pieces and places,
+how a city is paid, streets meeting streets, the wall at a point a stretch
+and a gate two, the high road, the aqueduct over everything, three in hand,
+hold to seal and to lift, the screen and the model.
+
+**Its own rules**, every one a call of Claude's to get a first long form
+playable:
+
+- **A run, not a day.** A new land and seed every run. Every move is kept in
+  the browser (`tilemakers-workshop/contado/run`: the seed and the moves),
+  and a run left unfinished is picked up where it was by playing its moves
+  again on the same seed, which deals the same pieces. Once a run is over,
+  "A new run" starts another.
+- **The land has levels**, 0 to 4 (`makeLand`): a hill three and a half
+  squares from the Comune in a direction of the seed's, a knoll about six
+  off on another side, ripples between. The spring rises on the hill's
+  shoulder two or three squares from the Comune, a level under the hill's
+  top where it can be.
+- **The slope is a wall.** A stretch of wall facing lower ground costs
+  nothing; a gate there still costs its 1. (`wallOf` marks it `slope`.)
+- **Water does not climb.** The aqueduct's channel holds the spring's level:
+  water never runs into a span over ground higher than the spring. Spans
+  stand on taller arches over lower ground.
+- **Years.** Each year deals six pieces (one more every third year, up to
+  nine): mostly houses, some plazas and aqueduct, and the one cathedral in
+  the second year. When they are down (or the year is ended, when nothing
+  fits), the year closes.
+- **Commissions**, the half of the old Carcassonne app's Solitaire the daily
+  never took. Each year the Signoria asks for one thing the shared scorer
+  measures: so many squares of houses, houses beside a plaza, houses watered,
+  houses in the cathedral's parish, a high road out on so many sides, or a
+  city worth so much. The first year asks for houses. Met when the year
+  closes, it pays **5** and the next year comes; missed, the run is over.
+  A year's deal leans toward its ask (two runs of aqueduct for water, a plaza
+  for plazas, enough houses for houses).
+- **The targets.** A schedule by the year, first set a little under what a
+  greedy city had at each year's end with every commission waved through
+  (`GROWTH=1 node tools/contado-sim.mjs`); the parish rises every other year
+  to 8, the high road to 4 sides. **Never asked for what the city already
+  has**: the four that keep growing ask at least 8 houses, 4 by a plaza, 2
+  watered or 10 of worth more than the city has when the year begins, and
+  the two that stop are asked only while short. Never the same ask twice
+  running. Moving the spring nearer and leaning each year's deal toward its
+  ask then made cities grow faster than the schedule (now about 14 squares
+  of houses a year, 5 beside a plaza, 4 watered and 2 on the driest land, 17
+  of worth), so for most cities the growth rule is what binds, and the
+  plaza, slowest to grow, ends most runs.
+
+**The look.** Contado has only the model's views (Top and Iso): the inked
+table cannot show a land with levels. Each square of land is a terrace at its
+level with cut earth down to a lower neighbour and the shadow of the step
+thrown onto it; higher ground is a little lighter, as a map tints its
+heights, which is how terraces are told apart from straight above. The city
+stands on its terraces, a stretch on a brow is a low parapet rather than a
+curtain wall, and the aqueduct's arches grow over the valleys.
+
+**What it measures** (`node tools/contado-sim.mjs`, 30 greedy runs; greedy
+never reads the year's ask, so these are floors):
+
+- a run lasts **2 to 15+ years, median 6**;
+- what ends it: the plaza ask 16 times, worth 5, water 4, the cathedral's
+  parish 2; 3 runs passed year 14;
+- no run ends in its first year.
+
+Tuning on the way there, worth keeping: with targets that rose each time a
+kind was asked (not with the year), a greedy city outgrew them and one run
+reached year 15 and 196 squares; with the spring four to six squares out,
+water ended 8 runs in 30 in year 2 (two runs of aqueduct could not reach);
+with the parish rising every year, a cathedral laid at the edge became a
+trap that ended 13 runs in 30.
+
+**Open, his to decide** (docs/STARA-FORMS.md has them in full): the name;
+whether one missed commission should end a run or cost patience; whether a
+year should be dealt from a plan, as the daily is; bringing back the fifth
+pass's places (city.js still draws them) one every few years; the land in the
+daily; and whether the long form is a digital game, as it reads.
 
 ---
 

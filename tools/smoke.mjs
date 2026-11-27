@@ -1075,7 +1075,8 @@ await page.selectOption('#tilesPerTurn', '1');
     const r = window.LAB.renderer;
     await new Promise((res) => requestAnimationFrame(() => requestAnimationFrame(res)));
     return {
-      wall: !!r.cityWall && r.cityWall.canvas.width > 0,
+      // The inked table's wall layer, or the model's wall (lowpoly.js), whichever view is up.
+      wall: r.model3d ? (r.low.model?.wall?.length || 0) > 0 : !!r.cityWall && r.cityWall.canvas.width > 0,
       fonts: ['34px Fraktur', '16px Fell', '16px Cinzel'].filter((f) => !document.fonts.check(f)),
     };
   });
@@ -1389,6 +1390,174 @@ for (const mode of ['stara5', 'giardino']) {
   await phone.close();
   if (problems.length) { failures++; console.log(`  ✗ ${mode} by touch: ${problems.join(' · ')}`); }
   else console.log(`  ✓ ${(mode + ' by touch').padEnd(21)} a tap stages, a tap turns, the tray turns it back, a finger drags it, a finger held still seals with nothing selected or cancelled`);
+}
+
+// Starà AS A MODEL (src/lowpoly.js, 2026-11-27: "pseudo pixel 3D ... like a
+// Nintendo 64 ... and then have an isometric view and a regular top-down
+// view like we have now"). A new player's phone: the model in isometric, in
+// big pixels; a tap on a lit square stages the piece there, through the
+// ground's projection; a tap on a roof is that house's, not the square
+// behind it; the three views switch and are remembered, and Iso again turns
+// the view; the cards are the model too.
+{
+  const problems = [];
+  const phone = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2 });
+  const tp = await phone.newPage();
+  const errs = [];
+  tp.on('pageerror', (e) => errs.push(e.message));
+  await tp.goto(`http://localhost:${PORT}/index.html?mode=stara`);
+  await tp.waitForTimeout(1200);
+  const first = await tp.evaluate(() => {
+    const r = window.LAB.renderer, gl = document.getElementById('board3d');
+    const c = document.createElement('canvas');
+    c.width = gl.width; c.height = gl.height;
+    const k = c.getContext('2d');
+    k.drawImage(gl, 0, 0);
+    const d = k.getImageData(0, 0, c.width, c.height).data;
+    const colours = new Set();
+    for (let i = 0; i < d.length; i += 4 * 53) colours.add((d[i] << 16) | (d[i + 1] << 8) | d[i + 2]);
+    return {
+      kind: r.viewKind, model: r.model3d, shown: !!gl && !gl.hidden, colours: colours.size,
+      px: gl.width / (gl.getBoundingClientRect().width * devicePixelRatio),
+      buttons: [...document.querySelectorAll('#staraViews button')].filter((b) => !b.hidden).map((b) => b.textContent.trim().slice(0, 3)),
+    };
+  });
+  if (first.kind !== 'iso' || !first.model || !first.shown) problems.push(`a new player does not see the model in isometric: ${JSON.stringify(first)}`);
+  if (!(first.px < 0.5)) problems.push(`the model is not drawn in big pixels (${first.px.toFixed(2)} of the screen's)`);
+  if (first.colours < 12) problems.push(`the model's canvas is nearly blank (${first.colours} colours)`);
+  if (first.buttons.join(',') !== 'Ink,Top,Iso') problems.push(`the views offered are ${first.buttons.join(', ')}`);
+  // A tap on a lit square, through the isometric projection, stages the piece over it.
+  const lit = await tp.evaluate(() => {
+    const g = window.LAB.game, r = window.LAB.renderer;
+    const key = [...g.m.litSquares()][0];
+    const [x, y] = key.split(',').map(Number);
+    const [sx, sy] = r.toScreen(x + 0.5, y + 0.5);
+    const cv = r.canvas.getBoundingClientRect();
+    return { key, x: sx + cv.left, y: sy + cv.top };
+  });
+  await tp.mouse.click(lit.x, lit.y);
+  await tp.waitForTimeout(150);
+  const staged = await tp.evaluate(() => ({ on: !!window.LAB.renderer.pending, cells: window.LAB.stara.pendingCells().map((c) => `${c.x},${c.y}`), turn: !document.getElementById('staraTurn').hidden }));
+  if (!staged.on || !staged.cells.includes(lit.key)) problems.push(`a tap on lit square ${lit.key} in isometric staged ${JSON.stringify(staged)}`);
+  if (!staged.turn) problems.push('no turn button beside the staged piece in isometric');
+  // A tap on a roof: lay a few pieces, then aim at the front house's roof.
+  const roof = await tp.evaluate(async () => {
+    const { project } = await import('./src/lowpoly.js');
+    const g = window.LAB.game, r = window.LAB.renderer;
+    window.LAB.stara.h?.clear?.();
+    r.pending = null;
+    for (let i = 0; i < 6 && g.phase === 'place'; i++) g.m.botAction();
+    window.LAB.stara.sync();
+    await new Promise((res) => requestAnimationFrame(() => requestAnimationFrame(res)));
+    // A house with nothing in front of it (toward the viewer, in this view's
+    // quarter), aimed at the back corner of its roof: the ground under that
+    // point is the square behind it.
+    const open = (x, y) => !g.board.get(x, y) && !g.m.water.spans.has(`${x},${y}`);
+    const houses = [...g.board.cells.values()].filter((c) => c.type.place === 'house' && open(c.x + 1, c.y) && open(c.x, c.y + 1) && open(c.x + 1, c.y + 1));
+    const front = houses.sort((a, b) => r.low.topAt(b.x, b.y, () => 0) - r.low.topAt(a.x, a.y, () => 0))[0];
+    const top = r.low.topAt(front.x, front.y, () => 0);
+    const [sx, sy] = project(r.view, r.cam, r.w, r.h, front.x + 0.12, front.y + 0.12, top - 0.04);
+    const ground = r.toWorld(sx, sy).map(Math.floor);
+    return { want: `${front.x},${front.y}`, got: (({ x, y }) => `${x},${y}`)(r.cellAt(sx, sy)), ground: ground.join(','), top };
+  });
+  if (roof.got !== roof.want) problems.push(`a tap on the roof of ${roof.want} picked ${roof.got}`);
+  if (roof.ground === roof.want) problems.push('the roof test did not test anything: the ground under the roof is the same square');
+  // The views: Top, Ink, Iso, and Iso again turns it; remembered.
+  const views = [];
+  for (const v of ['top', 'ink', 'iso', 'iso']) {
+    await tp.click(`#staraViews button[data-view="${v}"]`);
+    await tp.waitForTimeout(120);
+    views.push(await tp.evaluate(() => {
+      const r = window.LAB.renderer;
+      return `${r.viewKind}${r.viewQuarter}:${r.model3d ? 'm' : 'i'}:${document.getElementById('board3d').hidden ? 'h' : 's'}`;
+    }));
+  }
+  if (views.join(' ') !== 'top0:m:s ink0:i:h iso0:m:s iso1:m:s') problems.push(`the view switch went ${views.join(' ')}`);
+  const kept = await tp.evaluate(() => localStorage.getItem('tilemakers-workshop/stara/view'));
+  if (kept !== 'iso:1') problems.push(`the view was kept as ${kept}`);
+  // The cards are the model in a model view.
+  const card = await tp.evaluate(() => {
+    const cv = document.querySelector('.staraCard canvas');
+    const d = cv.getContext('2d').getImageData(0, 0, cv.width, cv.height).data;
+    let solid = 0;
+    for (let i = 3; i < d.length; i += 4) if (d[i] > 200) solid++;
+    return { thumbs: !!window.LAB.renderer.thumbs?.ok, solid: solid / (d.length / 4) };
+  });
+  if (!card.thumbs || card.solid < 0.05) problems.push(`the cards are not drawn as the model: ${JSON.stringify(card)}`);
+  if (errs.length) problems.push(errs[0].split('\n')[0]);
+  await phone.close();
+  if (problems.length) { failures++; console.log(`  ✗ starà as a model: ${problems.join(' · ')}`); }
+  else console.log(`  ✓ starà as a model     isometric by default at ${(1 / first.px).toFixed(1)} screen px a pixel; a tap stages through the projection, a roof picks its own house, Ink/Top/Iso switch and turn and are kept, model cards`);
+}
+
+// CONTADO, Starà's long form (2026-11-27): one city on a land of levels,
+// year after year, kept between visits. A phone: its title, the year and
+// the commission under it, only the model's views; two pieces down and the
+// page reloaded, the run is picked up where it was; the first year played
+// out, its commission is measured and paid (or the run ends there); and
+// once the run is over, A new run starts a new land.
+{
+  const problems = [];
+  const phone = await browser.newContext({ viewport: { width: 390, height: 844 } });
+  const tp = await phone.newPage();
+  const errs = [];
+  tp.on('pageerror', (e) => errs.push(e.message));
+  await tp.goto(`http://localhost:${PORT}/index.html?mode=contado`);
+  await tp.waitForTimeout(1200);
+  const open = await tp.evaluate(() => {
+    const g = window.LAB.game;
+    const run = JSON.parse(localStorage.getItem('tilemakers-workshop/contado/run') || 'null');
+    const levels = new Set();
+    for (let x = -4; x <= 4; x++) for (let y = -4; y <= 4; y++) levels.add(g.m.levelAt(x, y));
+    return {
+      title: document.querySelector('#stara .staraName').textContent, day: document.getElementById('staraDay').textContent,
+      views: [...document.querySelectorAll('#staraViews button')].filter((b) => !b.hidden).map((b) => b.dataset.view).join(','),
+      sizes: getComputedStyle(document.getElementById('staraSizes')).display, seed: g.seed >>> 0, kept: run?.seed, year: g.m.year,
+      model: window.LAB.renderer.model3d, levels: levels.size, hand: g.m.hand.length,
+    };
+  });
+  if (open.title !== 'Contado' || !open.day.startsWith('Year 1')) problems.push(`the screen does not say Contado, year 1: ${open.title} / ${open.day}`);
+  if (open.views !== 'top,iso' || open.sizes !== 'none') problems.push(`views ${open.views}, sizes ${open.sizes}`);
+  if (!open.model) problems.push('Contado is not drawn as the model');
+  if (open.levels < 3) problems.push(`the land is nearly flat (${open.levels} levels round the Comune)`);
+  if (open.kept !== open.seed) problems.push('the run was not kept in the browser');
+  if (open.hand !== 3) problems.push(`${open.hand} pieces in hand, not three`);
+  const before = await tp.evaluate(() => {
+    const g = window.LAB.game;
+    for (let i = 0; i < 2; i++) g.m.botAction();
+    window.LAB.stara.sync();
+    return { laid: g.m.laid.size, score: g.players[0].score, seed: g.seed >>> 0 };
+  });
+  await tp.reload();
+  await tp.waitForTimeout(1200);
+  const after = await tp.evaluate(() => { const g = window.LAB.game; return { laid: g.m.laid.size, score: g.players[0].score, seed: g.seed >>> 0 }; });
+  if (JSON.stringify(after) !== JSON.stringify(before)) problems.push(`the run was not picked up where it was left: ${JSON.stringify({ before, after })}`);
+  const year = await tp.evaluate(() => {
+    const g = window.LAB.game;
+    for (let i = 0; i < 60 && g.m.year === 1 && g.phase !== 'over'; i++) g.m.botAction();
+    window.LAB.stara.sync();
+    return { year: g.m.year, over: g.phase === 'over', paid: g.m.tally.commissions, met: g.m.met[0], day: document.getElementById('staraDay').textContent };
+  });
+  if (!year.met) problems.push('the first year was never measured');
+  else if (year.met.met && (year.year !== 2 || year.paid !== 5 || !year.day.startsWith('Year 2'))) problems.push(`a met commission did not pay and deal year 2: ${JSON.stringify(year)}`);
+  else if (!year.met.met && !year.over) problems.push('a missed commission did not end the run');
+  // End the run (each year closed early until one is missed), and start a new one.
+  const ended = await tp.evaluate(() => {
+    const g = window.LAB.game;
+    for (let i = 0; i < 40 && g.phase !== 'over'; i++) g.m.endDay();
+    window.LAB.stara.sync();
+    const run = JSON.parse(localStorage.getItem('tilemakers-workshop/contado/run') || 'null');
+    return { over: g.phase === 'over', card: !document.getElementById('staraEnd').hidden, again: document.getElementById('staraAgain').textContent, why: document.getElementById('staraEndPar').textContent, kept: run?.over, seed: g.seed >>> 0 };
+  });
+  if (!ended.over || !ended.card || ended.again !== 'A new run' || !/Signoria asked/.test(ended.why) || !ended.kept) problems.push(`the run did not end with its card: ${JSON.stringify(ended)}`);
+  await tp.click('#staraAgain');
+  await tp.waitForTimeout(300);
+  const fresh = await tp.evaluate(() => ({ year: window.LAB.game.m.year, phase: window.LAB.game.phase, seed: window.LAB.game.seed >>> 0 }));
+  if (fresh.year !== 1 || fresh.phase !== 'place' || fresh.seed === ended.seed) problems.push(`A new run did not start a new land: ${JSON.stringify(fresh)}`);
+  if (errs.length) problems.push(errs[0].split('\n')[0]);
+  await phone.close();
+  if (problems.length) { failures++; console.log(`  ✗ contado on a phone: ${problems.join(' · ')}`); }
+  else console.log(`  ✓ contado on a phone   ${open.levels} levels of land; year and commission shown, model only, kept and picked up after a reload, year 1 ${year.met.met ? 'met and paid' : 'missed and ended'}, ended and begun anew`);
 }
 
 // Giardino, the daily garden, on a phone (2026-11-22): Starà's screen with a

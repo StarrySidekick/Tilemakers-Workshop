@@ -74,10 +74,12 @@
 
 import { STARA_KINDS, STARA_SIZES, WAYS, WAY, turnPiece, tagged, lookString } from './modes/stara.js';
 import { GIARDINO_KINDS, PLANTS } from './modes/giardino.js';
+import { COMMISSIONS } from './modes/contado.js';
 import { CASTLE, keepSprite } from './castle.js';
 import { citySprite, spanSprite, SPAN_PAD } from './city.js';
 import { usePalette } from './theme.js';
 import { TILES } from './tiles.js';
+import { VIEWS, fitPoints, LEVEL } from './lowpoly.js';
 
 const TILES_OF = (id) => TILES[id];
 
@@ -86,6 +88,10 @@ const $ = (id) => document.getElementById(id);
 const BEST = (mode, iso) => `tilemakers-workshop/${mode}/best/${iso}`;
 // The seventh pass changed how a piece is handled, so everyone is taught again.
 const TAUGHT = 'tilemakers-workshop/stara/taught7';
+// How the city is looked at (lowpoly.js): the view and the isometric quarter, "iso:0".
+const VIEW_KEY = 'tilemakers-workshop/stara/view';
+/** A new player sees the model in isometric (2026-11-27: "let's redo ... to make a 3D aesthetic"). */
+const DEFAULT_VIEW = 'iso';
 
 const DRAG_PX = 10;
 
@@ -182,6 +188,8 @@ export class StaraUI {
     this.layoutKey = '';
     this.press = null;         // a finger on a card: tap, or the start of a drag
     this.held = null;          // a finger held on the board: sealing, or lifting
+    const [kind, q] = (store.get(VIEW_KEY) || `${DEFAULT_VIEW}:0`).split(':');
+    host.renderer.setView(VIEWS.some((v) => v.id === kind) ? kind : DEFAULT_VIEW, Number(q) || 0);
     this.wire();
   }
 
@@ -237,6 +245,26 @@ export class StaraUI {
       const id = e.target.closest('button')?.dataset.mode;
       if (id && id !== this.game.mode) this.h.switchTo(id);
     };
+    // The ways to look: the inked table, the model from above, the model in
+    // isometric. A touch on Iso while it is the view turns it a quarter.
+    const views = $('staraViews');
+    views.innerHTML = VIEWS.map((v) => `<button data-view="${v.id}" title="${v.about}">${v.name}</button>`).join('');
+    views.onclick = (e) => {
+      const id = e.target.closest('button')?.dataset.view;
+      if (id) this.look(id);
+    };
+  }
+
+  /** Look at the city another way, or turn the isometric view a quarter. */
+  look(id) {
+    const r = this.h.renderer;
+    const q = id === 'iso' && r.viewKind === 'iso' ? (r.viewQuarter + 1) & 3 : r.viewQuarter;
+    if (id === r.viewKind && id !== 'iso') return;
+    r.setView(id, q);
+    store.set(VIEW_KEY, `${id}:${q}`);
+    this.h.sound?.('rotate');
+    this.refit();
+    this.h.sync();
   }
 
   // --- the frame ------------------------------------------------------------
@@ -251,6 +279,10 @@ export class StaraUI {
     // Coming or going, the panel has moved and the board's canvas with it.
     if (was !== on) { this.h.renderer.resize(); this.refit(); }
     if (!on) return;
+    // The long form's land has heights the inked table cannot show, so it
+    // has only the model (src/modes/contado.js): settled before the camera is.
+    const r = this.h.renderer;
+    if (this.city && this.game.spec.land && r.viewKind === 'ink') r.setView('iso', r.viewQuarter);
     this.fit();
 
     const g = this.game, p = g.players[0];
@@ -259,9 +291,20 @@ export class StaraUI {
     document.body.classList.toggle('city', this.city);
     document.querySelector('#stara .staraName').textContent = g.spec.title || 'Starà';
     $('staraDay').textContent = garden ? `No. ${g.m.day.n} · week ${g.m.week}`
-      : this.city ? `No. ${g.m.day.n} · the plan ${g.m.par}` : `No. ${g.m.day.n}`;
-    $('staraSizes').style.display = garden ? 'none' : '';
+      : g.m.headline ? g.m.headline()
+        : this.city ? `No. ${g.m.day.n} · the plan ${g.m.par}` : `No. ${g.m.day.n}`;
+    const sized = STARA_SIZES.some((s) => s.id === g.mode);
+    $('staraSizes').style.display = sized ? '' : 'none';
     for (const b of $('staraSizes').children) b.classList.toggle('on', b.dataset.mode === g.mode);
+    // The ways to look are the city's: a garden has only its ink, and the
+    // long form only the model.
+    $('staraViews').style.display = this.city ? '' : 'none';
+    for (const b of $('staraViews').children) {
+      const id = b.dataset.view;
+      b.hidden = !!g.spec.land && id === 'ink';
+      b.classList.toggle('on', id === r.viewKind);
+      b.innerHTML = id === 'iso' && r.viewKind === 'iso' ? `${VIEWS[2].name}<span class="turnGlyph">↻</span>` : VIEWS.find((v) => v.id === id).name;
+    }
     const score = $('staraScore');
     score.textContent = p.score;
     if (this.lastScore != null && p.score > this.lastScore) {
@@ -295,7 +338,8 @@ export class StaraUI {
     const r = this.h.renderer;
     const open = this.city && g.m.extent;
     const b = open ? g.m.extent() : g.board.bounds;
-    const key = [stage.width, stage.height, top, tray, b.minX, b.maxX, b.minY, b.maxY].join('|');
+    r.applyView(g);
+    const key = [stage.width, stage.height, top, tray, b.minX, b.maxX, b.minY, b.maxY, r.view.kind, r.view.quarter].join('|');
     if (!force && key === this.layoutKey) return;
     if (this.held?.dragging || this.press?.dragging) return;       // never while a piece is in the hand
     const first = !this.layoutKey || force;
@@ -316,10 +360,34 @@ export class StaraUI {
     }
     const availW = stage.width;
     const availH = stage.height - top - tray - gutter * 2;
-    const zoom = Math.max(24, Math.min(150, Math.floor(Math.min(availW / (across + reach), availH / (down + reach)))));
+    let zoom = Math.max(24, Math.min(150, Math.floor(Math.min(availW / (across + reach), availH / (down + reach)))));
     const midY = top + gutter + availH / 2;
-    const x = (b.minX + b.maxX + 1) / 2;
-    const y = (b.minY + b.maxY + 1) / 2 - (midY - stage.height / 2) / zoom;
+    let x = (b.minX + b.maxX + 1) / 2;
+    let y = (b.minY + b.maxY + 1) / 2 - (midY - stage.height / 2) / zoom;
+    if (open && r.model3d && r.view.kind === 'iso') {
+      // The isometric view: every square built (and the spring, and the
+      // aqueduct's spans) with MARGIN squares of table round it, its towers
+      // standing up out of it, and at least a box of the plan's size less
+      // two round the Comune, fitted as a picture. Fitted to the city's own
+      // shape rather than a box round it, since a box's diamond is wide and
+      // a phone is not.
+      const pts = [];
+      const lvl = (i, j) => (g.m.levelAt ? g.m.levelAt(i, j) * LEVEL : 0);
+      const add = (i, j) => {
+        const l = lvl(i, j);
+        for (const [a, c] of [[-MARGIN, -MARGIN], [1 + MARGIN, -MARGIN], [1 + MARGIN, 1 + MARGIN], [-MARGIN, 1 + MARGIN]]) {
+          pts.push([i + a, j + c, l], [i + a, j + c, l + 0.9]);
+        }
+      };
+      for (const c of g.board.cells.values()) add(c.x, c.y);
+      for (const s of g.m.water.spans.values()) add(s.x, s.y);
+      add(g.m.water.spring.x, g.m.water.spring.y);
+      const least = Math.max(1, (g.m.side - 2) / 2);
+      for (const [a, c] of [[-least, -least], [least, -least], [least, least], [-least, least]]) pts.push([0.5 + a, 0.5 + c, 0]);
+      const f = fitPoints(r.view, pts, availW, availH, midY - stage.height / 2);
+      zoom = Math.max(14, Math.min(150, Math.floor(f.zoom)));
+      ({ x, y } = fitPoints(r.view, pts, availW, availH, midY - stage.height / 2, zoom));
+    }
     if (first || !open) {
       r.cam.zoom = zoom; r.cam.x = x; r.cam.y = y; r.glide = null;
     } else {
@@ -382,6 +450,10 @@ export class StaraUI {
       this.shown = { turn: g.turn, rots: [] };
     }
     const cards = [...host.children];
+    // In the model's views the cards are the model too (lowpoly.js), drawn again when the view changes.
+    const r = this.h.renderer;
+    const look = this.city && r.model3d ? `${r.view.kind}${r.view.quarter}` : 'ink';
+    const drawn = `${key}|${look}`;
     cards.forEach((card, i) => {
       const held = i === sel;
       card.classList.toggle('held', held);
@@ -389,15 +461,20 @@ export class StaraUI {
       const rot = this.rotOf(i);
       const canvas = card.firstChild;
       const was = this.shown.rots[i];
-      if (was === rot && card.dataset.drawn === key) return;
-      if (held && was != null && was !== rot) this.spin(canvas, rot - was);
+      if (was === rot && card.dataset.drawn === drawn) return;
+      // A turn is seen as a turn; an isometric picture turned flat on the
+      // screen is not the piece turned, so there it is simply drawn again.
+      if (held && was != null && was !== rot && look.slice(0, 3) !== 'iso') this.spin(canvas, rot - was);
       this.shown.rots[i] = rot;
-      card.dataset.drawn = key;
+      card.dataset.drawn = drawn;
       const ctx = canvas.getContext('2d');
       const px = canvas.width;
       if (this.city) {
-        const fits = drawPiece(ctx, g.m.pieces[hand[i]], rot, px);
-        card.dataset.span = String(Math.max(fits.w, fits.h));
+        const piece = g.m.pieces[hand[i]];
+        const cells = turnPiece(piece, rot);
+        const w = Math.max(...cells.map((c) => c.dx)) + 1, h = Math.max(...cells.map((c) => c.dy)) + 1;
+        if (look === 'ink' || !r.drawPieceModel(ctx, cells, px)) drawPiece(ctx, piece, rot, px);
+        card.dataset.span = String(Math.max(w, h));
         return;
       }
       ctx.clearRect(0, 0, px, px);
@@ -504,6 +581,7 @@ export class StaraUI {
       stuck = this.stuckValue;
     }
     el.hidden = !stuck;
+    $('staraFinish').textContent = g.spec.long ? 'End the year' : 'End the day';
     $('staraTray').classList.toggle('stuck', stuck);
   }
 
@@ -553,14 +631,27 @@ export class StaraUI {
     const cells = this.pendingCells();
     const r = this.h.renderer;
     const stage = $('stage').getBoundingClientRect(), cv = r.canvas.getBoundingClientRect();
-    const maxX = Math.max(...cells.map((c) => c.x)) + 1, minX = Math.min(...cells.map((c) => c.x));
-    const minY = Math.min(...cells.map((c) => c.y));
-    let [sx, sy] = r.toScreen(maxX, minY);
-    sx += cv.left - stage.left + 6;
-    sy += cv.top - stage.top - 22;
-    if (sx + 48 > stage.width) sx = r.toScreen(minX, minY)[0] + cv.left - stage.left - 50;
+    // The piece's outline on the screen, whichever way the table is seen
+    // (in the isometric view its squares are diamonds): the button goes
+    // off its upper right, or its upper left if that would leave the screen.
+    let x0 = Infinity, x1 = -Infinity, y0 = Infinity;
+    for (const c of cells) {
+      for (const [a, b] of [[0, 0], [1, 0], [1, 1], [0, 1]]) {
+        const [px, py] = r.toScreen(c.x + a, c.y + b);
+        x0 = Math.min(x0, px); x1 = Math.max(x1, px); y0 = Math.min(y0, py);
+      }
+    }
+    const ox = cv.left - stage.left, oy = cv.top - stage.top;
+    const top = $('staraTop').getBoundingClientRect().height + 4;
+    let sx = x1 + ox + 6, sy = y0 + oy - 22;
+    if (sx + 48 > stage.width) {
+      // In the isometric view the squares to the left of a piece are the
+      // city behind it, so the button goes over the piece instead.
+      const over = r.model3d && r.view.kind === 'iso' && y0 + oy - 56 >= top;
+      if (over) { sx = (x0 + x1) / 2 + ox - 23; sy = y0 + oy - 56; } else sx = x0 + ox - 50;
+    }
     btn.style.left = `${Math.round(sx)}px`;
-    btn.style.top = `${Math.round(Math.max(sy, $('staraTop').getBoundingClientRect().height + 4))}px`;
+    btn.style.top = `${Math.round(Math.max(sy, top))}px`;
     btn.hidden = false;
   }
 
@@ -860,7 +951,9 @@ export class StaraUI {
     const prior = this.priorBest;
     const t = g.m.tally;
     const garden = !!g.spec.garden;
-    $('staraEndDay').innerHTML = `${g.spec.title || 'Starà'}<small>No. ${g.m.day.n} · ${g.m.side}×${g.m.side}</small>`;
+    const long = !!g.spec.long;
+    $('staraEndDay').innerHTML = long ? `${g.spec.title}<small>${g.m.year} year${g.m.year === 1 ? '' : 's'}</small>`
+      : `${g.spec.title || 'Starà'}<small>No. ${g.m.day.n} · ${g.m.side}×${g.m.side}</small>`;
     $('staraEndScore').textContent = score;
     if (garden) {
       $('staraEndRows').innerHTML = GIARDINO_KINDS
@@ -869,25 +962,33 @@ export class StaraUI {
       const num = (n) => (n < 0 ? `−${-n}` : `${n}`);
       const rows = WAYS.map((w) => `<div class="w-${w.id}"><span><em class="dot" style="background:${w.colour}"></em>${w.name}</span><i></i><b>${num(t[w.id])}</b></div>`);
       if (t.lifts) rows.push(`<div class="w-lift"><span><em class="dot lift"></em>Lifted</span><i></i><b>${num(t.lifts)}</b></div>`);
+      if (long) rows.push(`<div class="w-commission"><span><em class="dot" style="background:#e0a823"></em>Commissions met</span><i></i><b>${num(t.commissions || 0)}</b></div>`);
       $('staraEndRows').innerHTML = rows.join('');
     }
     const wall = this.city ? g.m.city.wall : [];
     const gates = wall.filter((w) => w.gate).length;
     $('staraEndFill').textContent = garden
       ? `${g.m.picked} pickings in ${g.m.week} weeks; ${g.m.lost.length} still green at the frost`
-      : `A wall ${wall.length} stretches long, ${gates} of them gates; ${g.m.laid.size} of ${Object.keys(g.m.pieces).length} pieces laid`;
+      : long ? `A wall ${wall.length} stretches long, ${wall.filter((w) => w.slope).length} of them on a slope; ${g.m.laid.size} pieces laid`
+        : `A wall ${wall.length} stretches long, ${gates} of them gates; ${g.m.laid.size} of ${Object.keys(g.m.pieces).length} pieces laid`;
     $('staraEndPar').hidden = garden;
-    $('staraPlan').hidden = garden;
-    if (!garden) {
+    $('staraPlan').hidden = garden || long;
+    if (long) {
+      const m = g.m.missed;
+      $('staraEndPar').textContent = m ? `In year ${g.m.year} the Signoria asked for ${COMMISSIONS[m.ask].text(m.target)}, and the city had ${m.had}.` : 'The run was ended.';
+    } else if (!garden) {
       const par = g.m.par;
       $('staraEndPar').textContent = score > par ? `The architect's plan was worth ${par}: you built better than the plan.`
         : score === par ? `The architect's plan was worth ${par}: you matched it.`
           : `The architect's plan was worth ${par}: ${par - score} more to find.`;
     }
-    $('staraEndBest').textContent = prior == null ? (garden ? 'Your first garden today.' : 'Your first city today.')
-      : score > prior ? `A new best for today (was ${prior}).`
-        : score === prior ? 'Level with your best today.'
-          : `Your best today: ${prior}.`;
+    $('staraEndBest').textContent = long
+      ? (prior == null ? 'Your first run.' : score > prior ? `A new best run (was ${prior}).` : score === prior ? 'Level with your best run.' : `Your best run: ${prior}.`)
+      : prior == null ? (garden ? 'Your first garden today.' : 'Your first city today.')
+        : score > prior ? `A new best for today (was ${prior}).`
+          : score === prior ? 'Level with your best today.'
+            : `Your best today: ${prior}.`;
+    $('staraAgain').textContent = long ? 'A new run' : 'Play again';
     end.hidden = false;
   }
 
@@ -903,6 +1004,7 @@ export class StaraUI {
     const g = this.game;
     const text = g.spec.garden
       ? `Giardino No. ${g.m.day.n}: ${g.players[0].score} points, ${g.m.picked} pickings, ${g.m.lost.length} lost to the frost.`
+      : g.spec.long ? `Contado: a city worth ${g.players[0].score} after ${g.m.year} years.`
       : `Starà No. ${g.m.day.n} (${g.m.side}×${g.m.side}): a city worth ${g.players[0].score}, the plan ${g.m.par}, a wall ${g.m.city.wall.length} long.`;
     const btn = $('staraShare');
     try {

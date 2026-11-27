@@ -73,8 +73,22 @@ your hand for a point. The plan's worth is the target; at the end the charter
 can show you the architect's plan. It has its own screen, medieval and drawn by
 hand: a wooden table, the wall seen from above, your hand in the tray, the card
 of the place you hold under it. The menu in the corner brings the workshop
-back.
+back. Under the title, **Ink · Top · Iso** chooses how to look at it: the
+hand-drawn table, or the city as a low-poly model in big dithered pixels (the
+Nintendo 64 was the target), from straight above or in isometric (Iso again
+turns the view). In the model a house stands as many storeys as it is worth.
 `index.html?mode=stara` opens the 7×7, `?mode=stara5` the 5×5.
+
+**Contado** — Starà's long form: one city on a land of hills, year after year,
+kept in the browser between visits. The pieces, places and scoring are the
+daily's. Every year deals a handful of pieces and the Signoria sets a
+commission (so many houses, so many beside a plaza or watered, a high road, a
+city worth so much); meet it when the year's pieces are down and it pays 5 and
+the next year comes, asking more; miss it and the run is over. The land has
+two rules of its own: a stretch of wall facing lower ground costs nothing, and
+the aqueduct carries water only as high as the spring. Drawn only as the
+model, since the inked table cannot show the land. `index.html?mode=contado`
+opens it; `docs/STARA-FORMS.md` is how it and the daily relate.
 
 **Giardino** — the daily walled garden, 7×7, on Starà's screen. Every tile is
 a plant and every tile laid is a week. A fountain in the middle sends a rill

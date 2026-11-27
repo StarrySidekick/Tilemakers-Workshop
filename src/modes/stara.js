@@ -316,10 +316,10 @@ export class Stara extends Mode {
     }
     if (isAbove(piece)) {
       const extra = cells.map((c) => spanEntry(ax + c.dx, ay + c.dy, c.type, c.rot, piece.id));
-      return cityOf(this.base, [...this.baseSpans, ...extra], this.water.spring);
+      return cityOf(this.base, [...this.baseSpans, ...extra], this.water.spring, this.water.land || null);
     }
     const extra = cells.map((c) => entryOf({ x: ax + c.dx, y: ay + c.dy, type: TILES[c.type], rot: c.rot, piece: piece.id }));
-    return cityOf([...this.base, ...extra], this.baseSpans, this.water.spring);
+    return cityOf([...this.base, ...extra], this.baseSpans, this.water.spring, this.water.land || null);
   }
 
   /** The squares a piece might touch from: where to look for ways to lay it. */

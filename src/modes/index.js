@@ -9,7 +9,7 @@
 //
 // Ordered roughly as: the classics, then the placement experiments, then the
 // long-form ones. Starà, the daily square, sits second (its two sizes) so it is easy to find,
-// and Giardino, the daily garden built on it, after it.
+// then Contado, its long form (2026-11-27), and Giardino, the daily garden built on it.
 // ---------------------------------------------------------------------------
 
 import { Classic } from './classic.js';
@@ -26,9 +26,10 @@ import { Tesserae } from './tesserae.js';
 import { World } from './world.js';
 import { Stara, Stara5 } from './stara.js';
 import { Giardino } from './giardino.js';
+import { Contado } from './contado.js';
 
 export const MODES = [
-  Classic, Stara, Stara5, Giardino, World, Duel, Sprawl, Strata, Soffiando,
+  Classic, Stara, Stara5, Contado, Giardino, World, Duel, Sprawl, Strata, Soffiando,
   Marches, Expedition, Adventure, Descent, Chronicle, Tesserae,
 ].map((M) => M.spec);
 

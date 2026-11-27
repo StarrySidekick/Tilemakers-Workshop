@@ -23,6 +23,7 @@ import { gardenSprite, paintGardenWall, GARDEN_WALL } from './garden.js';
 import { citySprite, spanSprite, springSprite, SPAN_PAD } from './city.js';
 import { WAY, LOSS } from './modes/stara-city.js';
 import { sketchLine, sketchRect, seedOf } from './sketch.js';
+import { LowPoly, viewOf, project, unproject, planAffine, planLift, ghostOf, pieceModel, LEVEL } from './lowpoly.js';
 
 // Move targets, in the order you want to notice them. Green is the plain "you
 // can go here"; teal is a special move (a road dash, a warp, a fight); red is
@@ -93,7 +94,48 @@ export class Renderer {
     this.floatFace = FLOAT_FACE;
     this.glide = null;      // a camera easing somewhere
     this.shownWater = null; // where the sea has got to, chasing the waterline
+    // Starà's ways to look (lowpoly.js, 2026-11-27): the inked table, or
+    // the city as a low-poly model from straight above or in isometric.
+    // `view` is the camera in effect this frame; `model3d` whether the model
+    // is what is drawn (only for a city, and only where WebGL works).
+    this.viewKind = 'ink';
+    this.viewQuarter = 0;
+    this.view = viewOf('ink');
+    this.model3d = false;
+    this.inPlan = false;    // drawing an overlay in top-down coordinates, under the ground's map
+    this.low = null;
+    this.ground = () => 0;
     this.resize();
+  }
+
+  /** Choose how Starà is looked at: 'ink', 'top' or 'iso', and the isometric view's quarter turn. */
+  setView(kind, quarter = 0) {
+    this.viewKind = kind;
+    this.viewQuarter = quarter & 3;
+  }
+
+  /**
+   * The view in effect for this game. The model is only for Starà's cities
+   * (spec.city), and needs WebGL: without it, the inked table it was.
+   * Made the first time it is wanted, as a canvas of its own under this one.
+   */
+  applyView(game) {
+    let on = !!game?.spec?.city && this.viewKind !== 'ink';
+    if (on && !this.low) {
+      const gl = document.createElement('canvas');
+      gl.id = 'board3d';
+      gl.setAttribute('aria-hidden', 'true');
+      this.canvas.parentNode.insertBefore(gl, this.canvas);
+      try { this.low = new LowPoly(gl); } catch (e) { console.warn('No model view:', e); this.low = { ok: false }; }
+      this.glCanvas = gl;
+    }
+    if (on && !this.low.ok) on = false;
+    this.view = viewOf(on ? this.viewKind : 'ink', this.viewQuarter);
+    this.model3d = on;
+    if (this.glCanvas) this.glCanvas.hidden = !on;
+    const m = game?.m;
+    this.ground = on && m?.levelAt ? (wx, wy) => m.levelAt(Math.floor(wx + 1e-6), Math.floor(wy + 1e-6)) * LEVEL : () => 0;
+    return on;
   }
 
   resize() {
@@ -106,19 +148,54 @@ export class Renderer {
     this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   }
 
+  /**
+   * World to screen. In the isometric view the screen is the projection of
+   * the ground; while an overlay is being drawn under the ground's map
+   * (`inPlan`), it is top-down coordinates as ever, nudged so a point on a
+   * hill lands on the hill.
+   */
   toScreen(wx, wy) {
-    return [(wx - this.cam.x) * this.cam.zoom + this.w / 2,
-            (wy - this.cam.y) * this.cam.zoom + this.h / 2];
+    const sx = (wx - this.cam.x) * this.cam.zoom + this.w / 2;
+    const sy = (wy - this.cam.y) * this.cam.zoom + this.h / 2;
+    if (!this.model3d || this.view.kind !== 'iso') return [sx, sy];
+    const h = this.ground(wx, wy);
+    if (this.inPlan) {
+      if (!h) return [sx, sy];
+      const [lx, ly] = planLift(this.view, this.cam.zoom, h);
+      return [sx + lx, sy + ly];
+    }
+    return project(this.view, this.cam, this.w, this.h, wx, wy, h);
   }
 
   toWorld(sx, sy) {
+    if (this.model3d && this.view.kind === 'iso' && !this.inPlan) return unproject(this.view, this.cam, this.w, this.h, sx, sy, 0);
     return [(sx - this.w / 2) / this.cam.zoom + this.cam.x,
             (sy - this.h / 2) / this.cam.zoom + this.cam.y];
   }
 
   cellAt(sx, sy) {
+    if (this.model3d && this.view.kind === 'iso' && !this.inPlan) return this.pickCell(sx, sy);
     const [wx, wy] = this.toWorld(sx, sy);
     return { x: Math.floor(wx), y: Math.floor(wy) };
+  }
+
+  /**
+   * The square a tap in the isometric view is on: down the ray from the
+   * screen, highest first, the first square whose model stands as high as
+   * the ray is there. So a tap on a roof is that house's, not the square
+   * behind it that the ground under the roof belongs to.
+   */
+  pickCell(sx, sy) {
+    const low = this.low, lv = this.model3dLevel || (() => 0);
+    let top = 2;
+    for (const v of low.tops.values()) top = Math.max(top, v + 0.05);
+    for (let h = top; h > 0.01; h -= 0.025) {
+      const [wx, wz] = unproject(this.view, this.cam, this.w, this.h, sx, sy, h);
+      const x = Math.floor(wx), y = Math.floor(wz);
+      if (low.topAt(x, y, lv) >= h) return { x, y };
+    }
+    const [wx, wz] = unproject(this.view, this.cam, this.w, this.h, sx, sy, 0);
+    return { x: Math.floor(wx), y: Math.floor(wz) };
   }
 
   zoomAt(sx, sy, factor) {
@@ -242,6 +319,7 @@ export class Renderer {
     spriteFrame();          // a fresh budget for building tile pictures
     this.glideStep();
     ctx.clearRect(0, 0, this.w, this.h);
+    if (this.applyView(game)) return this.drawModel(game);
     this.drawBackdrop(game);
     if (game.options?.tide) this.drawWater(game);
 
@@ -364,6 +442,72 @@ export class Renderer {
 
     // Interiors sit above that — you're indoors, not outdoors.
     if (game.interior) this.drawInterior(game); else this.caveView = null;
+  }
+
+  /**
+   * A piece in hand drawn as the model shows it (a card in the tray, in the
+   * top or isometric view), on a canvas `px` square: by a second WebGL
+   * context on a canvas of its own, its pixels the size of the board's.
+   * Returns false where there is no model to draw it with.
+   */
+  drawPieceModel(ctx, cells, px) {
+    if (!this.model3d) return false;
+    if (!this.thumbs) {
+      try { this.thumbs = new LowPoly(document.createElement('canvas'), { alpha: true }); } catch { this.thumbs = { ok: false }; }
+    }
+    if (!this.thumbs.ok) return false;
+    const dpr = window.devicePixelRatio || 1;
+    // The card's canvas is twice its CSS size: a card pixel is dpr / 2 of the screen's.
+    const img = this.thumbs.renderPiece(pieceModel(cells), this.view, px, (this.low.px || 4) / (dpr / 2));
+    ctx.clearRect(0, 0, px, px);
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(img, 0, 0, px, px);
+    ctx.imageSmoothingEnabled = true;
+    return true;
+  }
+
+  /**
+   * STARÀ AS A MODEL (lowpoly.js): the city drawn in WebGL on the canvas
+   * underneath, and on this one only what is not the city: the lit
+   * squares, the staged piece's outline and what it would pay, the seal and
+   * the floating scores. In the isometric view all of those but the scores
+   * are drawn in top-down coordinates under the ground's affine map, so they
+   * lie on the ground, at full resolution, by the very code that draws them
+   * on the inked table; the scores rise upright.
+   */
+  drawModel(game) {
+    const ctx = this.ctx, dpr = window.devicePixelRatio || 1;
+    this.low.resize(this.w, this.h, dpr);
+    this.model3dLevel = game.m.levelAt ? (x, y) => game.m.levelAt(x, y) : null;
+    // The staged piece, or the one under a mouse, as the model shows it.
+    let ghost = null;
+    if (game.phase === 'place' && game.m.held && game.m.preview) {
+      const p = this.pending;
+      let pv = null;
+      if (p) pv = game.m.preview(p.ax, p.ay, p.rot);
+      else if (this.hover && this.pointer) {
+        const at = game.m.stageAt(this.hover.x, this.hover.y, game.rot);
+        pv = at && game.m.preview(at.ax, at.ay, at.rot);
+      }
+      if (pv) ghost = { key: `${game.m.held.id}|${pv.x},${pv.y}|${pv.rot}|${pv.fits}`, model: ghostOf(pv) };
+    }
+    const lit = game.phase === 'place' && game.m.held && game.m.litSquares ? game.m.litSquares() : null;
+    this.low.render(game, this, { ghost, sealing: this.sealing, lit, dim: !!this.pending });
+    usePalette('town');
+    this.floatFace = "'Cinzel', ui-serif, Georgia, serif";
+    const iso = this.view.kind === 'iso';
+    if (iso) {
+      const A = planAffine(this.view, this.w, this.h);
+      ctx.setTransform(dpr * A[0], dpr * A[1], dpr * A[2], dpr * A[3], dpr * A[4], dpr * A[5]);
+      this.inPlan = true;
+    }
+    try {
+      if (game.phase === 'place') this.drawPlacementHints(game);
+      this.drawSeals(game);
+    } finally {
+      if (iso) { ctx.setTransform(dpr, 0, 0, dpr, 0, 0); this.inPlan = false; }
+    }
+    this.drawEffects();
   }
 
   /**
@@ -1726,7 +1870,7 @@ export class Renderer {
     const ctx = this.ctx, z = this.cam.zoom;
     const [cx, cy] = this.toScreen(x + 0.5, y + 0.5);
     const font = (px) => `700 ${Math.round(px)}px Cinzel, ui-serif, serif`;
-    const tag = (tx, ty, text, bg, r) => {
+    const tag = (tx0, ty0, text, bg, r) => this.upright(tx0, ty0, (tx, ty) => {
       ctx.save();
       ctx.font = font(r * 1.05);
       const w = Math.max(r * 2, ctx.measureText(text).width + r * 0.9);
@@ -1742,7 +1886,7 @@ export class Renderer {
       ctx.textBaseline = 'middle';
       ctx.fillText(text, tx, ty + r * 0.06);
       ctx.restore();
-    };
+    });
     const signed = (n) => (n > 0 ? `+${n}` : `−${Math.abs(n)}`);
     for (const c of pv.changes) {
       if (c.self) continue;
@@ -1768,7 +1912,8 @@ export class Renderer {
     const ctx = this.ctx, z = this.cam.zoom;
     const glow = 0.18 + Math.sin(performance.now() / 520) * 0.05;
     const p = this.pending;
-    for (const k of game.m.litSquares()) {
+    // The model lights its own squares, so a wall in front of one hides it.
+    for (const k of this.model3d ? [] : game.m.litSquares()) {
       const [x, y] = k.split(',').map(Number);
       const [sx, sy] = this.toScreen(x, y);
       ctx.fillStyle = `rgba(255,236,196,${p ? glow * 0.6 : glow})`;
@@ -1814,6 +1959,8 @@ export class Renderer {
   /** A piece not yet laid, as it would look: its squares, or its spans over the city. */
   paintStaged(game, pv, alpha) {
     const ctx = this.ctx, z = this.cam.zoom;
+    // The model draws its own staged piece, floating over the table.
+    if (this.model3d) return;
     if (pv.above) {
       for (const c of pv.cells) this.drawSpan(c.x, c.y, c.span, c.run, alpha);
       return;
@@ -1835,6 +1982,25 @@ export class Renderer {
     const x = cells.reduce((a, c) => a + c.x + 0.5, 0) / cells.length;
     const y = cells.reduce((a, c) => a + c.y + 0.5, 0) / cells.length;
     return this.toScreen(x, y);
+  }
+
+  /**
+   * Draw something that should stand UPRIGHT (a label, a drop) at a point
+   * given in the coordinates the overlay is being drawn in. On the inked
+   * table and from above that is the screen already; in the isometric view
+   * the overlay is drawn under the ground's map, so the point is carried
+   * through it and the transform set aside while `fn(x, y)` draws.
+   */
+  upright(px, py, fn) {
+    if (!this.inPlan) return fn(px, py);
+    const ctx = this.ctx, dpr = window.devicePixelRatio || 1;
+    const A = planAffine(this.view, this.w, this.h);
+    const x = A[0] * px + A[2] * py + A[4], y = A[1] * px + A[3] * py + A[5];
+    ctx.save();
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const was = this.inPlan;
+    this.inPlan = false;
+    try { return fn(x, y); } finally { this.inPlan = was; ctx.restore(); }
   }
 
   /** A ring drawn by hand round the outside of a piece's squares, never across its own seams. */
@@ -1880,7 +2046,7 @@ export class Renderer {
     const ctx = this.ctx, z = this.cam.zoom;
     const own = new Set(pv.cells.map((c) => `${c.x},${c.y}`));
     const font = (px) => `700 ${Math.round(px)}px Cinzel, ui-serif, serif`;
-    const tag = (tx, ty, text, bg, fg, r) => {
+    const tag = (tx0, ty0, text, bg, fg, r) => this.upright(tx0, ty0, (tx, ty) => {
       ctx.save();
       ctx.font = font(r * 1.05);
       const w = Math.max(r * 2, ctx.measureText(text).width + r * 0.9);
@@ -1897,7 +2063,7 @@ export class Renderer {
       ctx.fillText(text, tx, ty + r * 0.06);
       ctx.restore();
       return w;
-    };
+    });
     const signed = (n) => (n > 0 ? `+${n}` : n < 0 ? `−${Math.abs(n)}` : '±0');
     // Where its houses' points come from.
     const ringed = new Set();
@@ -1905,7 +2071,7 @@ export class Renderer {
       if (f.way === 'water') {
         const [hx, hy] = f.for.split(',').map(Number);
         const [sx, sy] = this.toScreen(hx, hy);
-        this.drop(sx + z * 0.8, sy + z * 0.24, Math.max(4, z * 0.08));
+        this.upright(sx + z * 0.8, sy + z * 0.24, (dx, dy) => this.drop(dx, dy, Math.max(4, z * 0.08)));
         continue;
       }
       const k = `${f.x},${f.y}|${f.way}`;
@@ -1946,19 +2112,24 @@ export class Renderer {
     const top = pv.cells.reduce((a, c) => (c.y < a.y || (c.y === a.y && c.x < a.x) ? c : a), pv.cells[0]);
     const [sx, sy] = this.toScreen(top.x, top.y);
     const r = Math.max(10, z * 0.19);
-    tag(sx + z * 0.24, sy + z * 0.2, signed(pv.gain), pv.gain >= 0 ? '#8e2a1e' : '#4a1a12', '#fff6e4', r);
+    // In the isometric view the tag stands over the piece's middle, upright, and the chips in a row under it.
+    const iso = this.model3d && this.view.kind === 'iso';
+    const [gx, gy] = iso ? this.pieceCentre(pv.cells) : [sx + z * 0.24, sy + z * 0.2];
+    tag(gx, gy, signed(pv.gain), pv.gain >= 0 ? '#8e2a1e' : '#4a1a12', '#fff6e4', r);
     const chips = Object.entries(pv.ways).filter(([, v]) => v);
-    let x = sx + z * 0.08;
     const rc = Math.max(7, z * 0.115);
-    for (const [id, v] of chips) {
-      const way = v < 0 && id !== 'wall' ? { colour: LOSS.colour, ink: LOSS.ink } : WAY[id];
-      ctx.save();
-      ctx.font = font(rc * 1.05);
-      const w = Math.max(rc * 2, ctx.measureText(signed(v)).width + rc * 0.8);
-      ctx.restore();
-      tag(x + w / 2, sy + z * 0.2 + r + rc + 2, signed(v), way.colour, way.ink, rc);
-      x += w + 2;
-    }
+    this.upright(gx, gy, (ux, uy) => {
+      let x = iso ? ux - r : ux - z * 0.16;
+      for (const [id, v] of chips) {
+        const way = v < 0 && id !== 'wall' ? { colour: LOSS.colour, ink: LOSS.ink } : WAY[id];
+        ctx.save();
+        ctx.font = font(rc * 1.05);
+        const w = Math.max(rc * 2, ctx.measureText(signed(v)).width + rc * 0.8);
+        ctx.restore();
+        tag(x + w / 2, uy + r + rc + 2, signed(v), way.colour, way.ink, rc);
+        x += w + 2;
+      }
+    });
   }
 
   /** A drop of water, point up, in azure. */
