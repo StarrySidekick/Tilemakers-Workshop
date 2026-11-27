@@ -969,7 +969,8 @@ body.stara #stage, body.stara #stage * {
 #stara .staraViews button { padding: 3px 7px 4px; }
 /* The tilt tab sits on the board's top left corner, just under the bar (stara-ui.js places it). */
 #stara .staraTiltWrap { position: absolute; left: 12px; top: 90px; z-index: 2; margin: 0; pointer-events: auto; }
-#stara .staraTiltWrap:has(> [hidden]) { display: none; }
+#stara .staraTiltWrap button[hidden] { display: none; }
+#stara .staraTiltWrap #staraCentre { font-size: 11px; }
 #stara .staraViews button.on::before { background: #2f5f93; border-color: #1f4068; }
 #stara .staraViews button .turnGlyph { margin-left: 3px; font-family: 'Fell', ui-serif, serif; }
 #stara .staraViews #staraTiltBtn { font-family: 'Fell', ui-serif, serif; font-size: 13px; padding: 2px 7px 3px; }

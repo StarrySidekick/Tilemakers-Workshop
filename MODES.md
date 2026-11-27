@@ -2046,6 +2046,35 @@ projection as Iso (`viewOf` in lowpoly.js; `angled` in render.js); left
 straight down and unturned it is still pixel for pixel the inked table's
 camera. The sun stays at the screen's upper left whichever way it is turned.
 
+**Looking about, and where a piece goes** (the same day: *"make it so that
+we can freely scroll around the board instead of being locked in one place,
+and also make it so that the calculation for where a tile goes is done based
+on all four of its orientations, not just the one you currently are on. And
+when you put it down, it just automatically snaps to whatever might work the
+best for it."*). In every view of the city:
+
+- **The camera is free.** A finger dragged over open table (or off a laid
+  piece) moves it, worked back through the view's projection so the table
+  stays under the finger; two fingers pinch, a mouse wheel zooms. Moved by
+  hand, it stays where it is put; a **⌖ Centre** tab beside Tilt takes it
+  back to the whole city, followed again as it grows. A new game or another
+  view frames the city afresh. Giardino's garden, fitted edge to edge, is
+  still held still.
+- **Every turn counts.** The lit squares are every square any of the piece's
+  four turns could cover, not only the turn it is held at.
+- **It settles the best way** (`Stara.bestAt`). A piece put down by a tap or
+  let go of over a square goes the way it fits there, any turn, any of its
+  squares on that square, that leaves the city worth most; between two as
+  good, the turn it was held at, then the square it was held by. Measured in
+  the harness: on 378 lit squares over three modes, every one settled the
+  best way, and 78 of them had to turn to do it.
+
+Calls of Claude's: a piece being **dragged** still goes exactly where it is
+put (red where it does not fit) and settles only when let go, so it can be
+seen moving; and **the turn buttons still turn it a quarter where it sits**,
+so a way that scores less now (for a plan) can still be chosen and sealed.
+"Best" is the city's worth just after, the same number the score is.
+
 **What makes it read as the N64** (`src/lowpoly.js`, WebGL with no library,
 in the spirit of `relief.html`): few polygons with flat faces (a house is a
 box and a gabled roof, a tower an octagon and a cone); Gouraud light, one sun

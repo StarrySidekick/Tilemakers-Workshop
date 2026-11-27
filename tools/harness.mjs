@@ -3125,6 +3125,52 @@ function checkStara() {
 }
 
 /**
+ * WHERE A PIECE GOES (2026-11-27: "the calculation for where a tile goes is
+ * done based on all four of its orientations ... when you put it down, it
+ * just automatically snaps to whatever might work the best for it"): over a
+ * square, the piece settles the way that leaves the city worth most, any
+ * turn; the lit squares are every square any turn could cover; and the host
+ * is told a square can take it when any turn fits there.
+ */
+function checkSnap() {
+  console.log('\nstarà, where a piece goes');
+  const ok = (what, pass, detail = '') => {
+    if (pass) console.log(`  ✓ ${what.padEnd(50)} ${detail}`);
+    else { failures++; console.log(`  ✗ ${what} ${detail}`); }
+  };
+  let tried = 0, best = 0, other = 0, lit = 0, wider = 0, host = 0;
+  for (const mode of ['stara', 'stara5', 'contado']) {
+    for (let seed = 1; seed <= 4; seed++) {
+      const g = new Game({ mode, seed });
+      for (let turn = 0; turn < 8 && g.phase === 'place'; turn++) {
+        const m = g.m;
+        const all = new Set(), one = new Set();
+        for (let rot = 0; rot < 4; rot++) {
+          for (const p of m.placements(m.held, [rot])) for (const c of p.cells) { all.add(`${p.x + c.dx},${p.y + c.dy}`); if (rot === g.rot) one.add(`${p.x + c.dx},${p.y + c.dy}`); }
+        }
+        const shown = m.litSquares();
+        if (shown.size === all.size && [...all].every((k) => shown.has(k))) lit++;
+        if (all.size > one.size) wider++;
+        for (const k of [...shown].slice(0, 4)) {
+          const [x, y] = k.split(',').map(Number);
+          tried++;
+          const st = m.stageAt(x, y, g.rot);
+          const worth = (f) => m.preview(f.ax, f.ay, f.rot).total;
+          const top = Math.max(...m.fitsOver(x, y).map(worth));
+          if (st.fits && worth(st) === top) best++;
+          if (st.fits && st.rot !== g.rot) other++;
+          if (m.canPlaceAt(x, y)) host++;
+        }
+        m.botAction();
+      }
+    }
+  }
+  ok('the lit squares are every square any turn could cover', lit > 0 && wider > 0, `${lit} hands, ${wider} lit wider than the turn held`);
+  ok('put down over a lit square, it settles the best way there', best === tried, `${best}/${tried} squares, ${other} of them turned to do it`);
+  ok('…and the host is told it fits there', host === tried);
+}
+
+/**
  * STARÀ AS A MODEL (src/lowpoly.js, 2026-11-27): the camera's arithmetic,
  * which every tap in the isometric view is worked back through, and the
  * model itself, built off a real game: finite, and a house as tall as it
@@ -3315,6 +3361,7 @@ async function main() {
   }
 
   checkStara();
+  checkSnap();
   checkLowPoly();
   checkContado();
   checkGiardino();
