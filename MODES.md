@@ -1984,20 +1984,20 @@ the fix is the number, not the rule.
 
 ## 14. Starà — the daily square
 
-> **Built 2026-11-18, in four passes, made a city-state on 2026-11-23, and
-> dealt as a plan cut into pieces on 2026-11-27** — `src/modes/stara.js` (the
-> mode), `src/modes/stara-city.js` (the places, the ways and the one scorer),
-> `src/modes/stara-plan.js` (the level maker), `walled` and
-> `builtFromWall` in `src/board.js` (the town wall's rules), `ARCH` in
-> `src/tiles.js` (the aqueduct's edge), `src/city.js` (the places' pictures
-> and the water arch), `src/stara-ui.js` (its own screen), `drawTable`,
-> `drawCastle` and `drawGain` in `src/render.js`, `src/castle.js` (the
-> castle), `drawCityHints`, `drawWays` and `drawWaxSeal` in `src/render.js`
-> (pieces, their pay by way, and the seal), `src/sketch.js` (hand-drawn
-> strokes), `assets/table-oak.jpg` and
+> **Built 2026-11-18, in four passes, made a city-state on 2026-11-23, dealt
+> as a plan cut into pieces on 2026-11-27, and taken off its square onto an
+> open table the same day** — `src/modes/stara.js` (the mode),
+> `src/modes/stara-city.js` (the places, the ways, the wall and the one
+> scorer), `src/modes/stara-plan.js` (the level maker), `src/city.js` (the
+> places' pictures, the aqueduct and the spring), `src/castle.js` (the wall
+> round the city), `src/stara-ui.js` (its own screen: the drag, the turn
+> buttons, the hold), `drawTable`, `drawCastle`, `drawAqueducts`,
+> `drawCityHints`, `drawWays` and `drawWaxSeal` in `src/render.js` (the table,
+> the wall and the water, pieces and their pay by way, and the seal),
+> `src/sketch.js` (hand-drawn strokes), `assets/table-oak.jpg` and
 > `assets/fonts/` (see `assets/CREDITS.md`). Checked by `checkStara` in the
-> harness and "starà on a phone" in the smoke test; measured by
-> `tools/stara-sim.mjs`.
+> harness and "starà on a phone" and "stara5 by touch" in the smoke test;
+> measured by `tools/stara-sim.mjs`.
 
 Timothy, 2026-11-18: *"new mode, going to be daily, and based around the idea
 of fitting tiles into the area of your phone screen. so like let's define a
@@ -2010,8 +2010,204 @@ real wood"*.
 
 **Question:** is Carcassonne a daily puzzle once the table has an edge?
 
-**Where it stands now (the sixth pass)** comes first; how it got there
+**Where it stands now (the seventh pass)** comes first; how it got there
 follows, pass by pass, newest first.
+
+### The seventh pass: an open table, and the wall you pay for (2026-11-27)
+
+Timothy, a list, later the same day as the sixth pass:
+
+- *"You should be able to pick up and place and drag tiles as you see fit
+  instead of having to tap somewhere else once they're already played to move
+  them. Like, it should be kind of like really freeform for the most part. And
+  then, you know, tapping and holding still seals them, of course. Also,
+  because we now have Tetris pieces, I think we should probably have the
+  rotate button. There'll also be an additional rotate button somewhere on
+  the bottom so that we can rotate while we have it in our ... hands."*
+- *"I feel like aqueducts should be like a second layer above all the other
+  stuff ... the aqueduct itself ... can go over other tiles ... you should be
+  able to have a road go under an aqueduct, for example, and it should be
+  clear that you can do that"*
+- *"the tap and hold to place should be a bit faster"*
+- *"I don't understand what the labels in the all four corners are, like the
+  convent and the tannery and stuff. I thought we didn't have quarters
+  anymore."*
+- *"the mechanics for points should be a little simpler than they are now,
+  and we should probably start with less kinds of tiles ... a cathedral, a
+  plaza, housing, aqueducts, maybe one or two other things just to start
+  because I'm trying to figure out the actual mechanics of the game."*
+- *"having the border on the outside is kind of restricting the kind of
+  gameplay ... the castle walls ... the bigger the castle walls get, the less
+  points you get, generally speaking. And you had to build structures ...
+  it's the solitary version of Carcassonne that's in the old Carcassonne
+  mobile app that's no longer available ... that was a very proven set of
+  mechanics ... the trying to fit everything in the square thing is not
+  currently ... very fun, and I don't really know why."*
+
+**Question:** with the border gone, does a wall you pay for make WHERE you lay
+a piece the decision again, without the fit becoming the whole puzzle?
+
+**The old app's Solitaire.** TheCodingMonkeys' Carcassonne for iPhone (2010,
+withdrawn 2020) had a single-player mode of its own. TouchArcade's review:
+*"you start off with 1000 points and each tile added reduces that score. The
+objective is to complete set targets which increasingly get harder as you
+complete them. You start the game having to build a 2-tile road and 2-tile
+structure, and as each is completed their tile number increases by 1. You are
+rewarded for keeping your playing field as compact as possible, with
+penalties imposed for expanding its borders."* Pocket Gamer: *"building
+structures of increasing size while attempting to keep the boundaries of the
+board as compact as possible."* The fuller account (a Reddit post) could not
+be fetched from here.
+
+Asked three questions, he took the recommendation each time:
+
+- **The wall hugs the city.** No border: the Comune is laid in the middle of
+  an open table and everything goes down beside what is built. The town wall
+  runs round whatever stands, one STRETCH to every side of a square that faces
+  open ground (`wallOf` in stara-city.js), and every stretch costs a point.
+  A solid 5×5 has 20; a straggling city far more. (Asked against "a rectangle
+  round it", the app's border, and "a square you can break out of".)
+- **Houses and what they have.** Only houses score: 1 a square, +1 beside a
+  plaza (the Comune is one), +1 watered, +1 beside the cathedral. Plazas, the
+  cathedral and the aqueduct score nothing themselves. (Asked against the
+  app's growing commissions, and both.)
+- **Streets meet, and leave by gates.** A street must meet a street. A street
+  that runs out of the city puts a gate in the wall, and the street out on the
+  most of the city's four sides, two or more, is its high road: 4 a side.
+  (Asked against streets that only meet, and no streets.)
+
+**What a day is now.** The level maker still draws a plan and cuts the deal
+from it (the sixth pass), but the plan is a square city on an open table:
+the Comune in the middle, the cathedral and the day's plazas (two on the 5×5,
+four on the 7×7) on single squares, houses in pieces of one to four
+everywhere else, and an aqueduct of four (5×5) or six (7×7) spans from the
+day's SPRING, two squares out from one side, over the country and on over the
+city toward the middle. A 5×5 day is 24 squares of places and the aqueduct,
+about 14 pieces; a 7×7, 48 and the aqueduct, about 27. The plan is a square
+because a square is the shortest wall round that many squares; you may build
+any shape and pay for the wall it makes.
+
+**The aqueduct is a layer.** Its pieces are laid over the city (houses,
+streets, the Comune, anything) and out over open country, never over the
+spring or a span already up, touching the city, the spring or another span.
+A place may be built under a span already standing. Water rises at the spring
+and runs along spans that open onto each other; a square with running water
+on it or beside it is watered (a house beside the spring too). The wall takes
+no notice of it. Drawn on its own over everything (`spanSprite` in city.js):
+a pale channel on piers with a shaded side, its shadow thrown well down and to
+the right onto the streets and roofs below, broken into the piers' dark feet,
+so a street plainly runs on underneath.
+
+**The wall** (`paintCityWall` in castle.js) is drawn along the city's outline
+and redrawn when it changes: a curtain wall just outside every stretch, a
+round tower at every outward corner, a gatehouse wherever a street runs out,
+and on the high road's gates the bigger town gate with its banners raised.
+
+**The interface** (stara-ui.js):
+
+- **Drag.** A piece is dragged from its card onto the table, or about the
+  table once it is there, held by the square your finger took it by. It goes
+  wherever it is put, drawn faint and ringed in red where it does not fit;
+  let go, it snaps to the nearest way it fits that still covers the square
+  under your finger, if there is one, and otherwise stays there, red, until
+  moved. Dragged back onto the tray, it goes back into your hand. A tap on
+  the table still puts it there, and a tap on it still turns it.
+- **Two turn buttons**: a parchment roundel floating beside the staged piece,
+  and one in the tray beside the hand, which turns the piece held up whether
+  it is in hand or on the table. On the table a piece turns about the square
+  it is held by, so it turns in place.
+- **The seal sets in about 0.6 s** (it was a second); a lift takes as long.
+  Holding a piece that does not fit there starts no seal: it buzzes.
+- **The camera follows the city**: the whole of it, the spring and a square
+  of open table round it stay in view, never less than the plan's size and
+  two; after each piece it eases out to fit, never while you are placing.
+- **The cast's tags at the corners are gone**, with the cast: the day's places
+  are the same four every day now. So are the wizard's foresight row and the
+  keep.
+- The card under the hand shows what the place gives, in the colours of the
+  ways, and what the wall costs. Staging a piece lights what pays it: the
+  plaza beside a house ringed in green, the cathedral in violet, a blue drop
+  on each house the water reaches, a black bar along every stretch of wall it
+  adds (gold-pinned where it is a gate), the +n of each house whose worth
+  changes, and the whole difference on a wax tag. Everyone is taught again
+  for their first few turns, since the gestures changed.
+
+Calls of Claude's, each with why:
+
+- **A gate costs 1 more than a stretch of wall (2 in all).** Measured before
+  building: with gates free, a street out on all four sides came to every
+  city whatever you did (16 points to random play as to careful), and the
+  plan let streets out of 13 of its 20 stretches. At 1 more the plan builds
+  exactly one gate a side, and a street left running out of the city is a
+  cost to plan round: Carcassonne's open road, by another name.
+- **Only the city's one best high road pays.** Built first with every street
+  paying, greedy play built straggling cities of many short streets and
+  scored more from roads (144) than from houses (21).
+- **The Comune is a plaza**, the one every day has, from the first turn.
+- **"Beside" is the eight squares round it**, as "round it" was; water is
+  the square itself or the four beside it, as it was.
+- **A hole in the city is walled round too**: every side facing open ground
+  is a stretch, wherever it is.
+- **The spring is two squares out from one side of the plan**, never at a
+  corner, so the aqueduct always has open country to cross.
+- **A hold on a square with an aqueduct over it lifts the aqueduct**, the top
+  layer, first.
+- **The plan stays a square**, the cheapest wall, so the target is still a
+  city you can see the shape of.
+- **The places' pictures for the convent, barracks, keep, silk works,
+  tannery, wizard's tower, university, garden, farm, market and church are
+  kept in city.js**, unused, for when places come back.
+
+**What it measures** (`tools/stara-sim.mjs`; random is a random piece at a
+random way it fits; greedy, every piece at every way, keeping the best city
+now; ahead, greedy over two moves, each of greedy's best eight and the best
+move after it from what is left in hand; the plan, laid as dealt):
+
+| | random | greedy | ahead | the plan |
+|---|---|---|---|---|
+| 5×5, 60 days | −24.5 | 24.1 (60%) | 28.4 (71%) | 40.2 |
+| …wall, of it gates | 47.2, 23.8 | 26.2, 10.4 | 25.8, 9.8 | 20, 4 |
+| …spans running | 0.3 | 2.1 | 2.7 | 4 |
+| …beat the plan | 0 | 0 | 1 | – |
+| 7×7, 30 days | −56.9 | 44.6 (59%) | 53.0 (71%) | 75.2 |
+| …wall, of it gates | 88.2, 46.0 | 39.7, 15.1 | 36.5, 14.0 | 28, 4 |
+| …spans running | 0.2 | 3.2 | 3.8 | 6 |
+| …beat the plan | 0 | 0 | 0 | – |
+
+- **The wall is where the skill is.** Every piece goes down every day now
+  (there is always room), so houses are always 21 (5×5) or 43 (7×7), and
+  what separates players is what they pay for the wall: greedy play builds
+  ten gates on a 5×5 where the plan builds four, and loses 13 points to the
+  wall it has over the plan's. Random play straggles and goes far below
+  nothing.
+- **Then the water**: the plan waters 8 houses on the 5×5, greedy 4.6, by
+  laying the aqueduct along its course rather than where it pays at once.
+- **Plazas and the cathedral** come to careful and quick play nearly alike
+  (plaza 13.4 greedy against 12.8 the plan: a straggling city has more houses
+  beside a plaza, and pays for it in wall).
+- **The high road is 16 for everyone** (see Open).
+- **Skill shows more than ever**: the skill gap is 7.5 standard deviations on
+  the 5×5 (6.0 in the sixth pass) and 10.2 on the 7×7; trivial turns 11% and
+  6%. Looking one move ahead is worth 4 points on the 5×5 and 8 on the 7×7,
+  and the plan is still 12 to 22 points past that, so there is room to get
+  better at it.
+- **Making a plan** takes about a tenth of a second for a 5×5 and 0.4 s for a
+  7×7 in Node, the scorer now keyed by number rather than by string (it was
+  1 s at first).
+
+**Open, for the next pass** (none built):
+
+- **The high road comes to everyone.** Every player measured reached all four
+  sides (random play nearly always too), so its 16 points are the same for
+  all. What it still does is set the target at one gate a side rather than
+  none. Dropping it, or paying it by fewer gates, is the plain lever.
+- **The app's commissions**, a block of houses or a street of a given size,
+  growing by one each time one is finished: the other half of the Solitaire,
+  not built because he chose houses and what they have.
+- **More places**: one or two at a time, now that the base is small. The
+  pictures for eleven are already drawn.
+- **The 7×7 on a phone** is small once the city and its spring fill the view
+  (about 35 px a square on a 390 px phone).
 
 ### The sixth pass: the plan, cut into pieces (2026-11-27)
 

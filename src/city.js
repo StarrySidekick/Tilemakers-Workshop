@@ -338,7 +338,7 @@ function drawCourtyard(ctx, x, y, w, h, R) {
 
 // --- the places ----------------------------------------------------------------
 
-/** Each place, drawn after the ground and the streets. `o` is {sides, wet, run, R, span}. */
+/** Each place, drawn after the ground and the streets. `o` is {sides, wet, run, R, crop}. */
 const PLACE_ART = {
   house(ctx, o) { drawHouses(ctx, o.sides, o.R); },
 
@@ -599,12 +599,6 @@ const PLACE_ART = {
     for (let k = 0; k < 4; k++) { ctx.beginPath(); ctx.arc(x + w * (0.35 + 0.3 * (k % 2)), y + h * (0.38 + 0.25 * (k > 1)), 0.011, 0, Math.PI * 2); ctx.fill(); }
   },
 
-  aqueduct(ctx, o) {
-    // A yard under the arches, darker in its shade, so the span stands out.
-    paving(ctx, 0, 0, 1, 1, o.R);
-    ctx.fillStyle = 'rgba(70,50,25,0.12)'; ctx.fillRect(0, 0, 1, 1);
-    drawSpan(ctx, o.span, o.run);
-  },
 };
 
 /**
@@ -656,33 +650,60 @@ function cloister(ctx, x, y, w, h, R, color) {
 }
 
 /**
- * The aqueduct's span: a stone channel on piers, its arches seen as the gaps
- * in its shadow on the ground, water in it if it runs.
+ * THE AQUEDUCT, a layer over the city (the seventh pass, 2026-11-27:
+ * "aqueducts should be like a second layer above all the other stuff ...
+ * you should be able to have a road go under an aqueduct ... and it should
+ * be clear that you can do that"). One square's span in unit space, drawn
+ * on nothing, to be laid over whatever is there: a stone channel on piers,
+ * its shadow thrown well down and to the right onto the street or the roofs
+ * below (the height is in that gap), the shadow broken into the piers' dark
+ * feet and the paler shade of the channel between them, so the arches read
+ * as open; water in it once it runs.
  */
-function drawSpan(ctx, span, run) {
+function paintSpan(ctx, span, run) {
   if (!span?.length) return;
-  const wC = 0.26;
+  const wC = 0.24;
   const arm = (w) => {
     ctx.beginPath();
     for (const sd of span) { const [ex, ey] = SIDE_MID[sd]; ctx.moveTo(0.5, 0.5); ctx.lineTo(ex, ey); }
     ctx.lineWidth = w; ctx.lineCap = 'butt'; ctx.stroke();
     ctx.fillRect(0.5 - w / 2, 0.5 - w / 2, w, w);
   };
-  // Its shadow, long, down and to the right: it stands high on its arches.
-  ctx.save();
-  ctx.translate(0.07, 0.09);
-  ctx.strokeStyle = ctx.fillStyle = 'rgba(46,26,10,0.36)';
-  arm(wC * 0.9);
-  ctx.restore();
-  // The piers, wider than the channel, where its arches come down.
-  ctx.fillStyle = STONE_DARK;
+  // The piers: one every half square along the channel, a quarter in from
+  // each square's edge, so they keep their step from one square to the next.
+  const piers = [];
   for (const sd of span) {
     const [ex, ey] = SIDE_MID[sd];
-    for (const t of [0.3, 0.75]) {
-      const px = 0.5 + (ex - 0.5) * t * 2, py = 0.5 + (ey - 0.5) * t * 2;
-      ctx.beginPath(); ctx.rect(px - wC * 0.66, py - wC * 0.66, wC * 1.32, wC * 1.32); fill(ctx, STONE_DARK, 0.01);
-    }
+    piers.push([0.5 + (ex - 0.5) * 0.5, 0.5 + (ey - 0.5) * 0.5, ex === 0.5]);
   }
+  const pier = (x, y, vert, grow = 0) => {
+    const across = wC * 1.5 + grow, along = 0.09 + grow;
+    return vert ? [x - across / 2, y - along / 2, across, along] : [x - along / 2, y - across / 2, along, across];
+  };
+  // Its shadow, long, down and to the right: it stands high on its arches,
+  // and the light comes through them, so the ground between the piers' dark
+  // feet is only half shaded.
+  ctx.save();
+  ctx.translate(0.15, 0.21);
+  ctx.strokeStyle = ctx.fillStyle = 'rgba(46,26,10,0.26)';
+  arm(wC * 0.95);
+  ctx.fillStyle = 'rgba(40,20,6,0.42)';
+  for (const [x, y, v] of piers) { const [px, py, pw, ph] = pier(x, y, v); ctx.fillRect(px, py, pw, ph); }
+  ctx.restore();
+  // The piers' feet, on the ground, and the piers up to the channel.
+  for (const [x, y, v] of piers) {
+    const [px, py, pw, ph] = pier(x + 0.05, y + 0.07, v);
+    ctx.beginPath(); ctx.rect(px, py, pw, ph); fill(ctx, STONE_DARK, 0.008);
+    const [qx, qy, qw, qh] = pier(x, y, v);
+    ctx.beginPath(); ctx.rect(qx, qy, qw, qh); fill(ctx, STONE, 0.008);
+  }
+  // The channel's side, in shade, below and to the right of its top: the
+  // height of the arches, seen a little from the side.
+  ctx.save();
+  ctx.translate(0.022, 0.034);
+  ctx.strokeStyle = ctx.fillStyle = INK; arm(wC + 0.03);
+  ctx.strokeStyle = ctx.fillStyle = STONE_DARK; arm(wC);
+  ctx.restore();
   // The channel on top: dark edge, pale coping, the water (or its dry bed).
   ctx.strokeStyle = ctx.fillStyle = INK; arm(wC + 0.03);
   ctx.strokeStyle = ctx.fillStyle = '#efe2c2'; arm(wC);
@@ -700,9 +721,85 @@ function drawSpan(ctx, span, run) {
   ink(ctx, 0.005, 0.6);
   if (run) {
     ctx.beginPath();
-    for (const sd of span) { const [ex, ey] = SIDE_MID[sd]; ctx.moveTo(0.5 + (ex - 0.5) * 0.15, 0.5 + (ey - 0.5) * 0.15); ctx.lineTo(0.5 + (ex - 0.5) * 0.95, 0.5 + (ey - 0.5) * 0.95); }
+    for (const sd of span) { const [ex, ey] = SIDE_MID[sd]; ctx.moveTo(0.5 + (ex - 0.5) * 0.15, 0.5 + (ey - 0.5) * 0.15); ctx.lineTo(0.5 + (ex - 0.5) * 0.98, 0.5 + (ey - 0.5) * 0.98); }
     ctx.strokeStyle = WATER_LIT; ctx.lineWidth = 0.014; ctx.lineCap = 'round'; ctx.stroke();
   }
+}
+
+/** How far past its square an aqueduct's picture reaches (its shadow), in squares. */
+export const SPAN_PAD = 0.3;
+const spanSprites = new Map();
+
+/**
+ * One square of aqueduct at `px` pixels a square, `span` a list of world
+ * sides it opens on, `run` whether water runs in it: a canvas SPAN_PAD
+ * bigger all round than the square, to be drawn over whatever is there.
+ */
+export function spanSprite(span, run, px) {
+  px = Math.max(16, Math.round(px));
+  const key = `${span.join('')}|${run ? 1 : 0}|${px}`;
+  const had = spanSprites.get(key);
+  if (had) return had;
+  const c = document.createElement('canvas');
+  c.width = c.height = Math.ceil(px * (1 + 2 * SPAN_PAD));
+  const k = c.getContext('2d', { willReadFrequently: true });
+  k.scale(px, px);
+  k.translate(SPAN_PAD, SPAN_PAD);
+  paintSpan(k, span, run);
+  roughen(c, { amp: Math.max(0.4, px * 0.007), grain: 0.3 });
+  spanSprites.set(key, c);
+  if (spanSprites.size > 120) spanSprites.delete(spanSprites.keys().next().value);
+  return c;
+}
+
+/**
+ * THE SPRING (the seventh pass), out in the country where the day's water
+ * rises: a pool in a ring of stones, in a patch of grass, with a spout of
+ * dressed stone where the aqueduct is meant to take it. In unit space.
+ */
+function paintSpring(ctx) {
+  ctx.beginPath();
+  for (let k = 0; k <= 20; k++) {
+    const a = (k / 20) * Math.PI * 2, r = 0.42 + 0.04 * Math.sin(a * 3 + 1.3) + 0.03 * Math.sin(a * 5);
+    const x = 0.5 + Math.cos(a) * r, y = 0.5 + Math.sin(a) * r;
+    if (k) ctx.lineTo(x, y); else ctx.moveTo(x, y);
+  }
+  ctx.closePath();
+  fill(ctx, GRASS, 0.006, 0.5);
+  for (let k = 0; k < 9; k++) {
+    const a = k * 0.71 + 0.3;
+    tree(ctx, 0.5 + Math.cos(a) * 0.36, 0.5 + Math.sin(a) * 0.36, 0.035 + (k % 2) * 0.01, k % 2 ? LEAF : GRASS_DARK);
+  }
+  // The ring of stones, and the pool in it.
+  for (let k = 0; k < 14; k++) {
+    const a = (k / 14) * Math.PI * 2;
+    ctx.beginPath(); ctx.ellipse(0.5 + Math.cos(a) * 0.24, 0.5 + Math.sin(a) * 0.22, 0.045, 0.035, a, 0, Math.PI * 2);
+    fill(ctx, k % 2 ? STONE : STONE_DARK, 0.005);
+  }
+  ctx.beginPath(); ctx.ellipse(0.5, 0.5, 0.2, 0.18, 0.2, 0, Math.PI * 2);
+  fill(ctx, WATER, 0.007);
+  ctx.beginPath(); ctx.ellipse(0.46, 0.46, 0.09, 0.05, -0.5, 0, Math.PI * 2);
+  ctx.fillStyle = WATER_LIT; ctx.fill();
+  // Rings where it wells up.
+  ctx.beginPath(); ctx.arc(0.52, 0.53, 0.07, 0, Math.PI * 2); ctx.arc(0.52, 0.53, 0.12, 0, Math.PI * 2);
+  ctx.strokeStyle = WATER_LIT; ctx.lineWidth = 0.008; ctx.stroke();
+}
+
+const springSprites = new Map();
+
+/** The spring at `px` pixels square, cached. */
+export function springSprite(px) {
+  px = Math.max(16, Math.round(px));
+  const had = springSprites.get(px);
+  if (had) return had;
+  const c = document.createElement('canvas');
+  c.width = c.height = px;
+  const k = c.getContext('2d', { willReadFrequently: true });
+  k.scale(px, px);
+  paintSpring(k);
+  roughen(c, { amp: Math.max(0.4, px * 0.007), grain: 0.3 });
+  springSprites.set(px, c);
+  return c;
 }
 
 /**
@@ -724,14 +821,13 @@ export function paintCityTile(ctx, type, rot, look = '') {
   const pn = Number(piece.replace(/\D/g, '')) || 0;
   const R = hand(seedOf(type.id.length, rot, type.id.charCodeAt(2) || 1, (type.id.charCodeAt(type.id.length - 1) || 0) + pn * 7));
   const sides = (type.feats.find((f) => f.type === 'road')?.sides || []).map((s) => (s + rot) % 4);
-  const span = (type.span || []).map((s) => (s + rot) % 4);
   ctx.save();
   ctx.beginPath(); ctx.rect(0, 0, 1, 1); ctx.clip();
   ctx.fillStyle = GROUND; ctx.fillRect(0, 0, 1, 1);
-  const stub = !['plaza', 'comune', 'aqueduct'].includes(kind);
-  if (!['comune', 'plaza', 'aqueduct'].includes(kind)) drawStreets(ctx, sides, R, stub);
+  const stub = !['plaza', 'comune'].includes(kind);
+  if (!['comune', 'plaza'].includes(kind)) drawStreets(ctx, sides, R, stub);
   const crop = piece ? pn % 3 : null;
-  (PLACE_ART[kind] || PLACE_ART.house)(ctx, { sides, wet, run, R, span, crop });
+  (PLACE_ART[kind] || PLACE_ART.house)(ctx, { sides, wet, run, R, crop });
   ctx.restore();
   JOIN = [false, false, false, false];
 }
@@ -754,38 +850,4 @@ export function citySprite(type, rot, look, px) {
   sprites.set(key, c);
   if (sprites.size > 700) sprites.delete(sprites.keys().next().value);
   return c;
-}
-
-/**
- * The water arch in the town wall, seen from above: a round-headed opening
- * through the wall's thickness with the channel coming in over it from
- * outside, and a basin at its foot inside where the water falls. In px, on
- * side `s` of a square whose top left is (x0, y0), `i` squares along, the
- * wall `T` thick.
- */
-export function paintArch(ctx, { z, x0, y0, cols, rows, s, i, T }) {
-  const w = cols * z, h = rows * z;
-  const along = (i + 0.5) * z;
-  ctx.save();
-  // Into the wall's frame: x along the side, y out from the square.
-  if (s === 0) ctx.translate(x0 + along, y0);
-  else if (s === 1) { ctx.translate(x0 + w, y0 + along); ctx.rotate(Math.PI / 2); }
-  else if (s === 2) { ctx.translate(x0 + along, y0 + h); ctx.rotate(Math.PI); }
-  else { ctx.translate(x0, y0 + along); ctx.rotate(-Math.PI / 2); }
-  const lw = Math.max(1, z * 0.025);
-  const cw = z * 0.16;
-  // The channel coming in from outside the wall, on its piers.
-  ctx.fillStyle = STONE;
-  ctx.strokeStyle = INK;
-  ctx.lineWidth = lw;
-  ctx.beginPath(); ctx.rect(-cw, -T - z * 0.5, cw * 2, z * 0.5 + T); ctx.fill(); ctx.stroke();
-  ctx.fillStyle = WATER;
-  ctx.fillRect(-cw * 0.45, -T - z * 0.5, cw * 0.9, z * 0.5 + T + z * 0.02);
-  ctx.strokeStyle = WATER_LIT; ctx.lineWidth = lw * 0.8;
-  ctx.beginPath(); ctx.moveTo(0, -T - z * 0.45); ctx.lineTo(0, -z * 0.02); ctx.stroke();
-  // The arch's keystone and voussoirs over the opening.
-  ctx.strokeStyle = INK; ctx.lineWidth = lw;
-  ctx.beginPath(); ctx.arc(0, -T * 0.5, cw * 1.3, Math.PI * 1.05, Math.PI * 1.95); ctx.stroke();
-  ctx.fillStyle = STONE_DARK; ctx.beginPath(); ctx.rect(-cw * 0.25, -T * 0.5 - cw * 1.45, cw * 0.5, cw * 0.4); ctx.fill(); ctx.stroke();
-  ctx.restore();
 }

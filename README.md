@@ -51,28 +51,29 @@ that. Five minutes a game.
 gets the same thirty tiles on the same 7×7 board on the same day. Solo, against
 par.
 
-**Starà** — the daily city-state, in a 5×5 and a 7×7. Solo and without
-followers, the same deal for everyone on the same day. The square is a walled
-Italian city to fill, and each day is a plan: the level maker draws a whole
-city, the best it can find, and deals it as pieces of one to four squares
-(Tetris's shapes among them), each one place: a terrace of houses, a big farm,
-a run of aqueduct, a plaza, a market, a church, and a cast of four dealt by
-the day (the cathedral or convents, barracks or the keep, silk works or a
-tannery, a wizard's tower or the university). The pieces exactly fill the
-square, so it can always be finished; the plan's worth is the target, under
-the title. Streets must meet streets. Each place is worth what it wants round
-it, and the score is always what the whole city is worth, so a piece pays the
-difference it makes, shown before you lay it, in the colour of the way it is
-paid: itself, neighbours (green, a loss red), variety (violet), water (blue),
-the wall (black) and gates (gold). A street out through the town gates in the
-middle of each wall is a high road; water comes in at an arch in the wall and
-runs along the aqueduct. You hold three pieces. Touch a lit square to put the
-one held up there, tap it to turn it, and hold it down for a second to seal
-it to the table in red wax. Hold a piece already down to lift it back into
-your hand for a point. At the end, the charter can show you the architect's
-plan. It has its own screen, medieval and drawn by hand: a wooden table, the
-town wall seen from above, your hand in the tray, the card of the place you
-hold under it. The menu in the corner brings the workshop back.
+**Starà** — the daily city-state, from a 5×5 or a 7×7 plan. Solo and without
+followers, the same deal for everyone on the same day, on an open table: there
+is no border. Each day is a plan: the level maker draws a square city, the best
+it can find, and deals it as pieces of one to four squares (Tetris's shapes
+among them), each one place: a terrace of houses, a plaza, the cathedral, a run
+of aqueduct. The Comune starts in the middle; every piece goes down beside what
+is built, streets meeting streets. Only houses score: 1 a square, +1 beside a
+plaza (the Comune is one), +1 watered, +1 beside the cathedral. The town wall
+goes up round whatever you build, and every stretch of it costs a point, a gate
+two (a gate is where a street leaves the city); the street out on the most of
+the city's four sides is its high road, 4 a side. The aqueduct is a layer over
+everything, laid over houses and streets and out across the country to the
+day's spring; whatever it runs over or beside is watered. The score is always
+what the city is worth, shown before you seal a piece in the colour of each way
+it is paid: houses, plaza (green), water (blue), cathedral (violet), high road
+(gold) and the wall (black). You hold three pieces: drag one onto the table and
+about it, turn it with the turn button beside it or in the tray, and hold it
+still to seal it in red wax. Hold a piece already down to lift it back into
+your hand for a point. The plan's worth is the target; at the end the charter
+can show you the architect's plan. It has its own screen, medieval and drawn by
+hand: a wooden table, the wall seen from above, your hand in the tray, the card
+of the place you hold under it. The menu in the corner brings the workshop
+back.
 `index.html?mode=stara` opens the 7×7, `?mode=stara5` the 5×5.
 
 **Giardino** — the daily walled garden, 7×7, on Starà's screen. Every tile is
