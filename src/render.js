@@ -15,12 +15,13 @@ import {
 import { LIGHT } from './light.js';
 import { THEME, applyDusk, usePalette } from './theme.js';
 import { DESIGN, rgba } from './design.js';
-import { rotPoint, wallSides, opposite } from './tiles.js';
+import { rotPoint, wallSides, opposite, TILES } from './tiles.js';
 import { liftableCells } from './mechanics.js';
 import { roughen } from './ink.js';
 import { paintCastle, gatesOf, CASTLE, keepSprite } from './castle.js';
 import { gardenSprite, paintGardenWall, GARDEN_WALL } from './garden.js';
 import { citySprite } from './city.js';
+import { WAY, LOSS } from './modes/stara-city.js';
 import { sketchLine, sketchRect, seedOf } from './sketch.js';
 
 // Move targets, in the order you want to notice them. Green is the plain "you
@@ -312,6 +313,8 @@ export class Renderer {
     if (game.phase === 'recall') this.drawCellTargets(game.myMeeples(), MOVE_COSTLY.line, MOVE_COSTLY.rgb);
     if (game.phase === 'walk') this.drawCellTargets(game.pendingWalk?.targets || [], MOVE_OK.line, MOVE_OK.rgb);
     if (game.phase === 'place') this.drawPlacementHints(game);
+    // Starà's wax: a seal setting, settling, or being broken for a lift.
+    if (game.spec?.city) this.drawSeals(game);
 
     this.drawMeeples(game);
     // With the claim panel aiming at the tile just laid, the board still shows
@@ -1525,6 +1528,7 @@ export class Renderer {
 
   drawPlacementHints(game) {
     if (game.m.piece) return this.drawPieceHints(game);
+    if (game.spec?.city && game.phase === 'place' && game.m.held) return this.drawCityHints(game);
     if (!game.tile) return;
     const ctx = this.ctx;
     // The hover ghost is always drawn; only the "here are all the squares it
@@ -1685,6 +1689,355 @@ export class Renderer {
     }
     const [sx, sy] = this.toScreen(x, y);
     tag(sx + z * 0.22, sy + z * 0.2, signed(pv.gain), pv.gain >= 0 ? '#8e2a1e' : '#4a1a12', Math.max(10, z * 0.19));
+  }
+
+  /**
+   * STARÀ'S PIECES (the sixth pass, 2026-11-27): a piece of one to four
+   * squares, lit wherever it could go, staged as a whole, and sealed with a
+   * hold. Lamplight on every square some way of laying it would cover; the
+   * staged piece drawn solid with a ring round its outline; what it would
+   * pay, by way and in each way's colour; and, while a finger is held on it,
+   * the wax seal forming (drawWaxSeal).
+   */
+  drawCityHints(game) {
+    const ctx = this.ctx, z = this.cam.zoom;
+    const glow = 0.18 + Math.sin(performance.now() / 520) * 0.05;
+    for (const k of game.m.litSquares()) {
+      const [x, y] = k.split(',').map(Number);
+      const [sx, sy] = this.toScreen(x, y);
+      ctx.fillStyle = `rgba(255,236,196,${glow})`;
+      ctx.fillRect(sx + z * 0.07, sy + z * 0.07, z * 0.86, z * 0.86);
+      this.sketchBox(sx + z * 0.08, sy + z * 0.08, z * 0.84, 'rgba(255,240,212,0.78)', seedOf(x, y, 5), 1.4);
+    }
+    const p = this.pending;
+    if (p) {
+      const pv = game.m.preview(p.x, p.y, p.rot);
+      if (!pv) return;
+      const sealing = this.sealing && this.sealing.kind === 'seal' ? this.sealing : null;
+      const t = sealing ? Math.min(1, (performance.now() - sealing.t0) / sealing.dur) : 0;
+      // Pressed into the table as the seal goes on: a touch smaller, a touch darker.
+      const press = sealing ? 1 - 0.035 * Math.sin(Math.min(1, t * 1.1) * Math.PI / 2) : 1;
+      ctx.save();
+      if (press !== 1) {
+        const [cx, cy] = this.pieceCentre(pv.cells);
+        ctx.translate(cx, cy); ctx.scale(press, press); ctx.translate(-cx, -cy);
+      }
+      for (const c of pv.cells) this.paintTile(c.x, c.y, c.rot, c.type, 'surface', z, null, c.look);
+      ctx.restore();
+      const a = 0.75 + Math.sin(performance.now() / 300) * 0.2;
+      this.outlinePiece(pv.cells, `rgba(255,242,214,${sealing ? 0.95 : a})`, 2.6, seedOf(p.x, p.y, p.rot));
+      this.drawWays(game, pv);
+      if (sealing) this.drawWaxSeal(...this.pieceCentre(pv.cells, sealing.at), z * 0.34, t, { seed: seedOf(p.x, p.y) });
+      return;
+    }
+    const h = this.hover;
+    if (!h) return;
+    const pv = game.m.preview(h.x, h.y, game.rot);
+    if (pv) {
+      ctx.save();
+      ctx.globalAlpha = 0.92;
+      for (const c of pv.cells) this.paintTile(c.x, c.y, c.rot, c.type, 'surface', z, null, c.look);
+      ctx.restore();
+      this.outlinePiece(pv.cells, THEME.gold, 3, seedOf(h.x, h.y, 3));
+      this.drawWays(game, pv);
+      return;
+    }
+    // Over an empty square it cannot go on: the piece, faint, ringed in red,
+    // as far as it stays inside the wall.
+    if (game.board.get(h.x, h.y) || !game.board.inBounds(h.x, h.y)) return;
+    const cells = game.m.shape(game.rot).map((c) => ({ ...c }));
+    if (!cells.length) return;
+    const grip = cells.reduce((a, c) => a + c.dx, 0) / cells.length, gripY = cells.reduce((a, c) => a + c.dy, 0) / cells.length;
+    const ox = h.x - Math.round(grip), oy = h.y - Math.round(gripY);
+    const inside = cells.filter((c) => game.board.inBounds(ox + c.dx, oy + c.dy));
+    ctx.save();
+    ctx.globalAlpha = 0.32;
+    for (const c of inside) this.paintTile(ox + c.dx, oy + c.dy, c.rot, TILES[c.type], 'surface', z, null, '');
+    ctx.restore();
+    this.outlinePiece(inside.map((c) => ({ x: ox + c.dx, y: oy + c.dy })), '#a8443a', 3, 7);
+  }
+
+  /** The middle of a piece's squares on screen, or of square `at` of it. */
+  pieceCentre(cells, at = null) {
+    if (at) return this.toScreen(at.x + 0.5, at.y + 0.5);
+    const x = cells.reduce((a, c) => a + c.x + 0.5, 0) / cells.length;
+    const y = cells.reduce((a, c) => a + c.y + 0.5, 0) / cells.length;
+    return this.toScreen(x, y);
+  }
+
+  /** A ring drawn by hand round the outside of a piece's squares, never across its own seams. */
+  outlinePiece(cells, color, width, seed) {
+    const ctx = this.ctx, z = this.cam.zoom;
+    const own = new Set(cells.map((c) => `${c.x},${c.y}`));
+    ctx.save();
+    ctx.strokeStyle = color;
+    ctx.lineWidth = width;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    const ends = [[[0, 0], [1, 0]], [[1, 0], [1, 1]], [[0, 1], [1, 1]], [[0, 0], [0, 1]]];
+    const step = [[0, -1], [1, 0], [0, 1], [-1, 0]];
+    for (const c of cells) {
+      const [sx, sy] = this.toScreen(c.x, c.y);
+      for (let s = 0; s < 4; s++) {
+        if (own.has(`${c.x + step[s][0]},${c.y + step[s][1]}`)) continue;
+        const [[ax, ay], [bx, by]] = ends[s];
+        const inset = 1.5;
+        const ix = (v) => (v ? z - inset : inset);
+        sketchLine(ctx, sx + ix(ax), sy + ix(ay), sx + ix(bx), sy + ix(by), { seed: seedOf(c.x, c.y, s, seed), rough: 1.1 });
+      }
+    }
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  /**
+   * WHAT A PIECE PAYS, BY WAY (2026-11-27: "things that score points in
+   * different way should be clearly color coded"). Each way has its colour
+   * (stara-city.js, WAYS), and everything that pays is lit in it:
+   *
+   *   - the squares round it it likes, ringed in green, and dislikes, in red;
+   *     the different places round a plaza, dotted in violet;
+   *   - its sides on the town wall, a black bar along the wall;
+   *   - a drop of blue on each of its squares the water reaches;
+   *   - each place round it whose worth changes, its +n or −n in the colour
+   *     of the way that changed most;
+   *   - and on the piece a wax tag with the whole difference it makes, over
+   *     a row of chips, one per way, each in its colour.
+   */
+  drawWays(game, pv) {
+    const ctx = this.ctx, z = this.cam.zoom;
+    const own = new Set(pv.cells.map((c) => `${c.x},${c.y}`));
+    const font = (px) => `700 ${Math.round(px)}px Cinzel, ui-serif, serif`;
+    const tag = (tx, ty, text, bg, fg, r) => {
+      ctx.save();
+      ctx.font = font(r * 1.05);
+      const w = Math.max(r * 2, ctx.measureText(text).width + r * 0.9);
+      ctx.beginPath();
+      ctx.roundRect(tx - w / 2, ty - r, w, r * 2, r);
+      ctx.fillStyle = bg;
+      ctx.fill();
+      ctx.lineWidth = Math.max(1.5, z * 0.025);
+      ctx.strokeStyle = '#fff1d6';
+      ctx.stroke();
+      ctx.fillStyle = fg;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(text, tx, ty + r * 0.06);
+      ctx.restore();
+      return w;
+    };
+    const signed = (n) => (n > 0 ? `+${n}` : `−${Math.abs(n)}`);
+    // Where its own points come from.
+    const ringed = new Set();
+    for (const f of pv.from) {
+      const [sx, sy] = this.toScreen(f.x, f.y);
+      if (f.way === 'wall') {
+        const W = Math.max(3, z * 0.07);
+        ctx.fillStyle = WAY.wall.colour;
+        ctx.globalAlpha = 0.85;
+        if (f.s === 0) ctx.fillRect(sx + z * 0.1, sy - W * 0.2, z * 0.8, W);
+        if (f.s === 2) ctx.fillRect(sx + z * 0.1, sy + z - W * 0.8, z * 0.8, W);
+        if (f.s === 3) ctx.fillRect(sx - W * 0.2, sy + z * 0.1, W, z * 0.8);
+        if (f.s === 1) ctx.fillRect(sx + z - W * 0.8, sy + z * 0.1, W, z * 0.8);
+        ctx.globalAlpha = 1;
+        continue;
+      }
+      const k = `${f.x},${f.y}|${f.way}`;
+      if (ringed.has(k) || own.has(`${f.x},${f.y}`)) continue;
+      ringed.add(k);
+      if (f.way === 'variety') {
+        ctx.beginPath();
+        ctx.arc(sx + z * 0.82, sy + z * 0.82, Math.max(3.5, z * 0.07), 0, Math.PI * 2);
+        ctx.fillStyle = WAY.variety.colour;
+        ctx.fill();
+        ctx.lineWidth = 1.5; ctx.strokeStyle = '#fff1d6'; ctx.stroke();
+        continue;
+      }
+      this.sketchBox(sx + z * 0.12, sy + z * 0.12, z * 0.76, f.v > 0 ? WAY.near.colour : LOSS.colour, seedOf(f.x, f.y, 11), Math.max(2.5, z * 0.05));
+    }
+    if (pv.ways.water > 0) {
+      for (const c of pv.cells) {
+        if (!game.m.city || !pv.wet) break;
+        const [sx, sy] = this.toScreen(c.x, c.y);
+        this.drop(sx + z * 0.8, sy + z * 0.2, Math.max(4, z * 0.08));
+      }
+    }
+    // The places round it whose worth would change.
+    for (const c of pv.changes) {
+      let near = pv.cells[0], d = Infinity;
+      for (const o of pv.cells) { const e = (o.x - c.x) ** 2 + (o.y - c.y) ** 2; if (e < d) { d = e; near = o; } }
+      const [cx, cy] = this.toScreen(near.x + 0.5, near.y + 0.5);
+      const [nx, ny] = this.toScreen(c.x + 0.5, c.y + 0.5);
+      const way = c.d < 0 ? LOSS : WAY[c.way] || WAY.near;
+      tag(cx + (nx - cx) * 0.62, cy + (ny - cy) * 0.62, signed(c.d), way.colour, way.ink, Math.max(8, z * 0.14));
+    }
+    // On the piece: the whole difference, and under it the ways.
+    const top = pv.cells.reduce((a, c) => (c.y < a.y || (c.y === a.y && c.x < a.x) ? c : a), pv.cells[0]);
+    const [sx, sy] = this.toScreen(top.x, top.y);
+    const r = Math.max(10, z * 0.19);
+    tag(sx + z * 0.24, sy + z * 0.2, signed(pv.gain), pv.gain >= 0 ? '#8e2a1e' : '#4a1a12', '#fff6e4', r);
+    const chips = Object.entries(pv.ways).filter(([, v]) => v);
+    let x = sx + z * 0.08;
+    const rc = Math.max(7, z * 0.115);
+    for (const [id, v] of chips) {
+      const way = v < 0 ? { colour: LOSS.colour, ink: LOSS.ink } : WAY[id];
+      ctx.save();
+      ctx.font = font(rc * 1.05);
+      const w = Math.max(rc * 2, ctx.measureText(signed(v)).width + rc * 0.8);
+      ctx.restore();
+      tag(x + w / 2, sy + z * 0.2 + r + rc + 2, signed(v), way.colour, way.ink, rc);
+      x += w + 2;
+    }
+  }
+
+  /** A drop of water, point up, in azure. */
+  drop(x, y, r) {
+    const ctx = this.ctx;
+    ctx.save();
+    ctx.beginPath();
+    ctx.moveTo(x, y - r * 1.5);
+    ctx.bezierCurveTo(x + r * 1.1, y - r * 0.2, x + r, y + r, x, y + r);
+    ctx.bezierCurveTo(x - r, y + r, x - r * 1.1, y - r * 0.2, x, y - r * 1.5);
+    ctx.fillStyle = WAY.water.colour;
+    ctx.fill();
+    ctx.lineWidth = 1.5;
+    ctx.strokeStyle = '#fff1d6';
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  /**
+   * THE WAX SEAL (2026-11-27: "tap and hold to seal the tile ... the
+   * animation start when you start holding, then over about a second or so
+   * it sort of seals to the table like a wax seal"). `t` runs 0 to 1 over
+   * the hold. A drop of molten wax lands and spreads (to about half way),
+   * the seal's die comes down into it (a ring, the town gate pressed in),
+   * and at the end it is pressed flat with a last squash. A thin gold arc
+   * round it fills as the hold goes on, so the length of a hold can be seen.
+   * `crack` instead breaks a seal already set: lifting a piece.
+   */
+  drawWaxSeal(cx, cy, R, t, { seed = 1, crack = false, alpha = 1 } = {}) {
+    const ctx = this.ctx;
+    const ease = (v) => 1 - (1 - v) ** 3;
+    const spread = crack ? 1 : ease(Math.min(1, t / 0.5));
+    const die = crack ? 1 : Math.max(0, Math.min(1, (t - 0.45) / 0.4));
+    const squash = !crack && t > 0.86 ? 1 + 0.08 * Math.sin(((t - 0.86) / 0.14) * Math.PI) : 1;
+    const r = R * spread * squash;
+    if (r < 0.5) return;
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    // The blob: a circle whose edge runs out unevenly, as wax does.
+    const blob = (rad) => {
+      ctx.beginPath();
+      const n = 18;
+      for (let k = 0; k <= n; k++) {
+        const a = (k / n) * Math.PI * 2;
+        const wob = 1 + 0.07 * Math.sin(a * 3 + seed) + 0.05 * Math.sin(a * 5 + seed * 1.7) + 0.03 * Math.sin(a * 9 + seed * 0.3);
+        const px = cx + Math.cos(a) * rad * wob, py = cy + Math.sin(a) * rad * wob;
+        if (k) ctx.lineTo(px, py); else ctx.moveTo(px, py);
+      }
+      ctx.closePath();
+    };
+    // Its shadow on the tile, down and to the right like every other.
+    ctx.save();
+    ctx.translate(R * 0.06, R * 0.1);
+    blob(r);
+    ctx.fillStyle = 'rgba(20,8,0,0.35)';
+    ctx.fill();
+    ctx.restore();
+    blob(r);
+    const g = ctx.createRadialGradient(cx - r * 0.35, cy - r * 0.4, r * 0.1, cx, cy, r * 1.05);
+    g.addColorStop(0, '#c9483a');
+    g.addColorStop(0.55, '#9b2a1c');
+    g.addColorStop(1, '#6e1a10');
+    ctx.fillStyle = g;
+    ctx.fill();
+    ctx.lineWidth = Math.max(1, R * 0.05);
+    ctx.strokeStyle = 'rgba(70,14,6,0.8)';
+    ctx.stroke();
+    // The die pressed in: a sunk ring, and the town gate inside it.
+    if (die > 0) {
+      const ri = r * 0.66;
+      ctx.globalAlpha = alpha * die;
+      ctx.beginPath(); ctx.arc(cx, cy, ri, 0, Math.PI * 2);
+      ctx.lineWidth = Math.max(1.5, R * 0.09);
+      ctx.strokeStyle = 'rgba(60,10,4,0.75)';
+      ctx.stroke();
+      ctx.beginPath(); ctx.arc(cx - R * 0.03, cy - R * 0.03, ri, Math.PI * 1.05, Math.PI * 1.65);
+      ctx.lineWidth = Math.max(1, R * 0.05);
+      ctx.strokeStyle = 'rgba(255,190,170,0.55)';
+      ctx.stroke();
+      // The gate: two towers and an arch between them, crenellated.
+      const u = ri * 0.62;
+      ctx.beginPath();
+      ctx.moveTo(cx - u, cy + u * 0.8);
+      ctx.lineTo(cx - u, cy - u * 0.55);
+      for (let k = 0; k < 3; k++) { const x0 = cx - u + k * u * 0.24; ctx.lineTo(x0, cy - u * 0.8); ctx.lineTo(x0 + u * 0.12, cy - u * 0.8); ctx.lineTo(x0 + u * 0.12, cy - u * 0.55); ctx.lineTo(x0 + u * 0.24, cy - u * 0.55); }
+      ctx.lineTo(cx - u * 0.28, cy - u * 0.3);
+      ctx.lineTo(cx + u * 0.28, cy - u * 0.3);
+      ctx.lineTo(cx + u * 0.28, cy - u * 0.55);
+      for (let k = 0; k < 3; k++) { const x0 = cx + u * 0.28 + k * u * 0.24; ctx.lineTo(x0, cy - u * 0.8); ctx.lineTo(x0 + u * 0.12, cy - u * 0.8); ctx.lineTo(x0 + u * 0.12, cy - u * 0.55); ctx.lineTo(x0 + u * 0.24, cy - u * 0.55); }
+      ctx.lineTo(cx + u, cy + u * 0.8);
+      ctx.lineTo(cx + u * 0.32, cy + u * 0.8);
+      ctx.arc(cx, cy + u * 0.8, u * 0.32, 0, Math.PI, true);
+      ctx.closePath();
+      ctx.fillStyle = 'rgba(70,14,6,0.55)';
+      ctx.fill();
+      ctx.lineWidth = Math.max(1, R * 0.035);
+      ctx.strokeStyle = 'rgba(255,190,170,0.45)';
+      ctx.stroke();
+      ctx.globalAlpha = alpha;
+    }
+    // Cracks, for a seal being broken.
+    if (crack && t > 0) {
+      ctx.strokeStyle = 'rgba(255,225,200,0.9)';
+      ctx.lineWidth = Math.max(1.2, R * 0.05);
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      for (let k = 0; k < 5; k++) {
+        const a = seed + k * 1.31;
+        const len = r * Math.min(1, t * 1.4) * (0.7 + 0.3 * Math.sin(k * 2.1));
+        ctx.moveTo(cx, cy);
+        ctx.lineTo(cx + Math.cos(a) * len * 0.5 + Math.sin(a * 3) * r * 0.08, cy + Math.sin(a) * len * 0.5);
+        ctx.lineTo(cx + Math.cos(a) * len, cy + Math.sin(a) * len);
+      }
+      ctx.stroke();
+    }
+    ctx.restore();
+    // How far through the hold: an arc of gold round it.
+    if (t < 1) {
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(cx, cy, R * 1.28, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * t);
+      ctx.lineWidth = Math.max(2, R * 0.1);
+      ctx.lineCap = 'round';
+      ctx.strokeStyle = crack ? 'rgba(242,169,154,0.95)' : 'rgba(255,226,150,0.95)';
+      ctx.stroke();
+      ctx.restore();
+    }
+  }
+
+  /**
+   * After the hold: the seal just set, settling into the table, then gone;
+   * and a seal being broken on a laid piece, for a lift.
+   */
+  drawSeals(game) {
+    const now = performance.now(), z = this.cam.zoom;
+    const s = this.sealing;
+    if (s && s.kind === 'lift') {
+      const t = Math.min(1, (now - s.t0) / s.dur);
+      const [cx, cy] = this.toScreen(s.at.x + 0.5, s.at.y + 0.5);
+      this.outlinePiece(s.cells, 'rgba(242,169,154,0.95)', 2.6, 5);
+      this.drawWaxSeal(cx, cy, z * 0.34, t, { seed: seedOf(s.at.x, s.at.y), crack: true, alpha: Math.min(1, t * 4) });
+    }
+    const d = this.sealed;
+    if (d) {
+      const age = now - d.t0;
+      if (age > 900) { this.sealed = null; return; }
+      const [cx, cy] = this.toScreen(d.at.x + 0.5, d.at.y + 0.5);
+      const fade = age < 420 ? 1 : 1 - (age - 420) / 480;
+      this.drawWaxSeal(cx, cy, z * 0.34 * (1 - 0.12 * (1 - fade)), 1, { seed: d.seed, alpha: fade });
+    }
   }
 
   modeAllows(game, p) {

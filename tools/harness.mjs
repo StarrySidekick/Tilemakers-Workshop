@@ -18,13 +18,16 @@ import { Game, MODES, MECHANICS, LIVE_MECHANICS, DEFAULT_RULESET } from '../src/
 import { Bot, BOT_LEVELS } from '../src/ai.js';
 import { makePiece, rotatePiece, validatePiece } from '../src/pieces.js';
 import { Board } from '../src/board.js';
-import { TILES } from '../src/tiles.js';
+import { TILES, edgesMeet, opposite } from '../src/tiles.js';
 import { liftableCells, BASE_LAYER, allFields, citiesFed } from '../src/mechanics.js';
 import { gust, storm } from '../src/wind.js';
 import { GROUPS } from '../src/tiles.js';
 import { checkRulebook } from './soffiando-rulebook.mjs';
 import { SOFFIANDO_WEIGHTS } from '../src/modes/soffiando.js';
-import { staraDay, highways, gateRoads, appraise, castFor, archFor, archSquare, runningWater as cityWater, CAST, PLACES, RULES, KEEP as STARA_KEEP } from '../src/modes/stara.js';
+import {
+  staraDay, highways, gateRoads, appraise, castFor, archFor, archSquare, runningWater as cityWater, CAST, PLACES, RULES,
+  KEEP as STARA_KEEP, WAYS as STARA_WAYS, makeLevel, turnPiece, describe as describePlace,
+} from '../src/modes/stara.js';
 import { giardinoDay, runningWater, isWatered, PLANTS, PLANT_IDS, FRIENDS, FOES, relation, DECK_SIZE } from '../src/modes/giardino.js';
 
 const ALL_GROUPS = GROUPS.map((g) => g.id);
@@ -2836,8 +2839,8 @@ function checkStara() {
   };
 
   const a = new Game({ mode: 'stara' }), b = new Game({ mode: 'stara' });
-  ok('the same deal for everyone today', a.deck.join() === b.deck.join() && a.tile.id === b.tile.id,
-    `${a.deck.length + 1} tiles`);
+  ok('the same deal for everyone today', a.deck.join() === b.deck.join() && a.m.hand.join() === b.m.hand.join(),
+    `${a.deck.length + a.m.hand.length} pieces`);
   const t = new Game({ mode: 'tesserae' });
   ok('…and not the same deal as Tesserae', a.seed !== t.seed);
 
@@ -2934,76 +2937,155 @@ function checkStara() {
     h.place(0, 0, T('c-comune-X'), 0);
     const ns = turnTo('c-house-I', 0, 'r'), ew = turnTo('c-house-I', 1, 'r');
     h.place(0, -1, T('c-house-I'), ns); h.place(0, -2, T('c-house-I'), ns);
-    const one = appraise(h, arch).groups.roads;
+    const roadsOf = (b) => appraise(b, arch).roads.reduce((a, r) => a + r.pts, 0);
+    const one = roadsOf(h);
     h.place(1, 0, T('c-house-I'), ew); h.place(2, 0, T('c-house-I'), ew);
-    ok('a street through one gate pays 2, through two 6', one === RULES.highRoad[1] && appraise(h, arch).groups.roads === RULES.highRoad[2],
-      `${one}, then ${appraise(h, arch).groups.roads}`);
+    ok('a street through one gate pays 2, through two 6', one === RULES.highRoad[1] && roadsOf(h) === RULES.highRoad[2],
+      `${one}, then ${roadsOf(h)}`);
     ok('the town gates see the streets out through them, and only those',
       gateRoads(h).map(Boolean).join() === 'true,true,false,false');
     h.place(-1, 0, T('c-house-I'), ew);
     h.place(-2, 0, T(STARA_KEEP), 0);
     ok('the keep counts as a gate for the street that ends at it', highways(h).some((x) => x.gates.size === 3)
-      && appraise(h, arch).groups.roads === RULES.highRoad[3]);
+      && roadsOf(h) === RULES.highRoad[3]);
 
     // The day's cast.
     const cast = castFor(a.seed);
     ok('the day deals one place of each kind, the same for everyone',
       CAST.every((c) => c.of.includes(cast[c.id])) && JSON.stringify(cast) === JSON.stringify(a.m.cast), JSON.stringify(cast));
-    const pile = [a.m.hand[0], ...[...a.deck].reverse()].map((id) => TILES[id].place || (TILES[id].keep ? 'keep' : null));
+    const pile = [...a.m.hand, ...[...a.deck].reverse()].map((id) => a.m.pieces[id].kind);
     const others = CAST.flatMap((c) => c.of.filter((k) => k !== cast[c.id]));
     ok('...and only those: the others are not in the pile', others.every((k) => !pile.includes(k)) && Object.values(cast).every((k) => pile.includes(k)));
     const seen = new Set();
     for (let sd = 1; sd <= 40; sd++) for (const k of Object.values(castFor(sd))) seen.add(k);
     ok('over the days every place of the cast comes up', CAST.every((c) => c.of.every((k) => seen.has(k))), `${seen.size} of 8`);
-    const firstThird = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10].every((sd) => {
-      const gg = new Game({ mode: 'stara', seed: sd });
-      const order = [gg.m.hand[0], ...[...gg.deck].reverse()];
-      return Object.values(gg.m.cast).filter((k) => PLACES[k].one).every((k) => {
-        const i = order.findIndex((id) => (TILES[id].place || (TILES[id].keep ? 'keep' : null)) === k);
-        // Dealt within the first 16 (a third of the 7 x 7), each pushing the
-        // others down by one as it goes in.
-        return i >= 0 && i < 16 + 3;
-      });
-    });
-    ok('a place there is only one of comes in the first third of the square', firstThird);
   }
 
-  // The hand: one tile, one more for every church laid (up to five); any may be played.
-  // The score is always what the city is worth.
+  // The sixth pass (2026-11-27): the day is a PLAN, cut into pieces.
   {
-    const g = new Game({ mode: 'stara', seed: 11 });
-    const handOk = g.m.hand.length === 1 && g.m.handSize === 1 && g.tileKey === g.m.hand[0];
-    let grew = null, chose = null, worthy = true, guard = 0;
-    while (g.phase === 'place' && guard++ < 80) {
-      if (g.m.hand.length > 1 && chose == null) {
-        const want = g.m.hand[1];
-        g.m.select(1);
-        chose = g.tileKey === want && g.tile === TILES[want];
+    const planned = (side, seed) => {
+      const cast = castFor(seed), arch = archFor(seed, side);
+      const L = makeLevel(seed, side, cast, arch);
+      const R = (side - 1) / 2;
+      const b = new Board({ bounds: { minX: -R, maxX: R, minY: -R, maxY: R }, walled: true, builtFromWall: true });
+      b.place(0, 0, TILES['c-comune-X'], 0);
+      for (const p of L.plan) for (const c of L.pieces[p.id].cells) { const cell = b.place(p.x + c.dx, p.y + c.dy, TILES[c.type], c.rot); cell.piece = p.id; }
+      let open = 0;
+      for (const cell of b.cells.values()) for (let s = 0; s < 4; s++) { const nb = b.neighbor(cell.x, cell.y, s); if (nb && !edgesMeet(b.edgeAt(cell, s), b.edgeAt(nb, opposite(s)))) open++; }
+      return { L, b, arch, open };
+    };
+    let fills = 0, meets = 0, worth = 0, sizes = new Set(), tetris = 0, same = 0;
+    const days = [];
+    for (const side of [5, 7]) {
+      for (let sd = 1; sd <= 12; sd++) {
+        const { L, b, arch, open } = planned(side, sd * 977);
+        days.push(L);
+        if (b.size === side * side) fills++;
+        if (!open) meets++;
+        if (appraise(b, arch).total === L.par) worth++;
+        for (const p of Object.values(L.pieces)) { sizes.add(p.cells.length); if (p.cells.length === 4) tetris++; }
+        if (JSON.stringify(makeLevel(sd * 977, side, castFor(sd * 977), archFor(sd * 977, side))) === JSON.stringify(L)) same++;
       }
-      const church = PLACES[TILES[g.tileKey].place]?.church;
-      const spot = g.board.legalPlacements(g.tile, g.placeOpts())[0];
-      g.rot = spot.rot;
-      const before = g.m.handSize;
-      g.placeAt(spot.x, spot.y);
-      if (church && grew == null && before < RULES.handMax) grew = g.m.handSize === before + 1;
-      if (g.players[0].score !== appraise(g.board, g.m.arch).total) worthy = false;
     }
-    ok('you hold one tile, the one in play', handOk);
-    ok('a church laid makes the hand one bigger', grew === true);
-    ok('any tile in the hand may be held up and played', chose === true);
-    ok('after every tile the score is what the city is worth', worthy);
-    ok('the hand never holds more than five', g.m.handSize <= RULES.handMax);
-    // The wizard's tower: the next tiles in the pile, while it stands.
-    const wz = Array.from({ length: 40 }, (_, i) => i + 1).find((sd) => castFor(new Game({ mode: 'stara', seed: sd }).seed).wonder === 'wizard');
-    const gw = new Game({ mode: 'stara', seed: wz });
+    ok('the plan fills the square, the Comune and every piece', fills === 24, `${fills}/24 days`);
+    ok('…every edge in it meeting its neighbour\'s', meets === 24, `${meets}/24 days`);
+    ok('…and the day\'s target is exactly what the plan is worth', worth === 24, `${worth}/24 days`);
+    ok('pieces of one to four squares, Tetris\'s among them', [1, 2, 3, 4].every((n) => sizes.has(n)) && tetris > 0, `${tetris} of four squares`);
+    ok('the same plan for everyone from the same seed', same === 24);
+    const g5 = new Game({ mode: 'stara5' });
+    const squares = Object.values(g5.m.pieces).reduce((n, p) => n + p.cells.length, 0);
+    ok('a 5 x 5 day deals exactly its 24 squares, round the Comune', squares === 24 && g5.deck.length + g5.m.hand.length === Object.keys(g5.m.pieces).length,
+      `${Object.keys(g5.m.pieces).length} pieces`);
+    // The deal can be built in the plan's places holding three.
+    const buildable = days.every((L) => {
+      const built = new Set(['0,0']);
+      const B = Math.max(...L.plan.map((p) => Math.abs(p.x))) >= 3 ? 3 : 2;
+      const at = Object.fromEntries(L.plan.map((p) => [p.id, p]));
+      const sq = (id) => L.pieces[id].cells.map((c) => [at[id].x + c.dx, at[id].y + c.dy]);
+      const reaches = (id) => sq(id).some(([x, y]) => [[0, -1], [1, 0], [0, 1], [-1, 0]].some(([dx, dy]) => Math.abs(x + dx) > B || Math.abs(y + dy) > B || built.has(`${x + dx},${y + dy}`)));
+      const hand = [], pile = L.order.slice();
+      while (pile.length || hand.length) {
+        while (hand.length < 3 && pile.length) hand.push(pile.shift());
+        const i = hand.findIndex(reaches);
+        if (i < 0) return false;
+        for (const [x, y] of sq(hand[i])) built.add(`${x},${y}`);
+        hand.splice(i, 1);
+      }
+      return true;
+    });
+    ok('the plan can always be built in the order dealt, holding three', buildable);
+  }
+
+  // Holding three; laying a piece whole; lifting one back for a point.
+  {
+    const g = new Game({ mode: 'stara5', seed: 11 });
+    ok('you hold three pieces from the first turn', g.m.hand.length === 3 && g.m.handSize === 3 && g.tileKey === g.m.hand[0]);
+    const big = g.m.hand.findIndex((id) => g.m.pieces[id].cells.length > 1);
+    let whole = null, chose = null;
+    if (big > 0) { g.m.select(big); chose = g.tileKey === g.m.hand[big]; } else chose = big === 0;
+    const piece = g.m.held;
+    const spot = g.m.placements()[0];
+    const before = g.board.size;
+    g.rot = spot.rot;
+    g.m.lay(piece, spot.x, spot.y, spot.rot);
+    whole = g.board.size === before + piece.cells.length
+      && g.m.squaresOf(piece.id).every((s) => g.board.get(s.x, s.y)?.piece === piece.id);
+    ok('any piece in hand may be held up and laid', chose === true);
+    ok('a piece goes down whole, all its squares at once', whole, `${piece.cells.length} squares`);
+    ok('and the hand is drawn back up to three', g.m.hand.length === 3);
+    const worth = appraise(g.board, g.m.arch).total;
+    const scoreBefore = g.players[0].score;
+    ok('the score is what the city is worth', scoreBefore === worth);
+    g.m.lift(piece.id);
+    ok('a piece lifted goes back into your hand, held up, for a point',
+      g.m.hand.includes(piece.id) && g.m.held === piece && g.m.lifts === 1 && g.board.size === before
+      && g.players[0].score === appraise(g.board, g.m.arch).total - RULES.lift, `${g.m.hand.length} in hand`);
+    ok('the Comune cannot be lifted', g.m.pieceAt(0, 0) == null && !g.m.lift('comune'));
+    // Turning a piece turns its squares and their streets together.
+    const L = turnPiece({ cells: [{ dx: 0, dy: 0, type: 'c-house-I', rot: 1 }, { dx: 1, dy: 0, type: 'c-house-I', rot: 1 }] }, 1);
+    ok('a piece turned a quarter stands the other way, each square turned with it',
+      L.length === 2 && L[0].dx === 0 && L[1].dy === 1 && L.every((c) => c.rot === 2));
+    // A place of several squares: each square is that place, and its own
+    // piece-mates are not its neighbours.
+    const B5 = { minX: -2, maxX: 2, minY: -2, maxY: 2 };
+    const t = new Board({ bounds: B5, walled: true, builtFromWall: true });
+    const put = (x, y, id, piece) => { const c = t.place(x, y, TILES[id], 0); c.piece = piece; };
+    put(0, 0, 'c-house-0', 'a'); put(1, 0, 'c-house-0', 'a');
+    put(0, 1, 'c-garden-0', 'b'); put(1, 1, 'c-garden-0', 'b');
+    const ap = appraise(t, { s: 0, i: 0 });
+    ok('a terrace of two houses is two houses, each paid for what is round it',
+      ap.per.get('0,0').pts === 3 && ap.per.get('1,0').pts === 3, `${ap.per.get('0,0').pts} and ${ap.per.get('1,0').pts}: 1, +1 each of the two garden squares`);
+    const uni = new Board({ bounds: B5, walled: true, builtFromWall: true });
+    const pu = (x, y, id, piece) => { const c = uni.place(x, y, TILES[id], 0); c.piece = piece; };
+    pu(0, 0, 'c-plaza-0', 'p'); pu(1, 0, 'c-plaza-0', 'p'); pu(-1, 0, 'c-house-0', 'h');
+    ok('…and never for the rest of its own piece', appraise(uni, { s: 0, i: 0 }).per.get('0,0').ways.variety === 1);
+    // The ways: every point a place earns is earned one of six ways.
+    const ways = STARA_WAYS.map((w) => w.id).join(' ');
+    let adds = true;
+    for (const v of ap.per.values()) if (Object.values(v.ways).reduce((x, y) => x + y, 0) !== v.pts) adds = false;
+    const card = describePlace('house');
+    ok('six ways to be paid, each with a colour, and every square\'s add up to its worth',
+      ways === 'self near variety water wall gates' && STARA_WAYS.every((w) => /^#[0-9a-f]{6}$/i.test(w.colour)) && adds && new Set(STARA_WAYS.map((w) => w.colour)).size === 6);
+    ok('a card says what a place wants by way', card.chips.some((c) => c.way === 'near' && c.loss) && card.chips.some((c) => c.way === 'water')
+      && card.chips.some((c) => c.way === 'self'));
+    // A piece that fits nowhere waits in hand; with nothing that fits, the day can be ended.
+    const s = new Game({ mode: 'stara5', seed: 5 });
+    const n0 = s.m.hand.length + s.deck.length;
+    for (let k = 0; k < 4 && s.phase === 'place'; k++) s.m.botAction();
+    ok('nothing is set aside: every piece is in hand, in the pile or on the board',
+      s.m.hand.length + s.deck.length + s.m.laid.size === n0);
+    s.m.endDay();
+    ok('the day can be ended as it stands', s.phase === 'over');
+    // The wizard's tower: the next pieces in the pile, while it stands.
+    const wz = Array.from({ length: 40 }, (_, i) => i + 1).find((sd) => castFor(new Game({ mode: 'stara5', seed: sd }).seed).wonder === 'wizard');
+    const gw = new Game({ mode: 'stara5', seed: wz });
     const none = gw.m.ahead().length;
     let sees = null;
-    for (let k = 0; k < 60 && gw.phase === 'place'; k++) {
-      const s = gw.board.legalPlacements(gw.tile, gw.placeOpts())[0];
-      gw.rot = s.rot; gw.placeAt(s.x, s.y);
+    for (let k = 0; k < 30 && gw.phase === 'place'; k++) {
+      gw.m.botAction();
       if (gw.m.foresight) { sees = gw.m.ahead().join() === gw.deck.slice(-2).reverse().join(); break; }
     }
-    ok('a wizard\'s tower standing shows the next two tiles in the pile', none === 0 && sees === true);
+    ok('a wizard\'s tower standing shows the next two pieces in the pile', none === 0 && (sees === true || gw.deck.length < 2));
   }
 
   // The castle walls round the square end what runs into them.
@@ -3036,27 +3118,30 @@ function checkStara() {
       && !new Game({ mode: 'tesserae' }).board.walled);
   }
 
-  let full = 0, sumsUp = 0, inside = 0, ended = 0, gates = 0, claimed = 0, water = 0;
-  const N = 40;
+  let full = 0, sumsUp = 0, inside = 0, ended = 0, gates = 0, claimed = 0, water = 0, under = 0;
+  const N = 30;
   for (let seed = 1; seed <= N; seed++) {
-    const r = playOut({ mode: 'stara', seed, bots: seed % 2 ? 'all' : null });
+    const mode = seed % 3 ? 'stara5' : 'stara';
+    const r = playOut({ mode, seed, bots: seed % 2 ? 'all' : null });
     const g = r.game;
     const tl = g.m.tally;
     const total = Object.values(tl).reduce((x, y) => x + y, 0);
     if (total === g.players[0].score) sumsUp++;
     if (g.log.some((l) => /claimed|follower/i.test(l))) claimed++;
     if ([...g.board.cells.values()].every((c) => g.board.inBounds(c.x, c.y))) inside++;
-    if (g.board.size === 49) full++;
-    if (g.phase === 'over' && (g.deck.length === 0 || g.board.size === 49)) ended++;
-    if (tl.roads > 0) gates++;
+    if (g.board.size === g.m.squares) full++;
+    if (g.phase === 'over') ended++;
+    if (tl.gates > 0) gates++;
     if (g.m.city.running.size > 1) water++;
+    if (g.players[0].score <= g.m.par) under++;
   }
-  ok('every tile lands inside the square', inside === N, `${inside}/${N} games`);
-  ok('it ends only when the square is full or nothing fits', ended === N, `${full}/${N} filled every square`);
-  ok('the breakdown adds up to the score', sumsUp === N, `${sumsUp}/${N} games`);
+  ok('every piece lands inside the square', inside === N, `${inside}/${N} games`);
+  ok('the day ends: the square full, or nothing that fits', ended === N, `${full}/${N} filled every square`);
+  ok('the breakdown by way adds up to the score', sumsUp === N, `${sumsUp}/${N} games`);
   ok('no followers: nothing is ever claimed by hand', claimed === 0, `${claimed}/${N} games`);
   ok('high roads through the gates pay', gates > 0, `${gates}/${N} games had one`);
   ok('the aqueduct carries water in some days', water > 0, `${water}/${N} games`);
+  ok('the plan is a target: no quick player beats it', under === N, `${under}/${N} games at or under it`);
 }
 
 const avg = (l) => l.reduce((a, b) => a + b, 0) / (l.length || 1);

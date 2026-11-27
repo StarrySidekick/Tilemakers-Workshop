@@ -351,7 +351,7 @@ function legalRotationsAt(x, y) {
   return out;
 }
 
-// Starà always stages: its checkmark is the only thing that lays a tile.
+// Starà always stages: a hold on the staged piece is what lays it (stara-ui.js).
 const confirming = () => ($('confirmPlace').checked || stara.on) && game.phase === 'place' && !game.m.piece;
 
 /** Stage a placement at (x, y), preferring the rotation already in hand. */
@@ -455,6 +455,7 @@ const stara = new StaraUI({
   deny,
   newGame,
   switchTo,
+  sync: () => syncPanel(),
   drawTile: (ctx2, type, opts) => drawTileInked(ctx2, type, opts),
 });
 
@@ -571,6 +572,9 @@ canvas.addEventListener('pointerup', (e) => {
   const wasDrag = (drag && drag.moved > 4) || gestured;
   liftPointer(e);
   if (pointers.size) return;          // still touching — not a tap yet
+  // Starà's hold (stara-ui.js): a finger kept down to seal a piece or lift
+  // one is not a tap when it comes up, finished or let go of early.
+  if (stara.on && stara.swallow()) { drag = null; return; }
   const { x: sx, y: sy } = local(e);
   drag = null;
   if (wasDrag) { gestured = false; return; }
@@ -603,7 +607,8 @@ canvas.addEventListener('pointerup', (e) => {
   // commit, which meant the one gesture you reach for to see the tile the
   // other way round was also the gesture that ended your decision.
   if (confirming()) {
-    if (pending && pending.x === c.x && pending.y === c.y) {
+    // On Starà's staged piece, a tap anywhere on it turns it.
+    if (pending && ((pending.x === c.x && pending.y === c.y) || (stara.on && stara.inPending(c)))) {
       if (pending.rots.length > 1) turnPending(1); else sfx.play('deny');
       return;
     }

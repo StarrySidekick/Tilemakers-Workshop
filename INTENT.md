@@ -222,6 +222,23 @@ turns fell and the skill gap nearly doubled on both sizes. Section 14 of
 `MODES.md` has the rules, the calls of Claude's (the city may be built from
 its walls inward, the aqueduct stands on arches over the streets) and what is
 open (more places, two gates a side).
+On 2026-11-27 the sixth pass, a list: "tap a tile to rotate it, tap and hold
+to seal the tile (place it) ... it sort of seals to the table like a wax
+seal"; "tiles can be more than one tile big, sort of like tetris"; "you start
+with the choice of three tiles"; "tiles can be picked up and placed again by
+paying a point"; "5x5 levels should have 25 tiles, and it's about the order
+you place them and where that the skill lies ... there is a layout ... that
+is theoretically 'perfect' ... so the player has the correct set of tiles to
+reach towards this perfection"; and "things that score points in different
+way should be clearly color coded". Built: a day is a PLAN, a whole city the
+level maker draws and improves by search, cut into pieces of one to four
+squares that exactly fill the square; its worth is the day's target, and the
+plan can be seen once the day is over. Held, a piece is sealed; held, a laid
+one is lifted for a point. Six ways to be paid, each in a heraldic colour on
+the card, the board and the charter. The plan is the best the search found,
+not a proven best (a 5x5 deal has too many layouts to try on a phone).
+Section 14 of `MODES.md`, the sixth pass, has the rules, the calls and the
+measurements.
 
 **Giardino, the daily walled garden: asked for 2026-11-22.** "based on
 stara ... a little walled garden, and each tile is a plant, and the mechanics

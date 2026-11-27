@@ -11,6 +11,12 @@ No rule was changed.
 > through the wizard's tower) rather than its proposals one by one; the
 > numbers are in `MODES.md` section 14. `tools/stara-sim.mjs` now plays the
 > city; the simulator that made the tables below is at commit 286ab76.
+>
+> **And since (2026-11-27):** the sixth pass deals the day as pieces cut from
+> a plan that exactly fills the square, with the plan's worth as the target.
+> That is proposal 1's finite deal taken to its end (the square's worth and
+> not one more, so every hole is points left on the table) and proposal 5's
+> par for the day, made by a level maker rather than the bot.
 
 ## The brief
 

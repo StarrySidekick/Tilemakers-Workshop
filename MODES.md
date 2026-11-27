@@ -1984,13 +1984,17 @@ the fix is the number, not the rule.
 
 ## 14. Starà — the daily square
 
-> **Built 2026-11-18, in four passes, and made a city-state on 2026-11-23** —
-> `src/modes/stara.js` (the rules and the places), `walled` and
+> **Built 2026-11-18, in four passes, made a city-state on 2026-11-23, and
+> dealt as a plan cut into pieces on 2026-11-27** — `src/modes/stara.js` (the
+> mode), `src/modes/stara-city.js` (the places, the ways and the one scorer),
+> `src/modes/stara-plan.js` (the level maker), `walled` and
 > `builtFromWall` in `src/board.js` (the town wall's rules), `ARCH` in
 > `src/tiles.js` (the aqueduct's edge), `src/city.js` (the places' pictures
 > and the water arch), `src/stara-ui.js` (its own screen), `drawTable`,
 > `drawCastle` and `drawGain` in `src/render.js`, `src/castle.js` (the
-> castle), `src/sketch.js` (hand-drawn strokes), `assets/table-oak.jpg` and
+> castle), `drawCityHints`, `drawWays` and `drawWaxSeal` in `src/render.js`
+> (pieces, their pay by way, and the seal), `src/sketch.js` (hand-drawn
+> strokes), `assets/table-oak.jpg` and
 > `assets/fonts/` (see `assets/CREDITS.md`). Checked by `checkStara` in the
 > harness and "starà on a phone" in the smoke test; measured by
 > `tools/stara-sim.mjs`.
@@ -2006,8 +2010,166 @@ real wood"*.
 
 **Question:** is Carcassonne a daily puzzle once the table has an edge?
 
-**Where it stands now (the fifth pass)** comes first; how it got there
+**Where it stands now (the sixth pass)** comes first; how it got there
 follows, pass by pass, newest first.
+
+### The sixth pass: the plan, cut into pieces (2026-11-27)
+
+Timothy, a list: *"new change to way to lock in tiles: tap a tile to rotate
+it, tap and hold to seal the tile (place it). the animation start when you
+start holding, then over about a second or so it sort of seals to the table
+like a wax seal"*; *"tiles can be more than one tile big, sort of like
+tetris"*; *"you start with the choice of three tiles instead of working up to
+that"*; *"tiles can be picked up and placed again by paying a point"*; *"5x5
+levels should have 25 tiles, and it's about the order you place them and
+where that the skill lies. this means there is a layout of the 5x5 tile grid
+of tiles that is theoretically 'perfect' in that it has the highest possible
+point count. so when me are making a level, we have to make sure there is a
+layout of tiles that is like this so the player has the correct set of tiles
+to reach towards this perfection"*; and *"things that score points in
+different way should be clearly color coded. like right now it's hard to
+tell what scores point for what. it should be be easier somehow to know
+that"*.
+
+**Question:** if the deal is exactly the square, cut from a city known to
+fit, does the skill move to the order and the where?
+
+**A day is a plan** (`src/modes/stara-plan.js`). The level maker draws a
+whole city first and deals it, the way an architect's plan is cut into
+jobs: the aqueduct's course from the day's arch toward the middle; the rest
+of the square, round the Comune, cut into pieces of one to four squares
+(Tetris's seven shapes among them); one place to each piece (the day's cast
+first, then the everyday places in their shares, each only on a piece size
+it can be: houses and farms one to four squares, gardens, markets, convents,
+barracks, silk works and tanneries one or two, the rest one); a street net
+grown from the Comune; then a search of about 2,600 small changes on the
+5×5 and 3,400 on the 7×7, each kept when the city is worth more (two pieces
+swap places, a street is laid or taken up, or a whole street is laid from a
+gate to the Comune). What it ends on is **the plan**, and its worth is the
+day's target, under the title from the first turn ("No. 10 · the plan 128").
+Every piece's streets come from the one net, so the plan always fits edge to
+edge: the deal can always fill the square. The pieces are dealt in an order
+the plan can be built in holding three. A 5×5 day is 24 squares round the
+Comune in 12 to 14 pieces; a 7×7, 48 in about 25. Making one takes about a
+tenth of a second for a 5×5 and a third for a 7×7 (in Node; a phone is
+slower).
+
+**Pieces.** A piece is one place over its squares: a terrace of houses, a big
+farm, a run of aqueduct. It is paid square by square, each square as that
+place, for what is round it, never counting the rest of its own piece. Its
+squares are drawn joined (`JOIN` in city.js): no lane between a terrace's
+houses, no hedge across a farm, one crop over the whole of it. Touch a lit
+square (every square some way of laying it would cover is lit) and it goes
+down with the square nearest its middle there if it fits that way, else the
+nearest square of it that does; touching it again turns it about that
+square. Its card in the tray is the whole piece, ringed along its outline
+when held up.
+
+**Three in hand from the start**, drawn back up to three after each piece.
+
+**Hold to seal** (`drawWaxSeal` in render.js, the hold in stara-ui.js). The
+seal button is gone. A finger held on the staged piece: after 0.14 s a drop
+of red wax lands and spreads, the die comes down into it (a sunk ring and the
+town gate), a gold arc round it fills as the hold goes on, and at the end
+(about a second in all) a last squash and the piece is sealed to the table;
+the wax settles and fades. Let go early and nothing is laid. Under 0.22 s it
+was a tap, and a tap turns the piece. Enter still lays it on a keyboard.
+
+**Lift for a point.** Held on a piece already down (never the Comune), its
+seal cracks and it goes back into your hand, held up and turned as it lay.
+The score is always the city's worth less a point for every lift.
+
+**Nothing is set aside.** Every piece has its square in the plan, so a piece
+that fits nowhere now waits in your hand. When none of them fits, the tray
+says so: lift a piece, or end the day.
+
+**The ways, coloured** (`WAYS` in stara-city.js). Every point a place earns
+is earned one of six ways, each in a heraldic tincture, everywhere it shows:
+itself (argent), neighbours (vert; a loss in gules, the one colour for a
+loss), variety (purpure), water (azure), the wall (sable) and gates (or).
+The card under the hand is chips in those colours. On the board, a staged
+piece lights what pays it: the squares round it it likes ringed in green
+and dislikes in red, the different places round a plaza dotted in violet,
+its sides on the wall barred in black, a blue drop on each square the water
+reaches; each place round it whose worth changes gets its +n or −n in the
+colour of the way that changed most; and on the piece, under the wax tag
+with the whole difference, a chip for each way. The charter lists the day by
+way, with a dot of each colour, and a red row for lifts.
+
+**The plan at the end.** "See the architect's plan" lays it on the table in
+place of your city; "My city" puts yours back. The charter says how near you
+came, or that you built better.
+
+Calls of Claude's, each with why:
+
+- **The plan is the best city the search found, not a proof that none is
+  better.** Measured before building: two 5×5 deals had 18,112 and over
+  3,400,000 ways to fill the square completely (the second still counting
+  after a minute), too many to try on a phone, and far too many to score.
+  So the screen calls it *the architect's plan*, a target, and a player who
+  beats it is told so. Simple players beat it on 1 day in 60 on the 5×5 and
+  on none of 30 on the 7×7 (below).
+- **The 7×7 is made the same way**, 48 squares' worth: he named the 5×5, and
+  two sizes with two different rules would be two games.
+- **A piece is that many squares of its place**, each paid for what is round
+  it, so the places' numbers from the fifth pass still mean what they meant.
+- **The church's extra tile is gone**: you hold three from the start, which
+  is what it was working toward. The church keeps its pay.
+- **Nothing is set aside**, and you may end the day when nothing fits: with
+  the deal exactly the square, a set-aside piece would be a hole forever.
+- **Giardino seals the same way**, because it plays on the same screen, and
+  two gestures for one button on one screen is a trap.
+- **Only integer arithmetic and the PRNG decide a plan** (no `Math.exp` in
+  the search, whose last bits differ between browsers), so every phone makes
+  the same city from the same seed.
+
+**What it measures** (`tools/stara-sim.mjs`; random is a random piece at a
+random way it fits; greedy, every piece at every way, keeping the best city
+now; careful, greedy that never makes a move after which some piece still to
+come has nowhere to go, and lifts its way out of a dead end, up to six times;
+the plan, laid as dealt):
+
+| | random | greedy | careful | the plan |
+|---|---|---|---|---|
+| 5×5, 60 days | 43 (34%) | 93 (73%) | 90 (71%) | 128 |
+| …square filled | 0 | 2 | 23 | 60 |
+| …beat the plan | 0 | 1 | 0 | – |
+| 7×7, 30 days | 62 (28%) | 157 (71%) | 158 (71%) | 222 |
+| …square filled | 0 | 0 | 0 | 30 |
+| …beat the plan | 0 | 0 | 0 | – |
+
+- **The fit is now the hard part.** Random play fills the 5×5 never and
+  greedy play 2 days in 60. Careful play, which looks one move ahead for
+  dead ends and lifts its way out of them, fills it 23 days in 60, at about
+  four lifts a day; on the 7×7 not one of them filled it in 30 days, even
+  with six lifts. Streets must still meet streets, and every hole is a
+  square's worth of points left on the table, so the order you lay pieces in
+  matters, which is what he asked for. If it proves too hard by hand, the
+  plain lever is to let a frontage meet a street (the street just ends), so
+  only the shapes must fit; not built.
+- **Skill shows more than it ever has**: the floor (random as a share of
+  greedy) is 47% on the 5×5 (63% in the fifth pass) and the skill gap 6.0
+  standard deviations (3.2). Trivial turns stay rare (7%).
+- **Where the plan's points come from that quick play misses**: gates (40
+  against greedy's 27 on the 5×5: the plan always joins three to five gates),
+  water (17 against 9: its aqueduct is laid along the course) and neighbours
+  (28 against 18).
+- **The search was strengthened twice while measuring.** Big pieces were all
+  being cut at the top of the square (the cut tried sizes largest first), and
+  connecting a gate needed several streets at once, which single changes
+  never find. Fixing both raised the 5×5 plan from 125 to 128 on average and
+  the 7×7 from 206 to 222; the day the careful player had beaten the plan by
+  11 rose from 86 to 99.
+
+**Open, for the next pass** (none built):
+
+- **A proven plan.** Offline, a long search (or an exact one with good
+  bounds for the 5×5) could store each day's best city in a small file the
+  game reads, so "the plan" becomes the best there is for the days it lists.
+- **Whether streets must meet streets** (above).
+- **Big buildings as big pieces**: a cathedral or university over two or four
+  squares needs a drawing of its own; today every one-of-a-kind is one square.
+- **Making the 7×7 plan off the main thread**, if a phone shows the wait.
 
 ### The fifth pass: a walled city-state (2026-11-23)
 

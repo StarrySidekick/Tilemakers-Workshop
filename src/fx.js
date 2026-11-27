@@ -247,6 +247,12 @@ export class Effects {
 
       case 'place': {
         const cells = data.cells?.length ? data.cells : (laid ? [laid] : []);
+        // Sealed where it sat (Starà's pieces): it does not fly in from the
+        // hand, it settles into the table.
+        if (data.still) {
+          cells.forEach((cell, i) => { const to = centre(cell); this.land(to.x, to.y, i * 40); });
+          return;
+        }
         cells.forEach((cell, i) => {
           const to = centre(cell);
           // A tile comes in from the preview — the place you were just looking
