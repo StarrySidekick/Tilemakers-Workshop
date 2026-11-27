@@ -157,12 +157,25 @@ main {
 }
 
 #board {
+  position: relative;              /* over the model's canvas, which is under it */
   width: 100%;
   height: 100%;
   display: block;
   cursor: crosshair;
   touch-action: none;
 }
+/* Starà as a model (src/lowpoly.js): drawn at about 250 pixels across and
+   blown up without smoothing, so every pixel of it is a block. */
+#board3d {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  image-rendering: pixelated;
+  pointer-events: none;
+}
+#board3d[hidden] { display: none; }
 
 /* --- lean mode -------------------------------------------------------------
    The panel folds away entirely and the board takes the whole window. What you
@@ -950,6 +963,12 @@ body.stara #stage, body.stara #stage * {
 }
 #stara .staraSizes button.on { color: var(--s-cream); }
 #stara .staraSizes button.on::before { background: var(--s-gules); border-color: var(--s-gules-dark); }
+/* The ways to look (2026-11-27): the same tabs, a little apart from the sizes, the one in use inked azure. */
+.staraSwitches { display: flex; justify-content: center; align-items: center; gap: 10px; flex-wrap: wrap; }
+.staraSwitches .staraViews { margin-top: 6px; }
+#stara .staraViews button { padding: 3px 7px 4px; }
+#stara .staraViews button.on::before { background: #2f5f93; border-color: #1f4068; }
+#stara .staraViews button .turnGlyph { margin-left: 3px; font-family: 'Fell', ui-serif, serif; }
 
 #stara .staraRoundel {
   width: 46px; height: 46px;

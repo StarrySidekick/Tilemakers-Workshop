@@ -256,6 +256,21 @@ gate costing a point more than wall (Claude's call: without it the high road
 came free to everyone). Section 14, the seventh pass, has it all, and what is
 open: the high road still comes to every player, and the app's growing
 commissions are the other half of its Solitaire.
+Later the same day, the eighth pass and a long form: "pseudo pixel 3D ...
+like a Nintendo 64 ... an isometric view and a regular top-down view like we
+have now", and "a long form version of this mode and a short form ...
+related to each other, but also like not necessarily the same ... one is the
+daily mode and one is a longer form mode that might become like an actual
+video game." Built: the city as a low-poly model (`src/lowpoly.js`), Ink, Top
+and Iso under the title, isometric by default, a house as tall as it is
+worth; and **Contado**, the long form: one city on a land with levels, year
+after year, the Signoria's commissions taking the place of the plan, kept in
+the browser between visits. No rule of the daily changed.
+**[`docs/STARA-FORMS.md`](docs/STARA-FORMS.md)** is the frame for the two
+forms and what keeps them related; read it before changing either. MODES.md
+has the eighth pass in section 14 and Contado in section 16, with what is
+open (the name, whether one miss should end a run, places that come back
+over the years).
 
 **Giardino, the daily walled garden: asked for 2026-11-22.** "based on
 stara ... a little walled garden, and each tile is a plant, and the mechanics
@@ -286,7 +301,9 @@ understand what they are looking at.
   Timothy is unsure about a lot of them. Do not invest in the others.
 - **Marches.** He has not touched that mode and does not want effort spent there.
 - **Relief and the 3D tiles.** Experimental, and explicitly tabled for now.
-  `docs/RELIEF.md` stays as the scoped spike it is.
+  `docs/RELIEF.md` stays as the scoped spike it is. (Starà's low-poly model,
+  asked for on 2026-11-27, is a different thing: a model built per place,
+  not the tile art extruded.)
 
 ## A useful thing that is not code
 

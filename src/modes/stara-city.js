@@ -220,12 +220,16 @@ const keyOf = (x, y) => `${x},${y}`;
  * `{x, y, kind, streets, piece}` (`streets` a mask of world sides); the
  * aqueduct's spans over it, `{x, y, span, piece}`; and the day's `spring`,
  * `{x, y}`, where the water rises.
+ *
+ * `land` is the long form's (Contado, contado.js): the ground's level at
+ * every square, `level(x, y)`, and the spring's, `spring`. The daily has
+ * none, and its table is flat.
  */
-export function cityOf(entries, spans = [], spring = null) {
+export function cityOf(entries, spans = [], spring = null, land = null) {
   const at = new Map(entries.map((e) => [numKey(e.x, e.y), e]));
   const over = new Map(spans.map((s) => [numKey(s.x, s.y), s]));
   return {
-    cells: entries, spans, spring,
+    cells: entries, spans, spring, land,
     get: (x, y) => at.get(numKey(x, y)) || null,
     spanAt: (x, y) => over.get(numKey(x, y)) || null,
   };
@@ -253,7 +257,7 @@ export const spanEntry = (x, y, type, rot, piece = null) => ({ x, y, span: turnM
  * `{spring, spans}`, `spans` a Map of key to span entry.
  */
 export const boardCity = (board, water = null) => cityOf(
-  [...board.cells.values()].map(entryOf), water ? [...water.spans.values()] : [], water?.spring || null);
+  [...board.cells.values()].map(entryOf), water ? [...water.spans.values()] : [], water?.spring || null, water?.land || null);
 
 // --- the wall -------------------------------------------------------------------
 
@@ -262,13 +266,21 @@ export const boardCity = (board, water = null) => cityOf(
  * `{x, y, s}`, and which of them a street runs out through (`gate`). The
  * aqueduct is not built ground: it stands over the country, and the wall
  * runs on under it. Sorted, so a picture keyed on it is stable.
+ *
+ * On the long form's land a stretch facing LOWER ground is on the brow of
+ * a slope (`slope`): the hill is its defence, and it costs nothing but its
+ * gate (contado.js).
  */
 export function wallOf(city) {
   const out = [];
+  const lv = city.land?.level;
   for (const c of city.cells) {
     for (let s = 0; s < 4; s++) {
-      if (city.get(c.x + SIDE_STEP[s][0], c.y + SIDE_STEP[s][1])) continue;
-      out.push({ x: c.x, y: c.y, s, gate: !!(c.streets & (1 << s)) });
+      const nx = c.x + SIDE_STEP[s][0], ny = c.y + SIDE_STEP[s][1];
+      if (city.get(nx, ny)) continue;
+      const w = { x: c.x, y: c.y, s, gate: !!(c.streets & (1 << s)) };
+      if (lv && lv(nx, ny) < lv(c.x, c.y)) w.slope = true;
+      out.push(w);
     }
   }
   return out.sort((a, b) => a.y - b.y || a.x - b.x || a.s - b.s);
@@ -281,6 +293,10 @@ export function wallOf(city) {
  * beside it opening onto it takes the water, and from there water runs into
  * a neighbouring span only where the two open onto each other. `dist` is how
  * many spans it has run through to reach each.
+ *
+ * On the long form's land the channel holds the spring's level, so water
+ * never runs into a span over ground higher than the spring: it would have
+ * to run uphill.
  */
 export function waterOf(city) {
   const out = new Set();
@@ -288,7 +304,8 @@ export function waterOf(city) {
   const sp = city.spring;
   if (!sp) return out;
   const reach = (c, d) => { out.add(keyOf(c.x, c.y)); out.dist.set(keyOf(c.x, c.y), d); };
-  const opens = (c, s) => !!(c && c.span & (1 << s));
+  const land = city.land;
+  const opens = (c, s) => !!(c && c.span & (1 << s)) && (!land || land.level(c.x, c.y) <= land.spring);
   reach(sp, 0);
   let todo = [];
   for (let s = 0; s < 4; s++) {
@@ -417,7 +434,7 @@ export function appraiseCity(city, { sources = false } = {}) {
     total += pts;
   }
   const wall = wallOf(city);
-  ways.wall = -RULES.wall * wall.length - RULES.gate * wall.filter((w) => w.gate).length;
+  ways.wall = -RULES.wall * wall.filter((w) => !w.slope).length - RULES.gate * wall.filter((w) => w.gate).length;
   total += ways.wall;
   // THE HIGH ROAD: the one street that leaves the city on the most of its
   // four sides (the most gates, between two as good), from two sides up.
