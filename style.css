@@ -868,6 +868,17 @@ body.stara:not(.staraPanel) main { grid-template-columns: 1fr; grid-template-row
 body.stara:not(.staraPanel) #panel { display: none; }
 body.stara #hud, body.stara #claim, body.stara #welcome { display: none !important; }
 body.stara #board { cursor: pointer; }
+/* Starà's screen is all touch (2026-11-27): nothing on it is text to select,
+   so a finger held down never starts a selection, the loupe, or a callout
+   menu, and nothing flashes grey under a tap. stara-ui.js refuses the
+   touch's default on the board and the cards as well. The workshop's panel,
+   with its fields, is outside the stage and keeps them. */
+body.stara #stage, body.stara #stage * {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
+}
 .staraDefs { position: absolute; width: 0; height: 0; overflow: hidden; }
 
 #stara {

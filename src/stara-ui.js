@@ -19,11 +19,13 @@
 // The sixth pass (2026-11-27): "tap a tile to rotate it, tap and hold to seal
 // the tile (place it). the animation start when you start holding, then over
 // about a second or so it sort of seals to the table like a wax seal." The
-// seal button is gone. A HOLD on the staged piece pours a drop of red wax on
-// it, the die comes down into it, and at the end of the hold the piece is
-// sealed to the table (render.js, drawWaxSeal); let go early and the wax
-// lifts away and nothing is laid. A tap is still a turn. Giardino, which
-// plays on this screen, seals the same way. In the city:
+// seal button is gone. A HOLD on the staged piece runs a gold line round its
+// outline as the hold goes on, pours a drop of red wax on it, brings the die
+// down into it, and at the end seals it to the table (render.js,
+// progressOutline and drawWaxSeal); let go early and the wax lifts away and
+// nothing is laid. A tap is still a turn. On iOS a long press would start a
+// text selection and cancel the hold, so the board refuses it (wire()).
+// Giardino, which plays on this screen, seals the same way. In the city:
 //
 //   - you hold THREE pieces from the start ("you start with the choice of
 //     three tiles"), each a place of one to four squares, drawn whole on
@@ -75,11 +77,13 @@ const TINCTURES = { faith: '#3e66b0', defence: '#b23a2c', industry: '#d9a338', w
 const DRAG_PX = 10;
 
 /**
- * THE HOLD. Shorter than TAP is a tap (a turn). The wax starts to show after
- * WAIT, so a tap never flashes it, and the piece is sealed SEAL after that:
- * about a second in all. Lifting a piece takes a little less.
+ * THE HOLD. Shorter than TAP is a tap (a turn). The line round the piece
+ * starts to run after WAIT, short enough that a hold shows itself at once
+ * (2026-11-27: "so you can tell that like holding does something") and long
+ * enough that a quick tap barely flickers it; the piece is sealed SEAL after
+ * that, about a second in all. Lifting a piece takes a little less.
  */
-const TAP = 220, WAIT = 140, SEAL = 900, LIFT = 760;
+const TAP = 220, WAIT = 70, SEAL = 950, LIFT = 800;
 
 /** localStorage that never throws: a private window just forgets. */
 const store = {
@@ -174,6 +178,24 @@ export class StaraUI {
     cv.addEventListener('pointermove', (e) => this.boardMove(e));
     cv.addEventListener('pointerup', (e) => this.boardUp(e));
     cv.addEventListener('pointercancel', () => this.cancelHold());
+    // SAFARI'S LONG PRESS (2026-11-27: "tapping and holding highlights stuff
+    // in Safari ... we currently can't put down the seal without doing that
+    // as well"). On iOS a finger held still is the start of a text selection
+    // (the blue highlight and the loupe) or of a callout menu, and when one
+    // starts Safari cancels the pointer, which ended the hold before the seal
+    // could set. The stylesheet takes selection and callouts away from the
+    // whole stage; this refuses the touch's default action outright on the
+    // board and the cards, which stops all of it, gestures and selection
+    // alike. Pointer events, which is all Starà listens to, still arrive.
+    const refuse = (e) => { if (this.on) e.preventDefault(); };
+    for (const el of [cv, $('staraCards')]) {
+      el.addEventListener('touchstart', refuse, { passive: false });
+      el.addEventListener('contextmenu', refuse);
+    }
+    document.addEventListener('selectstart', (e) => {
+      const el = e.target?.nodeType === 1 ? e.target : e.target?.parentElement;
+      if (this.on && el?.closest?.('#stage')) e.preventDefault();
+    });
     $('staraMenu').onclick = () => this.togglePanel();
     $('staraAgain').onclick = () => this.h.newGame(this.game.mode);
     $('staraShare').onclick = () => this.share();
@@ -596,13 +618,16 @@ export class StaraUI {
   boardDown(e) {
     const g = this.game;
     this.swallowNext = false;
-    if (!this.on || g.phase !== 'place' || this.held) return;
+    if (!this.on) return;
+    // Anything a long press elsewhere left selected goes.
+    try { window.getSelection?.()?.removeAllRanges(); } catch { /* nothing selected */ }
+    if (g.phase !== 'place' || this.held) return;
     const c = this.cellUnder(e);
     const now = performance.now();
     const r = this.h.renderer;
     if (this.inPending(c)) {
       this.held = { id: e.pointerId, kind: 'seal', x: e.clientX, y: e.clientY, t0: now, at: c };
-      r.sealing = { kind: 'seal', t0: now + WAIT, dur: SEAL, at: c };
+      r.sealing = { kind: 'seal', t0: now + WAIT, dur: SEAL, at: c, cells: this.pendingCells() };
       this.holdTimer = setTimeout(() => this.finishHold(), WAIT + SEAL);
       return;
     }
@@ -658,7 +683,10 @@ export class StaraUI {
       const [sx, sy] = r.toScreen(h.at.x + 0.5, h.at.y + 0.5);
       const cv = r.canvas.getBoundingClientRect();
       this.sealedAt = { x: cv.left + sx, y: cv.top + sy, t: performance.now() };
-      r.sealed = { t0: performance.now(), at: h.at, seed: (h.at.x * 7 + h.at.y * 13) | 0 };
+      r.sealed = { t0: performance.now(), at: h.at, cells: this.pendingCells() };
+      // A tick in the hand where the phone can give one (Android; Safari
+      // has no vibration).
+      try { navigator.vibrate?.(18); } catch { /* none */ }
       this.h.commit();
       return;
     }
