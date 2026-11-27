@@ -63,6 +63,22 @@
 //     city in view as it grows, easing out to it after each piece;
 //   - the day's cast is gone, and with it the tags at the square's corners.
 //
+// Later the same day: "make it so that we can freely scroll around the board
+// instead of being locked in one place, and also make it so that the
+// calculation for where a tile goes is done based on all four of its
+// orientations ... when you put it down, it just automatically snaps to
+// whatever might work the best for it". So, in the city:
+//
+//   - a finger dragged over open table (or off a laid piece) moves the
+//     camera, through whatever view is up; two fingers pinch and a mouse
+//     wheel zooms; once moved by hand the camera stays put, and a Centre tab
+//     takes it back to the whole city, followed as it grows;
+//   - every square any turn of the piece could cover is lit, and a piece put
+//     down (a tap, or let go of) settles the way it fits there that leaves
+//     the city worth most, turning itself if that is what it takes
+//     (Stara.bestAt); dragged, it still goes exactly where it is put, and
+//     the turn buttons still turn it a quarter where it sits.
+//
 // Giardino (2026-11-22) plays on the same screen: a garden wall for the
 // castle (garden.js), no sizes, the week under the title, and a SEED PACKET
 // under the hand saying what the plant held up needs and who it likes and
@@ -190,6 +206,8 @@ export class StaraUI {
     this.layoutKey = '';
     this.press = null;         // a finger on a card: tap, or the start of a drag
     this.held = null;          // a finger held on the board: sealing, or lifting
+    this.fingers = new Set();  // fingers down on the board: two are a pinch
+    this.roaming = false;      // the camera moved by hand: it no longer follows the city
     const [kind, q] = (store.get(VIEW_KEY) || `${DEFAULT_VIEW}:0`).split(':');
     host.renderer.setView(VIEWS.some((v) => v.id === kind) ? kind : DEFAULT_VIEW, Number(q) || 0);
     let angles = null;
@@ -216,7 +234,8 @@ export class StaraUI {
     cv.addEventListener('pointerdown', (e) => this.boardDown(e));
     cv.addEventListener('pointermove', (e) => this.boardMove(e));
     cv.addEventListener('pointerup', (e) => this.boardUp(e));
-    cv.addEventListener('pointercancel', () => this.cancelHold());
+    cv.addEventListener('pointercancel', (e) => { this.fingers.delete(e.pointerId); this.cancelHold(); });
+    window.addEventListener('blur', () => this.fingers.clear());
     // SAFARI'S LONG PRESS (2026-11-27: "tapping and holding highlights stuff
     // in Safari ... we currently can't put down the seal without doing that
     // as well"). On iOS a finger held still is the start of a text selection
@@ -265,12 +284,59 @@ export class StaraUI {
     // for me to adjust how tilted in both directions isometric and top
     // are"). They move the camera as they are dragged.
     $('staraTiltBtn').onclick = () => this.showTune($('staraTune').hidden);
+    $('staraCentre').onclick = () => this.recentre();
     $('staraTuneClose').onclick = () => this.showTune(false);
     $('staraTuneReset').onclick = () => this.tune(null);
     for (const id of ['staraTiltRange', 'staraTurnRange']) {
       $(id).addEventListener('input', () => this.tune({ tilt: Number($('staraTiltRange').value), turn: Number($('staraTurnRange').value) }));
       $(id).addEventListener('pointerdown', (e) => e.stopPropagation());
     }
+  }
+
+  // --- looking about ------------------------------------------------------------
+
+  /**
+   * Can the table be moved about by hand? The city's can (2026-11-27: "make
+   * it so that we can freely scroll around the board instead of being
+   * locked in one place"): a finger dragged over the table, two pinched, a
+   * mouse wheel. The garden, fitted edge to edge, stays where it is.
+   */
+  get roams() { return this.on && this.city; }
+
+  /** The camera was moved by hand: stop following the city, and offer the way back. */
+  roam() {
+    if (!this.roams || this.roaming) return;
+    this.roaming = true;
+    this.showCentre();
+  }
+
+  /** Back to the whole city, followed as it grows. */
+  recentre() {
+    this.roaming = false;
+    this.fit(true);
+    this.showCentre();
+    this.h.sound?.('rotate');
+  }
+
+  showCentre() { $('staraCentre').hidden = !(this.roams && this.roaming); }
+
+  /**
+   * Move the table under a finger: from where the camera was when the drag
+   * began, by the whole of the drag, through the view's projection.
+   */
+  pan(h, e) {
+    const r = this.h.renderer;
+    if (!h.panning) {
+      h.panning = true;
+      clearTimeout(this.holdTimer);
+      r.sealing = null;
+      r.glide = null;
+      h.cam = { x: r.cam.x, y: r.cam.y };
+      this.roam();
+    }
+    r.cam.x = h.cam.x;
+    r.cam.y = h.cam.y;
+    r.panBy(e.clientX - h.x, e.clientY - h.y);
   }
 
   /** Open or close the tilt and turn sliders. */
@@ -317,7 +383,8 @@ export class StaraUI {
     }
     store.set(ANGLES_KEY, JSON.stringify(r.viewAngles));
     this.tuneShown();
-    this.fit(true);
+    // A camera moved by hand stays where it was put; otherwise it frames the city again.
+    if (!this.roaming) this.fit(true);
     this.drawHand();
     this.placeTurn();
   }
@@ -375,6 +442,7 @@ export class StaraUI {
       b.innerHTML = id === 'iso' && r.viewKind === 'iso' ? `${VIEWS[2].name}<span class="turnGlyph">↻</span>` : VIEWS.find((v) => v.id === id).name;
     }
     $('staraTiltBtn').hidden = !this.city || r.viewKind === 'ink';
+    this.showCentre();
     $('staraTiltWrap').style.top = `${$('staraTop').getBoundingClientRect().height + 4}px`;
     if (!this.city || r.viewKind === 'ink') this.showTune(false);
     const score = $('staraScore');
@@ -395,12 +463,13 @@ export class StaraUI {
 
   /**
    * The board fills the band between the top bar and the tray, as big as
-   * fits, and stays exactly there: no panning, no zoom by hand. Giardino's
-   * square is fitted edge to edge. Starà's city has no border (the seventh
-   * pass), so the screen keeps the whole of it in view, the spring and the
-   * aqueduct with it and MARGIN squares of open table round it, never less
-   * than its plan's size and two; when the city grows past that, the camera
-   * eases out to it after the piece is sealed, never while you are placing.
+   * fits. Giardino's square is fitted edge to edge and stays there. Starà's
+   * city has no border (the seventh pass), so the screen keeps the whole of
+   * it in view, the spring and the aqueduct with it and MARGIN squares of
+   * open table round it, never less than its plan's size and two; when the
+   * city grows past that, the camera eases out to it after the piece is
+   * sealed, never while you are placing. Once the camera has been moved by
+   * hand (`roaming`) it is left where it was put, until Centre (or `force`).
    */
   fit(force = false) {
     const stage = $('stage').getBoundingClientRect();
@@ -412,8 +481,11 @@ export class StaraUI {
     const b = open ? g.m.extent() : g.board.bounds;
     r.applyView(g);
     const key = [stage.width, stage.height, top, tray, b.minX, b.maxX, b.minY, b.maxY, r.view.sig].join('|');
+    if (force) this.roaming = false;
     if (!force && key === this.layoutKey) return;
     if (this.held?.dragging || this.press?.dragging) return;       // never while a piece is in the hand
+    // Moved by hand, the camera stays where it was put until Centre is touched.
+    if (this.roaming) { this.layoutKey = key; return; }
     const first = !this.layoutKey || force;
     this.layoutKey = key;
     let across = b.maxX - b.minX + 1, down = b.maxY - b.minY + 1;
@@ -467,8 +539,15 @@ export class StaraUI {
     }
   }
 
-  /** Fit again on the next sync: a new game, or the window changed. */
-  refit() { this.layoutKey = ''; }
+  /**
+   * Fit again on the next sync: a new game, another view (and the camera
+   * follows the city again), or the window changed (`clear` false: a camera
+   * moved by hand stays where it was).
+   */
+  refit(clear = true) {
+    this.layoutKey = '';
+    if (clear && this.roaming) { this.roaming = false; this.showCentre(); }
+  }
 
   togglePanel(open = !document.body.classList.contains('staraPanel')) {
     document.body.classList.toggle('staraPanel', open);
@@ -886,12 +965,23 @@ export class StaraUI {
     if (!this.on) return;
     // Anything a long press elsewhere left selected goes.
     try { window.getSelection?.()?.removeAllRanges(); } catch { /* nothing selected */ }
-    if (g.phase !== 'place' || this.held || !g.tile) return;
+    this.fingers.add(e.pointerId);
+    if (this.fingers.size > 1) {
+      // A second finger is a pinch (main.js zooms it): whatever the first
+      // was doing stops, and a piece being dragged stays where it got to.
+      clearTimeout(this.holdTimer);
+      this.h.renderer.sealing = null;
+      this.held = null;
+      return;
+    }
     const c = this.cellUnder(e);
     const now = performance.now();
     const r = this.h.renderer;
     const p = this.h.pending();
     const base = { id: e.pointerId, x: e.clientX, y: e.clientY, t0: now, at: c };
+    // Between turns, or with the day over, a finger only looks about.
+    if (g.phase !== 'place' || !g.tile) { if (this.roams) this.held = { ...base, kind: 'look' }; return; }
+    if (this.held) return;
     if (p && this.inPending(c)) {
       this.held = { ...base, kind: 'staged', grip: this.gripAt(p, c) };
       if (p.fits !== false) {
@@ -932,7 +1022,13 @@ export class StaraUI {
       }
       return;
     }
-    if (moved) this.cancelHold();
+    // Off the staged piece, a finger that moves drags the table about (and a
+    // hold to lift a piece is let go of); where the table is held still, it
+    // only stops what it was doing.
+    if (moved || h.panning) {
+      if (this.roams) return this.pan(h, e);
+      this.cancelHold();
+    }
   }
 
   /**
@@ -943,6 +1039,7 @@ export class StaraUI {
    * already done its work.
    */
   boardUp(e) {
+    this.fingers.delete(e.pointerId);
     const h = this.held;
     if (!h || h.id !== e.pointerId) return;
     const quick = performance.now() - h.t0 < TAP;
@@ -951,7 +1048,7 @@ export class StaraUI {
     const r = this.h.renderer;
     if (!h.done) r.sealing = null;
     if (e.pointerType && e.pointerType !== 'mouse') r.hover = null;
-    if (h.done) return;
+    if (h.done || h.panning || h.kind === 'look') return;
     if (h.kind === 'staged') {
       if (h.dragging) {
         if (this.overTray(e)) { this.h.clear(); return; }

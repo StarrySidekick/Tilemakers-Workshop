@@ -1386,10 +1386,20 @@ for (const mode of ['stara5', 'giardino']) {
     return (cs.webkitUserSelect || cs.userSelect) + ' ' + (cs.webkitTouchCallout ?? 'none');
   });
   if (!/^none/.test(look)) problems.push(`the board can still be selected: ${look}`);
+  // Two fingers pinch the city's table wider (2026-11-27: "freely scroll"); the garden's stays put.
+  const z0 = await tp.evaluate(() => window.LAB.renderer.cam.zoom);
+  const pinch = (d) => [{ x: 195 - d, y: 300, id: 1 }, { x: 195 + d, y: 300, id: 2 }];
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: pinch(40) });
+  for (let k = 1; k <= 6; k++) { await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: pinch(40 + k * 12) }); await tp.waitForTimeout(20); }
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+  await tp.waitForTimeout(120);
+  const pinched = await tp.evaluate(() => ({ zoom: window.LAB.renderer.cam.zoom, laid: window.LAB.game.m.laid?.size ?? window.LAB.game.board.size }));
+  if (mode === 'giardino' ? pinched.zoom !== z0 : !(pinched.zoom > z0 * 1.3)) problems.push(`a pinch took the zoom from ${z0} to ${pinched.zoom}`);
+  if (pinched.laid !== held.laid) problems.push('a pinch put a piece down');
   if (errs.length) problems.push(errs[0].split('\n')[0]);
   await phone.close();
   if (problems.length) { failures++; console.log(`  ✗ ${mode} by touch: ${problems.join(' · ')}`); }
-  else console.log(`  ✓ ${(mode + ' by touch').padEnd(21)} a tap stages, a tap turns, the tray turns it back, a finger drags it, a finger held still seals with nothing selected or cancelled`);
+  else console.log(`  ✓ ${(mode + ' by touch').padEnd(21)} a tap stages, a tap turns, the tray turns it back, a finger drags it, a finger held still seals with nothing selected or cancelled, ${mode === 'giardino' ? 'a pinch leaves the garden be' : 'two fingers pinch it'}`);
 }
 
 // Starà AS A MODEL (src/lowpoly.js, 2026-11-27: "pseudo pixel 3D ... like a
@@ -1509,6 +1519,52 @@ for (const mode of ['stara5', 'giardino']) {
   const reset = await tp.evaluate(() => ({ flat: window.LAB.renderer.view.flat, slider: document.getElementById('staraTiltRange').value }));
   if (!reset.flat || reset.slider !== '90') problems.push(`Reset did not put the top view back straight down: ${JSON.stringify(reset)}`);
   await tp.click('#staraTuneClose');
+  // LOOKING ABOUT (2026-11-27: "freely scroll around the board instead of
+  // being locked in one place"): a drag over open table moves the camera
+  // (the table point under the finger stays under it) and lays nothing; the
+  // wheel zooms; Centre appears, and takes the camera back to the city.
+  await tp.evaluate(() => { window.LAB.stara.h.clear(); window.LAB.stara.recentre(); });
+  await tp.waitForTimeout(150);
+  const from = await tp.evaluate(() => {
+    const r = window.LAB.renderer, g = window.LAB.game, cv = r.canvas.getBoundingClientRect();
+    const top = document.getElementById('staraTop').getBoundingClientRect().bottom + 70;
+    // A point of open table: no square built or lit under it.
+    for (let y = top; y < top + 200; y += 20) {
+      for (let x = 30; x < 360; x += 20) {
+        const c = r.cellAt(x - cv.left, y - cv.top);
+        if (!g.board.get(c.x, c.y) && !g.m.litSquares().has(`${c.x},${c.y}`) && !g.m.water.spans.has(`${c.x},${c.y}`)) {
+          return { x, y, w: r.toWorld(x - cv.left, y - cv.top), cam: { ...r.cam }, laid: g.m.laid.size };
+        }
+      }
+    }
+    return null;
+  });
+  if (!from) problems.push('no open table to drag');
+  else {
+    await tp.mouse.move(from.x, from.y);
+    await tp.mouse.down();
+    for (let k = 1; k <= 8; k++) { await tp.mouse.move(from.x + k * 8, from.y + k * 6); await tp.waitForTimeout(16); }
+    await tp.mouse.up();
+    await tp.waitForTimeout(100);
+    const moved = await tp.evaluate((f) => {
+      const r = window.LAB.renderer, cv = r.canvas.getBoundingClientRect();
+      const w = r.toWorld(f.x + 64 - cv.left, f.y + 48 - cv.top);
+      return { off: Math.hypot(w[0] - f.w[0], w[1] - f.w[1]), cam: { ...r.cam }, laid: window.LAB.game.m.laid.size, staged: !!r.pending, centre: !document.getElementById('staraCentre').hidden };
+    }, from);
+    if (moved.cam.x === from.cam.x && moved.cam.y === from.cam.y) problems.push('a drag over open table did not move the camera');
+    if (moved.off > 1e-6) problems.push(`the table slid under the finger (${moved.off.toFixed(3)} squares off)`);
+    if (moved.laid !== from.laid || moved.staged) problems.push('a drag over open table put a piece down');
+    if (!moved.centre) problems.push('no Centre once the camera was moved');
+    await tp.mouse.move(195, from.y);
+    await tp.mouse.wheel(0, -240);
+    await tp.waitForTimeout(100);
+    const zoomed = await tp.evaluate(() => window.LAB.renderer.cam.zoom);
+    if (!(zoomed > moved.cam.zoom)) problems.push(`the wheel did not zoom in (${moved.cam.zoom} to ${zoomed})`);
+    await tp.click('#staraCentre');
+    await tp.waitForTimeout(150);
+    const back = await tp.evaluate(() => ({ cam: { ...window.LAB.renderer.cam }, centre: !document.getElementById('staraCentre').hidden }));
+    if (back.centre || Math.abs(back.cam.zoom - from.cam.zoom) > 0.5 || Math.hypot(back.cam.x - from.cam.x, back.cam.y - from.cam.y) > 0.01) problems.push(`Centre did not take the camera back: ${JSON.stringify({ from: from.cam, back })}`);
+  }
   // The cards are the model in a model view.
   const card = await tp.evaluate(() => {
     const cv = document.querySelector('.staraCard canvas');
@@ -1521,7 +1577,7 @@ for (const mode of ['stara5', 'giardino']) {
   if (errs.length) problems.push(errs[0].split('\n')[0]);
   await phone.close();
   if (problems.length) { failures++; console.log(`  ✗ starà as a model: ${problems.join(' · ')}`); }
-  else console.log(`  ✓ starà as a model     isometric by default at ${(1 / first.px).toFixed(1)} screen px a pixel; a tap stages through the projection, a roof picks its own house, Ink/Top/Iso switch and turn and are kept, tilt and turn sliders, model cards`);
+  else console.log(`  ✓ starà as a model     isometric by default at ${(1 / first.px).toFixed(1)} screen px a pixel; a tap stages through the projection, a roof picks its own house, Ink/Top/Iso switch and turn and are kept, tilt and turn sliders, dragged about and zoomed and centred again, model cards`);
 }
 
 // CONTADO, Starà's long form (2026-11-27): one city on a land of levels,

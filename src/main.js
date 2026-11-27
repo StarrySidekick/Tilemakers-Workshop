@@ -536,10 +536,12 @@ canvas.addEventListener('pointermove', (e) => {
   // what keeps the board stuck to your fingers instead of sliding under them.
   if (pinch && pointers.size >= 2) {
     const now = spread();
-    if (now && pinch.dist > 0 && !game.interior && !stara.on) {
-      renderer.zoomAt(now.x, now.y, now.dist / pinch.dist);
-      renderer.cam.x -= (now.x - pinch.x) / renderer.cam.zoom;
-      renderer.cam.y -= (now.y - pinch.y) / renderer.cam.zoom;
+    // Starà's city may be pinched too (2026-11-27: "freely scroll around
+    // the board"); its garden, held edge to edge, may not.
+    if (now && pinch.dist > 0 && !game.interior && (!stara.on || stara.roams)) {
+      renderer.zoomAt(now.x, now.y, now.dist / pinch.dist, stara.on ? 12 : 28);
+      renderer.panBy(now.x - pinch.x, now.y - pinch.y);
+      if (stara.on) stara.roam();
     }
     pinch = now;
     renderer.hover = null;
@@ -675,9 +677,10 @@ canvas.addEventListener('wheel', (e) => {
     if (pending) turnPending(e.deltaY > 0 ? 1 : -1); else game.rotate(e.deltaY > 0 ? 1 : -1);
     return;
   }
-  if (game.interior || stara.on) return;      // Starà's square is held still
+  if (game.interior || (stara.on && !stara.roams)) return;      // Giardino's square is held still
   renderer.glide = null;
-  renderer.zoomAt(e.offsetX, e.offsetY, e.deltaY > 0 ? 0.9 : 1.1);
+  renderer.zoomAt(e.offsetX, e.offsetY, e.deltaY > 0 ? 0.9 : 1.1, stara.on ? 12 : 28);
+  if (stara.on) stara.roam();
 }, { passive: false });
 
 window.addEventListener('keydown', (e) => {
@@ -724,7 +727,7 @@ window.addEventListener('keydown', (e) => {
   }
 });
 
-window.addEventListener('resize', () => { renderer.resize(); stara.refit(); stara.sync(); });
+window.addEventListener('resize', () => { renderer.resize(); stara.refit(false); stara.sync(); });
 
 // --- controls ---------------------------------------------------------------
 

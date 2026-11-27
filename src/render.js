@@ -211,12 +211,30 @@ export class Renderer {
     return { x: Math.floor(wx), y: Math.floor(wz) };
   }
 
-  zoomAt(sx, sy, factor) {
+  /**
+   * Zoom about a point of the screen, keeping the table under it still.
+   * Worked through toWorld, so it holds in every view, isometric included.
+   * `least` is the furthest out it goes (Starà's city may want further).
+   */
+  zoomAt(sx, sy, factor, least = 28) {
     const [wx, wy] = this.toWorld(sx, sy);
-    this.cam.zoom = Math.max(28, Math.min(320, this.cam.zoom * factor));
+    this.cam.zoom = Math.max(least, Math.min(320, this.cam.zoom * factor));
     const [nx, ny] = this.toWorld(sx, sy);
     this.cam.x += wx - nx;
     this.cam.y += wy - ny;
+    this.zoomedAt = performance.now();
+  }
+
+  /**
+   * Move the camera so the table follows a finger moved (dx, dy) on the
+   * screen. Seen at an angle a screen step is not a table step, so it is
+   * worked back through the projection (toWorld is affine, so the
+   * difference of two points is the step, wherever they are).
+   */
+  panBy(dx, dy) {
+    const [ax, ay] = this.toWorld(0, 0), [bx, by] = this.toWorld(dx, dy);
+    this.cam.x -= bx - ax;
+    this.cam.y -= by - ay;
   }
 
   centerOn(x, y) {
@@ -706,7 +724,10 @@ export class Renderer {
     const high = new Set((city.roads[0]?.gates || []).map((g) => `${g.x},${g.y},${g.s}`));
     const sig = `${wall.map((w) => `${w.x},${w.y},${w.s}${w.gate ? 'g' : ''}`).join(';')}|${[...high].join(';')}`;
     const key = `${z}|${dpr}|${sig}`;
-    const stretching = this.glide && this.cityWall?.sig === sig;
+    // Easing, or zoomed by a hand in the last moment: the layer already made
+    // is stretched, and made again once the zoom settles.
+    const zooming = this.glide || performance.now() - (this.zoomedAt || 0) < 250;
+    const stretching = zooming && this.cityWall?.sig === sig;
     if (this.cityWall?.key !== key && !stretching) {
       const c = this.cityWall?.canvas || document.createElement('canvas');
       c.width = Math.ceil((maxX - minX + 1) * z * dpr);

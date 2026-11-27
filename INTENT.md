@@ -271,6 +271,11 @@ forms and what keeps them related; read it before changing either. MODES.md
 has the eighth pass in section 14 and Contado in section 16, with what is
 open (the name, whether one miss should end a run, places that come back
 over the years).
+The same evening: sliders to tilt and turn the Top and Iso views; then the
+camera set free ("freely scroll around the board instead of being locked in
+one place"), every square any of a piece's four turns could cover lit, and a
+piece put down settling the way that scores best there ("automatically snaps
+to whatever might work the best for it"). Section 14's eighth pass has both.
 
 **Giardino, the daily walled garden: asked for 2026-11-22.** "based on
 stara ... a little walled garden, and each tile is a plant, and the mechanics

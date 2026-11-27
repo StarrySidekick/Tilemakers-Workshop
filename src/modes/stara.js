@@ -337,27 +337,69 @@ export class Stara extends Mode {
   }
 
   /**
+   * Every way the held piece fits with one of its squares on (x, y), at any
+   * of its four turns: `{ax, ay, rot, grip, cells}`, its top left, its turn,
+   * which of its squares is on (x, y), and its squares at that turn.
+   */
+  fitsOver(x, y, piece = this.held) {
+    const out = [];
+    if (!piece) return out;
+    for (let rot = 0; rot < 4; rot++) {
+      const cells = tagged(piece, rot);
+      for (const c of cells) {
+        const ax = x - c.dx, ay = y - c.dy;
+        if (this.fitsAt(ax, ay, cells, piece)) out.push({ ax, ay, rot, grip: c.i, cells });
+      }
+    }
+    return out;
+  }
+
+  /**
+   * THE BEST WAY DOWN over (x, y) (2026-11-27: "make it so that the
+   * calculation for where a tile goes is done based on all four of its
+   * orientations, not just the one you currently are on. And when you put
+   * it down, it just automatically snaps to whatever might work the best
+   * for it"): of every way the piece fits with one of its squares on
+   * (x, y), any turn, the one that leaves the city worth most. Between two
+   * as good, the turn it is held at, then the square it is held by. Null
+   * where it fits no way over (x, y). Kept until the question changes,
+   * since a mouse over the table asks it every frame.
+   */
+  bestAt(x, y, { rot = this.game.rot, grip = null, piece = this.held } = {}) {
+    if (!piece) return null;
+    const key = `${piece.id}|${x},${y}|${rot}|${grip}|${this.version}`;
+    if (this.bestKey === key) return this.bestValue;
+    let best = null;
+    for (const f of this.fitsOver(x, y, piece)) {
+      const v = appraiseCity(this.trialCity(piece, f.ax, f.ay, f.cells)).total;
+      const pref = (f.rot === rot ? 2 : 0) + (f.grip === grip ? 1 : 0);
+      if (!best || v > best.v || (v === best.v && pref > best.pref)) best = { ...f, v, pref };
+    }
+    this.bestKey = key;
+    this.bestValue = best;
+    return best;
+  }
+
+  /**
    * Where the held piece goes when it is put down over (x, y) at turn
    * `rot`, held by square `grip` of it (an index into its squares; its
-   * middle, by default): its top left, the square it is held by, and
-   * whether it fits there. With `magnet`, a piece that does not fit exactly
-   * so is moved to the nearest way it fits that still covers (x, y),
-   * nearest the grip first; one that fits no way over (x, y) stays where it
-   * was put, not fitting (the seventh pass: "really freeform").
+   * middle, by default): its top left, its turn, the square it is held by,
+   * and whether it fits there. With `magnet` (a tap, or a piece let go of)
+   * it goes the best way it fits over (x, y), any turn (bestAt); without
+   * (while it is being dragged) exactly where it is put. One that fits no
+   * way over (x, y) stays where it was put, not fitting (the seventh pass:
+   * "really freeform").
    */
   stageAt(x, y, rot = this.game.rot, { grip = null, magnet = true, piece = this.held } = {}) {
     if (!piece) return null;
     const cells = tagged(piece, rot);
     const g = (grip != null && cells.find((c) => c.i === grip)) || gripOf(cells);
     const at = { x, y, rot, ax: x - g.dx, ay: y - g.dy, grip: g.i };
-    if (this.fitsAt(at.ax, at.ay, cells, piece)) return { ...at, fits: true };
     if (magnet) {
-      const order = cells.slice().sort((a, b) => ((a.dx - g.dx) ** 2 + (a.dy - g.dy) ** 2) - ((b.dx - g.dx) ** 2 + (b.dy - g.dy) ** 2));
-      for (const c of order) {
-        if (this.fitsAt(x - c.dx, y - c.dy, cells, piece)) return { ...at, ax: x - c.dx, ay: y - c.dy, grip: c.i, fits: true };
-      }
+      const b = this.bestAt(x, y, { rot, grip: g.i, piece });
+      if (b) return { x, y, rot: b.rot, ax: b.ax, ay: b.ay, grip: b.grip, fits: true };
     }
-    return { ...at, fits: false };
+    return { ...at, fits: this.fitsAt(at.ax, at.ay, cells, piece) };
   }
 
   /**
@@ -395,12 +437,16 @@ export class Stara extends Mode {
     return out;
   }
 
-  /** Every square the held piece could cover, turned the way it is now: the squares lit for it. */
+  /**
+   * Every square the held piece could cover, any of its four turns: the
+   * squares lit for it (2026-11-27: "based on all four of its orientations,
+   * not just the one you currently are on").
+   */
   litSquares() {
-    const key = `${this.hand[this.sel]}|${this.game.rot}|${this.version}`;
+    const key = `${this.hand[this.sel]}|${this.version}`;
     if (this.litKey === key) return this.litValue;
     const out = new Set();
-    for (const p of this.placements(this.held, [this.game.rot])) for (const c of p.cells) out.add(keyOf(p.x + c.dx, p.y + c.dy));
+    for (const p of this.placements(this.held)) for (const c of p.cells) out.add(keyOf(p.x + c.dx, p.y + c.dy));
     this.litKey = key;
     this.litValue = out;
     return out;
@@ -421,19 +467,19 @@ export class Stara extends Mode {
     return this.hand.some((id) => this.fitsAnywhere(this.pieces[id]));
   }
 
-  /** The host asks this for each square and turn: can the held piece go over (x, y)? */
+  /** The host asks this for each square: can the held piece go over (x, y), any way round? */
   canPlaceAt(x, y) {
     if (this.game.phase !== 'place' || !this.held) return false;
-    return !!this.stageAt(x, y)?.fits;
+    return this.fitsOver(x, y).length > 0;
   }
 
-  /** Lay the held piece over (x, y), at the game's turn (the workshop's click, and Enter). */
+  /** Lay the held piece over (x, y), the best way it fits there (the workshop's click, and Enter). */
   placeAt(x, y) {
     const g = this.game;
     if (g.phase !== 'place' || !this.held) return false;
     const at = this.stageAt(x, y);
     if (!at?.fits) return false;
-    return this.lay(this.held, at.ax, at.ay, g.rot);
+    return this.lay(this.held, at.ax, at.ay, at.rot);
   }
 
   /** Lay the held piece with its top left at (ax, ay), turned `rot`: a staged piece, sealed. */
@@ -809,7 +855,7 @@ function specFor(side, Mode) {
     seedFor: () => staraDay(new Date(), side).seed,
     playerName: () => 'You',
     opening: `Today's city, a ${side}×${side} plan. The wall goes up round whatever you build, and every stretch of it costs a point.`,
-    hint: `Daily and solo: a city-state on an open table, dealt as pieces of one to four squares, the architect's ${side}×${side} plan cut up. Hold three; drag a piece where you want it, turn it with the turn button (or tap it), and hold it to seal it down. Streets must meet streets. Only houses score: 1 a square, +1 beside a plaza (the Comune is one), +1 watered, +1 beside the cathedral. The aqueduct goes over anything, carrying water in from the spring. The wall goes round whatever is built, and every stretch of it costs 1. A street out of the city is a gate; one street out on two or more of the city's sides is a high road, 4 a side. Hold a laid piece to lift it back for a point. The architect's plan for the day is the target.`,
+    hint: `Daily and solo: a city-state on an open table, dealt as pieces of one to four squares, the architect's ${side}×${side} plan cut up. Hold three; drag a piece where you want it (it settles the best way it fits there, any way round), turn it with the turn button (or tap it), and hold it to seal it down. Drag the table to look about it; pinch or scroll to zoom. Streets must meet streets. Only houses score: 1 a square, +1 beside a plaza (the Comune is one), +1 watered, +1 beside the cathedral. The aqueduct goes over anything, carrying water in from the spring. The wall goes round whatever is built, and every stretch of it costs 1. A street out of the city is a gate; one street out on two or more of the city's sides is a high road, 4 a side. Hold a laid piece to lift it back for a point. The architect's plan for the day is the target.`,
   };
 }
 
