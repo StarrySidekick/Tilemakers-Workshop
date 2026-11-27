@@ -1257,6 +1257,64 @@ await page.selectOption('#tilesPerTurn', '1');
   await page.setViewportSize({ width: 1280, height: 820 });
 }
 
+// Starà and Giardino BY TOUCH (2026-11-27: "tapping and holding highlights
+// stuff in Safari ... we currently can't put down the seal without doing
+// that as well"). A phone of its own, with touch, driven by real touch
+// events: a tap stages, a tap turns, and a finger held still seals while it
+// is still down, with no selection made and the pointer never cancelled
+// (a long press that starts a selection cancels it, which ended the hold).
+for (const mode of ['stara5', 'giardino']) {
+  const problems = [];
+  const phone = await browser.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
+  const tp = await phone.newPage();
+  const errs = [];
+  tp.on('pageerror', (e) => errs.push(e.message));
+  await tp.goto(`http://localhost:${PORT}/index.html?mode=${mode}`);
+  await tp.waitForTimeout(1200);
+  await tp.evaluate(() => { window.__cancels = 0; window.LAB.renderer.canvas.addEventListener('pointercancel', () => window.__cancels++); });
+  const cdp = await phone.newCDPSession(tp);
+  const touch = (type, x, y) => cdp.send('Input.dispatchTouchEvent', { type, touchPoints: type === 'touchEnd' ? [] : [{ x, y }] });
+  const spot = await tp.evaluate(() => {
+    const g = window.LAB.game, r = window.LAB.renderer;
+    const keys = g.m.litSquares ? [...g.m.litSquares()] : g.board.legalPlacements(g.tile, g.placeOpts()).map((s) => `${s.x},${s.y}`);
+    const [x, y] = keys[0].split(',').map(Number);
+    const [sx, sy] = r.toScreen(x + 0.5, y + 0.5);
+    const cv = r.canvas.getBoundingClientRect();
+    return { x: sx + cv.left, y: sy + cv.top };
+  });
+  const state = () => tp.evaluate(() => ({
+    size: window.LAB.game.board.size, pending: !!window.LAB.renderer.pending, rot: window.LAB.renderer.pending?.rot,
+    rots: window.LAB.renderer.pending?.rots.length, selected: String(window.getSelection()).length, cancels: window.__cancels,
+  }));
+  const tap = async () => { await touch('touchStart', spot.x, spot.y); await tp.waitForTimeout(60); await touch('touchEnd'); await tp.waitForTimeout(150); };
+  const before = await state();
+  await tap();
+  const staged = await state();
+  await tap();
+  const turned = await state();
+  await touch('touchStart', spot.x, spot.y);
+  await tp.waitForTimeout(450);
+  const midway = await tp.evaluate(() => !!window.LAB.renderer.sealing);
+  await tp.waitForTimeout(800);
+  const held = await state();
+  await touch('touchEnd');
+  await tp.waitForTimeout(150);
+  if (!staged.pending) problems.push('a tap did not stage it');
+  if (staged.rots > 1 && turned.rot === staged.rot) problems.push('a second tap did not turn it');
+  if (!midway) problems.push('holding did not start the seal');
+  if (held.size <= before.size) problems.push(`a finger held down did not seal it: ${JSON.stringify(held)}`);
+  if (held.selected || held.cancels) problems.push(`the hold selected text or was cancelled: ${JSON.stringify(held)}`);
+  const look = await tp.evaluate(() => {
+    const cs = getComputedStyle(window.LAB.renderer.canvas);
+    return (cs.webkitUserSelect || cs.userSelect) + ' ' + (cs.webkitTouchCallout ?? 'none');
+  });
+  if (!/^none/.test(look)) problems.push(`the board can still be selected: ${look}`);
+  if (errs.length) problems.push(errs[0].split('\n')[0]);
+  await phone.close();
+  if (problems.length) { failures++; console.log(`  ✗ ${mode} by touch: ${problems.join(' · ')}`); }
+  else console.log(`  ✓ ${(mode + ' by touch').padEnd(21)} a tap stages, a tap turns, a finger held still seals with nothing selected or cancelled`);
+}
+
 // Giardino, the daily garden, on a phone (2026-11-22): Starà's screen with a
 // garden wall, no sizes or quarters, the week under the title and the seed
 // packet under the hand. Played through the real controls to the frost.

@@ -249,7 +249,11 @@ export class Effects {
         const cells = data.cells?.length ? data.cells : (laid ? [laid] : []);
         // Sealed where it sat (Starà's pieces): it does not fly in from the
         // hand, it settles into the table.
-        if (data.still) {
+        // The same for a tile sealed where it was staged (Giardino): coming
+        // from where it already is, it would only fade in.
+        const from = this.entryAt?.() || null;
+        const there = from && cells.length === 1 && Math.hypot(from.x - centre(cells[0]).x, from.y - centre(cells[0]).y) < 0.35;
+        if (data.still || there) {
           cells.forEach((cell, i) => { const to = centre(cell); this.land(to.x, to.y, i * 40); });
           return;
         }

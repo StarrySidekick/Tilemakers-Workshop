@@ -2068,12 +2068,37 @@ when held up.
 **Three in hand from the start**, drawn back up to three after each piece.
 
 **Hold to seal** (`drawWaxSeal` in render.js, the hold in stara-ui.js). The
-seal button is gone. A finger held on the staged piece: after 0.14 s a drop
-of red wax lands and spreads, the die comes down into it (a sunk ring and the
-town gate), a gold arc round it fills as the hold goes on, and at the end
-(about a second in all) a last squash and the piece is sealed to the table;
-the wax settles and fades. Let go early and nothing is laid. Under 0.22 s it
-was a tap, and a tap turns the piece. Enter still lays it on a keyboard.
+seal button is gone. Let go early and nothing is laid. Under 0.22 s it was a
+tap, and a tap turns the piece. Enter still lays it on a keyboard.
+
+Later the same day: *"There's an annoying thing where tapping and holding
+highlights stuff in Safari ... we currently can't put down the seal without
+doing that as well"*, and *"make sure that the seal has like a progressive
+animation that as you hold it ... so you can tell that like holding does
+something"*. So:
+
+- **Safari's long press is refused.** On iOS a finger held still starts a
+  text selection (the blue highlight and the loupe) or a callout menu, and
+  when it does Safari cancels the pointer, which ended the hold. The stage
+  now has no selectable text, no callouts and no grey tap flash
+  (`body.stara #stage` in style.css), and the board and the cards refuse a
+  touch's default action outright (`touchstart` in stara-ui.js); pointer
+  events, which are all Starà listens to, still come.
+- **The hold shows its progress from the first instant** (0.07 s in): a
+  bright gold line runs clockwise round the outline of the piece being
+  sealed, with a glowing head, over a faint line for the whole way round, a
+  progress bar in the piece's own shape (`progressOutline`). Under it the
+  wax keeps spreading the whole time with its edge still moving, the die's
+  shadow closes in from the lower right and darkens, and at the end it
+  presses: the wax squashes out, the town gate appears in it, the piece's
+  outline flashes gold and a ring goes out from the seal. About a second in
+  all. A lift runs the same line in red while its seal cracks. Giardino
+  draws all of it too; until now its hold showed nothing.
+- **"giardino by touch" and "stara5 by touch"** in the smoke test drive a
+  touch phone with real touch events: a tap stages, a tap turns, a finger
+  held still seals while it is down, nothing is selected and the pointer is
+  never cancelled. Chromium does not make iOS's long-press selection, so
+  that part is a guard on the fix, not a test of Safari itself.
 
 **Lift for a point.** Held on a piece already down (never the Comune), its
 seal cracks and it goes back into your hand, held up and turned as it lay.

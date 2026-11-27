@@ -313,8 +313,9 @@ export class Renderer {
     if (game.phase === 'recall') this.drawCellTargets(game.myMeeples(), MOVE_COSTLY.line, MOVE_COSTLY.rgb);
     if (game.phase === 'walk') this.drawCellTargets(game.pendingWalk?.targets || [], MOVE_OK.line, MOVE_OK.rgb);
     if (game.phase === 'place') this.drawPlacementHints(game);
-    // Starà's wax: a seal setting, settling, or being broken for a lift.
-    if (game.spec?.city) this.drawSeals(game);
+    // Starà's wax (and Giardino's): a seal setting, settling, or being
+    // broken for a lift.
+    if (game.spec?.table) this.drawSeals(game);
 
     this.drawMeeples(game);
     // With the claim panel aiming at the tile just laid, the board still shows
@@ -1714,7 +1715,7 @@ export class Renderer {
       const pv = game.m.preview(p.x, p.y, p.rot);
       if (!pv) return;
       const sealing = this.sealing && this.sealing.kind === 'seal' ? this.sealing : null;
-      const t = sealing ? Math.min(1, (performance.now() - sealing.t0) / sealing.dur) : 0;
+      const t = sealing ? Math.max(0, Math.min(1, (performance.now() - sealing.t0) / sealing.dur)) : 0;
       // Pressed into the table as the seal goes on: a touch smaller, a touch darker.
       const press = sealing ? 1 - 0.035 * Math.sin(Math.min(1, t * 1.1) * Math.PI / 2) : 1;
       ctx.save();
@@ -1725,9 +1726,8 @@ export class Renderer {
       for (const c of pv.cells) this.paintTile(c.x, c.y, c.rot, c.type, 'surface', z, null, c.look);
       ctx.restore();
       const a = 0.75 + Math.sin(performance.now() / 300) * 0.2;
-      this.outlinePiece(pv.cells, `rgba(255,242,214,${sealing ? 0.95 : a})`, 2.6, seedOf(p.x, p.y, p.rot));
+      if (!sealing) this.outlinePiece(pv.cells, `rgba(255,242,214,${a})`, 2.6, seedOf(p.x, p.y, p.rot));
       this.drawWays(game, pv);
-      if (sealing) this.drawWaxSeal(...this.pieceCentre(pv.cells, sealing.at), z * 0.34, t, { seed: seedOf(p.x, p.y) });
       return;
     }
     const h = this.hover;
@@ -1909,30 +1909,44 @@ export class Renderer {
   /**
    * THE WAX SEAL (2026-11-27: "tap and hold to seal the tile ... the
    * animation start when you start holding, then over about a second or so
-   * it sort of seals to the table like a wax seal"). `t` runs 0 to 1 over
-   * the hold. A drop of molten wax lands and spreads (to about half way),
-   * the seal's die comes down into it (a ring, the town gate pressed in),
-   * and at the end it is pressed flat with a last squash. A thin gold arc
-   * round it fills as the hold goes on, so the length of a hold can be seen.
-   * `crack` instead breaks a seal already set: lifting a piece.
+   * it sort of seals to the table like a wax seal"; and the same day, "make
+   * sure that the seal has like a progressive animation ... so you can tell
+   * that like holding does something"). `t` runs 0 to 1 over the hold, and
+   * something visibly moves the whole way:
+   *
+   *   0 to 0.7    a drop of molten wax lands and keeps spreading, its edge
+   *               still liquid;
+   *   0.4 to 0.9  the die comes down: its shadow, wide and faint and off
+   *               to the lower right at first, closes in over the wax and
+   *               darkens as it nears;
+   *   0.88 to 1   it presses: the wax squashes out and the impression (a
+   *               sunk ring, the town gate) appears in it.
+   *
+   * The progress itself is the line that runs round the piece (drawSeals,
+   * progressOutline). `crack` instead breaks a seal already set: lifting.
    */
   drawWaxSeal(cx, cy, R, t, { seed = 1, crack = false, alpha = 1 } = {}) {
     const ctx = this.ctx;
-    const ease = (v) => 1 - (1 - v) ** 3;
-    const spread = crack ? 1 : ease(Math.min(1, t / 0.5));
-    const die = crack ? 1 : Math.max(0, Math.min(1, (t - 0.45) / 0.4));
-    const squash = !crack && t > 0.86 ? 1 + 0.08 * Math.sin(((t - 0.86) / 0.14) * Math.PI) : 1;
+    const clamp = (v) => Math.max(0, Math.min(1, v));
+    const w = clamp((t - 0.04) / 0.66);
+    const spread = crack ? 1 : 1 - (1 - w) ** 2;
+    const die = crack ? 1 : clamp((t - 0.88) / 0.1);
+    const near = crack ? 0 : clamp((t - 0.4) / 0.5);
+    const squash = !crack && t > 0.88 ? 1 + 0.1 * Math.sin(clamp((t - 0.88) / 0.12) * Math.PI) : 1;
     const r = R * spread * squash;
     if (r < 0.5) return;
+    // While it is still molten its edge moves; once pressed it is still.
+    const flow = crack || t >= 1 ? 0 : performance.now() / 260;
     ctx.save();
     ctx.globalAlpha = alpha;
     // The blob: a circle whose edge runs out unevenly, as wax does.
     const blob = (rad) => {
       ctx.beginPath();
-      const n = 18;
+      const n = 22;
       for (let k = 0; k <= n; k++) {
         const a = (k / n) * Math.PI * 2;
-        const wob = 1 + 0.07 * Math.sin(a * 3 + seed) + 0.05 * Math.sin(a * 5 + seed * 1.7) + 0.03 * Math.sin(a * 9 + seed * 0.3);
+        const wob = 1 + 0.07 * Math.sin(a * 3 + seed + flow * 0.4) + 0.05 * Math.sin(a * 5 + seed * 1.7 - flow * 0.3)
+          + 0.03 * Math.sin(a * 9 + seed * 0.3 + flow);
         const px = cx + Math.cos(a) * rad * wob, py = cy + Math.sin(a) * rad * wob;
         if (k) ctx.lineTo(px, py); else ctx.moveTo(px, py);
       }
@@ -1947,7 +1961,7 @@ export class Renderer {
     ctx.restore();
     blob(r);
     const g = ctx.createRadialGradient(cx - r * 0.35, cy - r * 0.4, r * 0.1, cx, cy, r * 1.05);
-    g.addColorStop(0, '#c9483a');
+    g.addColorStop(0, '#d0503f');
     g.addColorStop(0.55, '#9b2a1c');
     g.addColorStop(1, '#6e1a10');
     ctx.fillStyle = g;
@@ -1955,6 +1969,23 @@ export class Renderer {
     ctx.lineWidth = Math.max(1, R * 0.05);
     ctx.strokeStyle = 'rgba(70,14,6,0.8)';
     ctx.stroke();
+    // A wet highlight, while it is molten.
+    if (!crack && die < 1) {
+      ctx.beginPath();
+      ctx.ellipse(cx - r * 0.32, cy - r * 0.38, r * 0.28, r * 0.14, -0.6, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(255,214,196,${0.35 * (1 - die)})`;
+      ctx.fill();
+    }
+    // The die coming down: its shadow closing in.
+    if (near > 0 && die < 1) {
+      ctx.save();
+      const off = (1 - near) * R * 0.55;
+      ctx.beginPath();
+      ctx.arc(cx + off, cy + off * 1.2, R * (1.05 + 0.6 * (1 - near)), 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(30,10,4,${0.12 + 0.3 * near})`;
+      ctx.fill();
+      ctx.restore();
+    }
     // The die pressed in: a sunk ring, and the town gate inside it.
     if (die > 0) {
       const ri = r * 0.66;
@@ -2004,39 +2035,126 @@ export class Renderer {
       ctx.stroke();
     }
     ctx.restore();
-    // How far through the hold: an arc of gold round it.
-    if (t < 1) {
-      ctx.save();
-      ctx.beginPath();
-      ctx.arc(cx, cy, R * 1.28, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * t);
-      ctx.lineWidth = Math.max(2, R * 0.1);
-      ctx.lineCap = 'round';
-      ctx.strokeStyle = crack ? 'rgba(242,169,154,0.95)' : 'rgba(255,226,150,0.95)';
-      ctx.stroke();
-      ctx.restore();
-    }
   }
 
   /**
-   * After the hold: the seal just set, settling into the table, then gone;
-   * and a seal being broken on a laid piece, for a lift.
+   * The outline of a piece's squares as one closed path, clockwise from its
+   * top left, in world units: [[x, y], ...]. Each edge of a square that is
+   * not shared with another square of the piece, chained end to start.
+   */
+  pieceLoop(cells) {
+    const own = new Set(cells.map((c) => `${c.x},${c.y}`));
+    const next = new Map();
+    const add = (ax, ay, bx, by) => next.set(`${ax},${ay}`, [bx, by]);
+    for (const { x, y } of cells) {
+      if (!own.has(`${x},${y - 1}`)) add(x, y, x + 1, y);
+      if (!own.has(`${x + 1},${y}`)) add(x + 1, y, x + 1, y + 1);
+      if (!own.has(`${x},${y + 1}`)) add(x + 1, y + 1, x, y + 1);
+      if (!own.has(`${x - 1},${y}`)) add(x, y + 1, x, y);
+    }
+    const first = [...next.keys()].map((k) => k.split(',').map(Number)).sort((a, b) => a[1] - b[1] || a[0] - b[0])[0];
+    const pts = [first];
+    let at = first;
+    for (let k = 0; k <= next.size; k++) {
+      const to = next.get(`${at[0]},${at[1]}`);
+      if (!to) break;
+      pts.push(to);
+      if (to[0] === first[0] && to[1] === first[1]) break;
+      at = to;
+    }
+    return pts;
+  }
+
+  /**
+   * HOW FAR THROUGH THE HOLD: a bright line running round the piece's
+   * outline, clockwise from its top left, as far as the hold has gone, over
+   * a faint line for the whole way round, with a glowing head. A progress
+   * bar in the shape of what is being sealed, so it is plain from the first
+   * instant that holding is doing something, and how much longer to hold.
+   */
+  progressOutline(cells, t, colour, glow) {
+    const ctx = this.ctx, z = this.cam.zoom;
+    const pts = this.pieceLoop(cells).map(([x, y]) => this.toScreen(x, y));
+    if (pts.length < 2) return;
+    ctx.save();
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.beginPath();
+    pts.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
+    ctx.lineWidth = Math.max(2, z * 0.05);
+    ctx.strokeStyle = 'rgba(255,240,212,0.38)';
+    ctx.stroke();
+    // The part done.
+    const lens = [];
+    let total = 0;
+    for (let i = 1; i < pts.length; i++) { const d = Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]); lens.push(d); total += d; }
+    let left = total * Math.max(0, Math.min(1, t));
+    ctx.beginPath();
+    ctx.moveTo(pts[0][0], pts[0][1]);
+    let head = pts[0];
+    for (let i = 1; i < pts.length && left > 0; i++) {
+      const d = lens[i - 1];
+      const f = Math.min(1, left / d);
+      head = [pts[i - 1][0] + (pts[i][0] - pts[i - 1][0]) * f, pts[i - 1][1] + (pts[i][1] - pts[i - 1][1]) * f];
+      ctx.lineTo(head[0], head[1]);
+      left -= d;
+    }
+    ctx.shadowColor = glow;
+    ctx.shadowBlur = z * 0.18;
+    ctx.lineWidth = Math.max(3, z * 0.075);
+    ctx.strokeStyle = colour;
+    ctx.stroke();
+    if (t > 0 && t < 1) {
+      ctx.beginPath();
+      ctx.arc(head[0], head[1], Math.max(3, z * 0.07), 0, Math.PI * 2);
+      ctx.fillStyle = '#fffaf0';
+      ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  /**
+   * The hold, and after it: the line round the piece and the wax forming
+   * while a finger is held on the staged piece; the seal just set, a flash
+   * round the piece and a ring going out from the wax as it is pressed, then
+   * settling into the table and gone; and a seal being broken on a laid
+   * piece, for a lift.
    */
   drawSeals(game) {
     const now = performance.now(), z = this.cam.zoom;
     const s = this.sealing;
-    if (s && s.kind === 'lift') {
-      const t = Math.min(1, (now - s.t0) / s.dur);
+    if (s) {
+      const t = Math.max(0, Math.min(1, (now - s.t0) / s.dur));
       const [cx, cy] = this.toScreen(s.at.x + 0.5, s.at.y + 0.5);
-      this.outlinePiece(s.cells, 'rgba(242,169,154,0.95)', 2.6, 5);
-      this.drawWaxSeal(cx, cy, z * 0.34, t, { seed: seedOf(s.at.x, s.at.y), crack: true, alpha: Math.min(1, t * 4) });
+      if (s.kind === 'lift') {
+        this.progressOutline(s.cells, t, '#f2a99a', 'rgba(242,120,100,0.9)');
+        this.drawWaxSeal(cx, cy, z * 0.34, t, { seed: seedOf(s.at.x, s.at.y), crack: true, alpha: Math.min(1, t * 4) });
+      } else {
+        this.progressOutline(s.cells || [s.at], t, '#ffd98a', 'rgba(255,200,90,0.95)');
+        this.drawWaxSeal(cx, cy, z * 0.34, t, { seed: seedOf(s.at.x, s.at.y) });
+      }
     }
     const d = this.sealed;
     if (d) {
       const age = now - d.t0;
       if (age > 900) { this.sealed = null; return; }
       const [cx, cy] = this.toScreen(d.at.x + 0.5, d.at.y + 0.5);
+      // The press: a flash of gold round the piece and a ring going out.
+      if (age < 420) {
+        const k = age / 420;
+        const ctx = this.ctx;
+        ctx.save();
+        ctx.globalAlpha = 1 - k;
+        this.progressOutline(d.cells || [d.at], 1, '#fff1c4', 'rgba(255,214,120,1)');
+        ctx.beginPath();
+        ctx.arc(cx, cy, z * 0.34 * (1.1 + 1.4 * k), 0, Math.PI * 2);
+        ctx.lineWidth = Math.max(2, z * 0.06 * (1 - k));
+        ctx.strokeStyle = '#ffd98a';
+        ctx.stroke();
+        ctx.restore();
+      }
       const fade = age < 420 ? 1 : 1 - (age - 420) / 480;
-      this.drawWaxSeal(cx, cy, z * 0.34 * (1 - 0.12 * (1 - fade)), 1, { seed: d.seed, alpha: fade });
+      this.drawWaxSeal(cx, cy, z * 0.34 * (1 - 0.12 * (1 - fade)), 1, { seed: seedOf(d.at.x, d.at.y), alpha: fade });
     }
   }
 
