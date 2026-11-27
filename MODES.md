@@ -2034,6 +2034,18 @@ the title beside the sizes: **Ink** (the hand-drawn table, as it was), **Top**
 on Iso again turns the view a quarter, so what a tower hides can be seen).
 The choice is kept in the browser.
 
+**Tilt and turn** (the same day: *"can you add some sliders for me to adjust
+how tilted in both directions isometric and top are"*). A **∠ Tilt** tab at
+the board's top left, under the bar, opens two sliders for the model view in
+use: **Tilt**, how steeply the camera looks down (10° to 90°, 90° straight
+down), and **Turn**, the side it looks from (0° to 359°; the isometric view's
+quarter turns are counted in it). Each view keeps its own, in the browser,
+and **Reset** puts it back (Iso to 30° turned 45°, Top to straight down and
+unturned). Top moved off straight down is drawn and tapped through the same
+projection as Iso (`viewOf` in lowpoly.js; `angled` in render.js); left
+straight down and unturned it is still pixel for pixel the inked table's
+camera. The sun stays at the screen's upper left whichever way it is turned.
+
 **What makes it read as the N64** (`src/lowpoly.js`, WebGL with no library,
 in the spirit of `relief.html`): few polygons with flat faces (a house is a
 box and a gabled roof, a tower an octagon and a cone); Gouraud light, one sun

@@ -1475,6 +1475,40 @@ for (const mode of ['stara5', 'giardino']) {
   if (views.join(' ') !== 'top0:m:s ink0:i:h iso0:m:s iso1:m:s') problems.push(`the view switch went ${views.join(' ')}`);
   const kept = await tp.evaluate(() => localStorage.getItem('tilemakers-workshop/stara/view'));
   if (kept !== 'iso:1') problems.push(`the view was kept as ${kept}`);
+  // The sliders (2026-11-27: "sliders for me to adjust how tilted in both
+  // directions isometric and top are"): Top tilted to 60° and turned 30°,
+  // a tap on a lit square still stages the piece over it, kept; Reset puts
+  // it back straight down.
+  await tp.click('#staraViews button[data-view="top"]');
+  await tp.click('#staraTiltBtn');
+  const slide = (id, v) => tp.$eval(id, (el, x) => { el.value = x; el.dispatchEvent(new Event('input', { bubbles: true })); }, String(v));
+  await slide('#staraTiltRange', 60);
+  await slide('#staraTurnRange', 30);
+  await tp.waitForTimeout(150);
+  // Done closes the sliders (they lie over the top of the board); the angles stay.
+  await tp.click('#staraTuneClose');
+  await tp.waitForTimeout(100);
+  const tilted = await tp.evaluate(() => {
+    const g = window.LAB.game, r = window.LAB.renderer;
+    const key = [...g.m.litSquares()][0];
+    const [x, y] = key.split(',').map(Number);
+    const [sx, sy] = r.toScreen(x + 0.5, y + 0.5);
+    const cv = r.canvas.getBoundingClientRect();
+    return { closed: document.getElementById('staraTune').hidden, tilt: r.view.tilt, turn: r.view.turn, angled: r.angled, key, x: sx + cv.left, y: sy + cv.top,
+      kept: JSON.parse(localStorage.getItem('tilemakers-workshop/stara/angles') || '{}').top };
+  });
+  if (!tilted.closed || tilted.tilt !== 60 || tilted.turn !== 30 || !tilted.angled) problems.push(`the sliders did not tilt and turn the top view: ${JSON.stringify(tilted)}`);
+  if (tilted.kept?.tilt !== 60 || tilted.kept?.turn !== 30) problems.push(`the tilt was not kept: ${JSON.stringify(tilted.kept)}`);
+  await tp.mouse.click(tilted.x, tilted.y);
+  await tp.waitForTimeout(150);
+  const onTilt = await tp.evaluate(() => window.LAB.stara.pendingCells().map((c) => `${c.x},${c.y}`));
+  if (!onTilt.includes(tilted.key)) problems.push(`a tap on lit square ${tilted.key} in the tilted top view staged ${onTilt.join(' ')}`);
+  await tp.click('#staraTiltBtn');
+  await tp.click('#staraTuneReset');
+  await tp.waitForTimeout(100);
+  const reset = await tp.evaluate(() => ({ flat: window.LAB.renderer.view.flat, slider: document.getElementById('staraTiltRange').value }));
+  if (!reset.flat || reset.slider !== '90') problems.push(`Reset did not put the top view back straight down: ${JSON.stringify(reset)}`);
+  await tp.click('#staraTuneClose');
   // The cards are the model in a model view.
   const card = await tp.evaluate(() => {
     const cv = document.querySelector('.staraCard canvas');
@@ -1487,7 +1521,7 @@ for (const mode of ['stara5', 'giardino']) {
   if (errs.length) problems.push(errs[0].split('\n')[0]);
   await phone.close();
   if (problems.length) { failures++; console.log(`  ✗ starà as a model: ${problems.join(' · ')}`); }
-  else console.log(`  ✓ starà as a model     isometric by default at ${(1 / first.px).toFixed(1)} screen px a pixel; a tap stages through the projection, a roof picks its own house, Ink/Top/Iso switch and turn and are kept, model cards`);
+  else console.log(`  ✓ starà as a model     isometric by default at ${(1 / first.px).toFixed(1)} screen px a pixel; a tap stages through the projection, a roof picks its own house, Ink/Top/Iso switch and turn and are kept, tilt and turn sliders, model cards`);
 }
 
 // CONTADO, Starà's long form (2026-11-27): one city on a land of levels,

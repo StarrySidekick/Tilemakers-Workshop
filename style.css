@@ -967,8 +967,39 @@ body.stara #stage, body.stara #stage * {
 .staraSwitches { display: flex; justify-content: center; align-items: center; gap: 10px; flex-wrap: wrap; }
 .staraSwitches .staraViews { margin-top: 6px; }
 #stara .staraViews button { padding: 3px 7px 4px; }
+/* The tilt tab sits on the board's top left corner, just under the bar (stara-ui.js places it). */
+#stara .staraTiltWrap { position: absolute; left: 12px; top: 90px; z-index: 2; margin: 0; pointer-events: auto; }
+#stara .staraTiltWrap:has(> [hidden]) { display: none; }
 #stara .staraViews button.on::before { background: #2f5f93; border-color: #1f4068; }
 #stara .staraViews button .turnGlyph { margin-left: 3px; font-family: 'Fell', ui-serif, serif; }
+#stara .staraViews #staraTiltBtn { font-family: 'Fell', ui-serif, serif; font-size: 13px; padding: 2px 7px 3px; }
+#stara .staraViews #staraTiltBtn[hidden] { display: none; }
+#stara .staraViews #staraTiltBtn.on { color: var(--s-cream); }
+#stara .staraViews #staraTiltBtn.on::before { background: #2f5f93; border-color: #1f4068; }
+
+/* The tilt and turn of the model's view: a slip of parchment under the top bar. */
+#stara .staraTune {
+  position: absolute;
+  left: 50%;
+  top: 150px;
+  z-index: 3;
+  width: min(300px, calc(100% - 32px));
+  transform: translateX(-50%);
+  padding: 10px 14px 9px;
+  pointer-events: auto;
+  color: var(--s-ink);
+  background: var(--s-parch) url('assets/paper.png') center / 160px;
+  border: 1.5px solid var(--s-ink);
+  border-radius: 4px;
+  box-shadow: 0 10px 22px rgba(18, 7, 0, 0.45);
+}
+#stara .staraTune[hidden] { display: none; }
+.staraTuneHead { display: flex; align-items: baseline; gap: 12px; margin-bottom: 4px; }
+.staraTuneHead span { flex: 1; font: 700 13px/1 'Cinzel', ui-serif, serif; letter-spacing: 0.08em; }
+#stara .staraTune label { display: grid; grid-template-columns: 38px 1fr 40px; align-items: center; gap: 8px; margin: 6px 0; font-size: 15px; }
+#stara .staraTune input[type=range] { width: 100%; accent-color: var(--s-gules); touch-action: pan-x; }
+#stara .staraTune b { font: 700 13px/1 'Cinzel', ui-serif, serif; text-align: right; }
+#stara .staraTune small { display: block; font-size: 12px; line-height: 1.25; opacity: 0.75; }
 
 #stara .staraRoundel {
   width: 46px; height: 46px;

@@ -64,17 +64,39 @@ export const VIEWS = [
 ];
 
 /**
- * The camera for a view. `quarter` turns the isometric view a quarter at a
- * time. Top is straight down; isometric is the pixel artist's 2:1 (a pitch
- * of 30 degrees, so a square's diamond is twice as wide as it is tall),
- * which is what most people mean by isometric in a game.
+ * Each model view's two angles, in degrees, as a new player has them:
+ * TILT, how steeply the camera looks down (90 is straight down), and TURN,
+ * the direction it looks from (0 looks from the south, north at the top of
+ * the screen, as the inked table does). Isometric is the pixel artist's
+ * 2:1, a tilt of 30 (a square's diamond twice as wide as it is tall), which
+ * is what most people mean by isometric in a game, turned 45.
  */
-export function viewOf(kind = 'ink', quarter = 0) {
-  if (kind === 'iso') {
-    const yaw = Math.PI / 4 + ((quarter & 3) * Math.PI) / 2, pitch = Math.PI / 6;
-    return { kind, quarter: quarter & 3, yaw, c: Math.cos(yaw), s: Math.sin(yaw), cp: Math.cos(pitch), sp: Math.sin(pitch) };
-  }
-  return { kind, quarter: 0, yaw: 0, c: 1, s: 0, cp: 0, sp: 1 };
+export const VIEW_ANGLES = { iso: { tilt: 30, turn: 45 }, top: { tilt: 90, turn: 0 } };
+/** How far the sliders go (2026-11-27: "sliders for me to adjust how tilted ... isometric and top are"). */
+export const TILT_RANGE = [10, 90];
+
+/**
+ * The camera for a view. `angles` are its tilt and turn (VIEW_ANGLES, or as
+ * the sliders left them); `quarter` turns the isometric view a further
+ * quarter at a time. A view that looks straight down unturned is `flat`: its
+ * camera is the inked table's own, and nothing drawn on top needs mapping.
+ */
+export function viewOf(kind = 'ink', quarter = 0, angles = null) {
+  if (kind !== 'iso' && kind !== 'top') return { kind, quarter: 0, yaw: 0, c: 1, s: 0, cp: 0, sp: 1, flat: true, sig: kind };
+  const a = { ...VIEW_ANGLES[kind], ...(angles || {}) };
+  const tilt = Math.max(TILT_RANGE[0], Math.min(TILT_RANGE[1], a.tilt));
+  const q = kind === 'iso' ? quarter & 3 : 0;
+  const deg = (((a.turn + q * 90) % 360) + 360) % 360;
+  const yaw = (deg * Math.PI) / 180, pitch = (tilt * Math.PI) / 180;
+  // Exactly overhead and unturned, the numbers are exact, so the top view
+  // stays pixel for pixel the inked table's camera.
+  const down = tilt >= 90, square = deg === 0;
+  return {
+    kind, quarter: q, yaw, tilt, turn: deg,
+    c: square ? 1 : Math.cos(yaw), s: square ? 0 : Math.sin(yaw),
+    cp: down ? 0 : Math.cos(pitch), sp: down ? 1 : Math.sin(pitch),
+    flat: down && square, sig: `${kind}${q}:${tilt}:${a.turn}`,
+  };
 }
 
 /**
@@ -846,7 +868,9 @@ function buildShadows(list, light) {
 
 /** The sun for a view: up, and toward the upper left of the screen (a little toward you in isometric). */
 export function lightFor(view) {
-  const [ru, rv] = view.kind === 'iso' ? [-0.72, 0.38] : [-0.55, -0.5];
+  // Looking down steeply, the sun is up and to the upper left; tilted
+  // toward the side, it comes a little toward you, to light the faces seen.
+  const [ru, rv] = view.tilt < 75 ? [-0.72, 0.38] : [-0.55, -0.5];
   const x = ru * view.c + rv * view.s, z = -ru * view.s + rv * view.c;
   return norm([x, 1.05, z]);
 }
@@ -1088,7 +1112,7 @@ export class LowPoly {
     for (const s of model.spans) grow(s.x, s.y, 1);
     if (model.spring) grow(model.spring.x, model.spring.y, 1);
     const reserve = (x, y) => (Math.abs(x) <= half && Math.abs(y) <= half) || clear.has(keyOf(x, y));
-    const key = `${game.m.version}|${view.kind}${view.quarter}|${box.x0},${box.z0},${box.x1}|${liftKey}|${moving ? now : ''}|${game.m.showingPlan ? 'plan' : ''}`;
+    const key = `${game.m.version}|${view.sig}|${box.x0},${box.z0},${box.x1}|${liftKey}|${moving ? now : ''}|${game.m.showingPlan ? 'plan' : ''}`;
     if (key !== this.sceneKey) {
       this.sceneKey = key;
       const s = buildScene(model, { view, box, reserve, shown: this.shown, raised });

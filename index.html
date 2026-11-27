@@ -99,6 +99,19 @@
           </div>
         </div>
 
+        <!-- Tilt and turn the model's view (2026-11-27): a tab at the board's
+             top left corner, under the bar, and two sliders for the view in
+             use, kept in the browser, with a way back. -->
+        <div id="staraTiltWrap" class="staraSizes staraViews staraTiltWrap"><button id="staraTiltBtn" title="Tilt and turn the view" aria-label="Tilt and turn the view" aria-expanded="false">∠ Tilt</button></div>
+        <div id="staraTune" class="staraTune" hidden>
+          <div class="staraTuneHead"><span id="staraTuneName">Iso</span>
+            <button id="staraTuneReset" class="staraLink">Reset</button>
+            <button id="staraTuneClose" class="staraLink" aria-label="Close">Done</button></div>
+          <label><span>Tilt</span><input id="staraTiltRange" type="range" min="10" max="90" step="1"><b id="staraTiltValue">30°</b></label>
+          <label><span>Turn</span><input id="staraTurnRange" type="range" min="0" max="359" step="1"><b id="staraTurnValue">45°</b></label>
+          <small>Tilt 90° looks straight down; less looks more from the side. Turn is the side you look from.</small>
+        </div>
+
         <!-- Turn the piece staged on the table: it sits beside the piece. -->
         <button id="staraTurn" class="staraTurn" hidden title="Turn it" aria-label="Turn the piece">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19 12a7 7 0 1 1-2.05-4.95"/><path d="M19.5 3.5v4.4h-4.4"/></svg>
