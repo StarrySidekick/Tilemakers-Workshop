@@ -21,7 +21,6 @@ import { roughen } from './ink.js';
 import { paintCityWall, CASTLE, keepSprite } from './castle.js';
 import { gardenSprite, paintGardenWall, GARDEN_WALL } from './garden.js';
 import { citySprite, spanSprite, springSprite, SPAN_PAD } from './city.js';
-import { WAY, LOSS } from './modes/stara-city.js';
 import { sketchLine, sketchRect, seedOf } from './sketch.js';
 import { LowPoly, viewOf, project, unproject, planAffine, planLift, ghostOf, pieceModel, LEVEL } from './lowpoly.js';
 
@@ -1863,7 +1862,6 @@ export class Renderer {
    * set toward the new square so it reads as a pair.
    */
   drawCompany(game, x, y, rot = game.rot) {
-    if (game.spec?.city) return this.drawGain(game, x, y, rot);
     const kind = game.tile?.plant || game.tile?.place || (game.tile?.keep ? 'keep' : null);
     if (!kind || !game.m.companyMarks) return;
     const ctx = this.ctx, z = this.cam.zoom;
@@ -1898,49 +1896,21 @@ export class Renderer {
    * every place round it whose worth would change gets its own +n or −n,
    * green or red, set toward the new square so it reads as a pair.
    */
-  drawGain(game, x, y, rot) {
-    const pv = game.m.preview?.(x, y, rot);
-    if (!pv) return;
-    const ctx = this.ctx, z = this.cam.zoom;
-    const [cx, cy] = this.toScreen(x + 0.5, y + 0.5);
-    const font = (px) => `700 ${Math.round(px)}px Cinzel, ui-serif, serif`;
-    const tag = (tx0, ty0, text, bg, r) => this.upright(tx0, ty0, (tx, ty) => {
-      ctx.save();
-      ctx.font = font(r * 1.05);
-      const w = Math.max(r * 2, ctx.measureText(text).width + r * 0.9);
-      ctx.beginPath();
-      ctx.roundRect(tx - w / 2, ty - r, w, r * 2, r);
-      ctx.fillStyle = bg;
-      ctx.fill();
-      ctx.lineWidth = Math.max(1.5, z * 0.025);
-      ctx.strokeStyle = '#fff1d6';
-      ctx.stroke();
-      ctx.fillStyle = '#fff6e4';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(text, tx, ty + r * 0.06);
-      ctx.restore();
-    });
-    const signed = (n) => (n > 0 ? `+${n}` : `−${Math.abs(n)}`);
-    for (const c of pv.changes) {
-      if (c.self) continue;
-      const [nx, ny] = this.toScreen(c.x + 0.5, c.y + 0.5);
-      tag(cx + (nx - cx) * 0.62, cy + (ny - cy) * 0.62, signed(c.d), c.d > 0 ? '#3f7d34' : '#a8392c', Math.max(8, z * 0.14));
-    }
-    const [sx, sy] = this.toScreen(x, y);
-    tag(sx + z * 0.22, sy + z * 0.2, signed(pv.gain), pv.gain >= 0 ? '#8e2a1e' : '#4a1a12', Math.max(10, z * 0.19));
-  }
-
   /**
    * STARÀ'S PIECES (the sixth pass, 2026-11-27; freeform since the seventh):
-   * a piece of one to four squares, lit wherever it could go turned the way
-   * it is, staged as a whole wherever it is put, and sealed with a hold.
-   * Lamplight on every square some way of laying it would cover; the staged
-   * piece drawn solid with a ring round its outline where it fits, and
-   * faint, ringed in red, where it does not; what it would pay, by way and
-   * in each way's colour; and, while a finger is held on it, the wax seal
-   * forming (drawWaxSeal). An aqueduct is drawn over the city, and a place
-   * staged under one has the aqueduct drawn back over it.
+   * a piece of one to four squares, lit wherever any turn of it could go,
+   * staged as a whole wherever it is put, and sealed with a hold. Lamplight
+   * on every square some way of laying it would cover; the staged piece
+   * drawn solid with a ring round its outline where it fits, and faint,
+   * ringed in red, where it does not; and, while a finger is held on it,
+   * the wax seal forming (drawWaxSeal). An aqueduct is drawn over the city,
+   * and a place staged under one has the aqueduct drawn back over it.
+   *
+   * Nothing else is drawn on it (2026-11-27: "take out all of the stuff
+   * that's like on the tile while it's being placed, like all the point
+   * labels"): what it would pay, by way, was drawn here in the ways'
+   * colours from the sixth pass until then; the card under the hand still
+   * says what the place earns, and the scores rise once it is sealed.
    */
   drawCityHints(game) {
     const ctx = this.ctx, z = this.cam.zoom;
@@ -1974,7 +1944,6 @@ export class Renderer {
       }
       const a = 0.75 + Math.sin(performance.now() / 300) * 0.2;
       if (!sealing) this.outlinePiece(pv.cells, `rgba(255,242,214,${a})`, 2.6, seedOf(p.ax, p.ay, p.rot));
-      this.drawWays(game, pv);
       return;
     }
     // A mouse over the table, nothing staged: the piece where a click would put it.
@@ -1987,7 +1956,6 @@ export class Renderer {
     this.paintStaged(game, pv, pv.fits ? 0.92 : 0.32);
     ctx.restore();
     this.outlinePiece(pv.cells, pv.fits ? THEME.gold : '#a8443a', 3, seedOf(h.x, h.y, 3));
-    if (pv.fits) this.drawWays(game, pv);
   }
 
   /** A piece not yet laid, as it would look: its squares, or its spans over the city. */
@@ -2058,126 +2026,6 @@ export class Renderer {
         sketchLine(ctx, sx + ix(ax), sy + ix(ay), sx + ix(bx), sy + ix(by), { seed: seedOf(c.x, c.y, s, seed), rough: 1.1 });
       }
     }
-    ctx.stroke();
-    ctx.restore();
-  }
-
-  /**
-   * WHAT A PIECE PAYS, BY WAY (2026-11-27: "things that score points in
-   * different way should be clearly color coded"). Each way has its colour
-   * (stara-city.js, WAYS), and everything that pays is lit in it:
-   *
-   *   - the plaza beside a house, ringed in green; the cathedral, in violet;
-   *     a drop of blue on each house the water reaches;
-   *   - the wall it adds, a black bar along each new stretch, gold-pinned
-   *     where a street runs out through it (a gate, which costs more);
-   *   - each square round it whose worth changes, its +n or −n in the colour
-   *     of the way that changed most;
-   *   - and on the piece a wax tag with the whole difference it makes, over
-   *     a row of chips, one per way, each in its colour.
-   */
-  drawWays(game, pv) {
-    const ctx = this.ctx, z = this.cam.zoom;
-    const own = new Set(pv.cells.map((c) => `${c.x},${c.y}`));
-    const font = (px) => `700 ${Math.round(px)}px Cinzel, ui-serif, serif`;
-    const tag = (tx0, ty0, text, bg, fg, r) => this.upright(tx0, ty0, (tx, ty) => {
-      ctx.save();
-      ctx.font = font(r * 1.05);
-      const w = Math.max(r * 2, ctx.measureText(text).width + r * 0.9);
-      ctx.beginPath();
-      ctx.roundRect(tx - w / 2, ty - r, w, r * 2, r);
-      ctx.fillStyle = bg;
-      ctx.fill();
-      ctx.lineWidth = Math.max(1.5, z * 0.025);
-      ctx.strokeStyle = '#fff1d6';
-      ctx.stroke();
-      ctx.fillStyle = fg;
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(text, tx, ty + r * 0.06);
-      ctx.restore();
-      return w;
-    });
-    const signed = (n) => (n > 0 ? `+${n}` : n < 0 ? `−${Math.abs(n)}` : '±0');
-    // Where its houses' points come from.
-    const ringed = new Set();
-    for (const f of pv.from) {
-      if (f.way === 'water') {
-        const [hx, hy] = f.for.split(',').map(Number);
-        const [sx, sy] = this.toScreen(hx, hy);
-        this.upright(sx + z * 0.8, sy + z * 0.24, (dx, dy) => this.drop(dx, dy, Math.max(4, z * 0.08)));
-        continue;
-      }
-      const k = `${f.x},${f.y}|${f.way}`;
-      if (ringed.has(k) || own.has(`${f.x},${f.y}`)) continue;
-      ringed.add(k);
-      const [sx, sy] = this.toScreen(f.x, f.y);
-      this.sketchBox(sx + z * 0.12, sy + z * 0.12, z * 0.76, WAY[f.way].colour, seedOf(f.x, f.y, 11), Math.max(2.5, z * 0.05));
-    }
-    // The wall it adds.
-    const W = Math.max(3, z * 0.08);
-    for (const w of pv.wallAdded || []) {
-      const [sx, sy] = this.toScreen(w.x, w.y);
-      ctx.fillStyle = WAY.wall.colour;
-      ctx.globalAlpha = 0.85;
-      const r = [[sx + z * 0.08, sy - W * 0.5, z * 0.84, W], [sx + z - W * 0.5, sy + z * 0.08, W, z * 0.84],
-        [sx + z * 0.08, sy + z - W * 0.5, z * 0.84, W], [sx - W * 0.5, sy + z * 0.08, W, z * 0.84]][w.s];
-      ctx.fillRect(...r);
-      ctx.globalAlpha = 1;
-      if (w.gate) {
-        ctx.beginPath();
-        ctx.arc(r[0] + r[2] / 2, r[1] + r[3] / 2, W * 0.9, 0, Math.PI * 2);
-        ctx.fillStyle = WAY.roads.colour;
-        ctx.fill();
-        ctx.lineWidth = 1.5; ctx.strokeStyle = WAY.wall.colour; ctx.stroke();
-      }
-    }
-    // The squares round it whose worth would change.
-    for (const c of pv.changes) {
-      if (own.has(`${c.x},${c.y}`)) continue;
-      let near = pv.cells[0], d = Infinity;
-      for (const o of pv.cells) { const e = (o.x - c.x) ** 2 + (o.y - c.y) ** 2; if (e < d) { d = e; near = o; } }
-      const [cx, cy] = this.toScreen(near.x + 0.5, near.y + 0.5);
-      const [nx, ny] = this.toScreen(c.x + 0.5, c.y + 0.5);
-      const way = c.d < 0 ? LOSS : WAY[c.way] || WAY.houses;
-      tag(cx + (nx - cx) * 0.62, cy + (ny - cy) * 0.62, signed(c.d), way.colour, way.ink, Math.max(8, z * 0.14));
-    }
-    // On the piece: the whole difference, and under it the ways.
-    const top = pv.cells.reduce((a, c) => (c.y < a.y || (c.y === a.y && c.x < a.x) ? c : a), pv.cells[0]);
-    const [sx, sy] = this.toScreen(top.x, top.y);
-    const r = Math.max(10, z * 0.19);
-    // In the isometric view the tag stands over the piece's middle, upright, and the chips in a row under it.
-    const iso = this.angled;
-    const [gx, gy] = iso ? this.pieceCentre(pv.cells) : [sx + z * 0.24, sy + z * 0.2];
-    tag(gx, gy, signed(pv.gain), pv.gain >= 0 ? '#8e2a1e' : '#4a1a12', '#fff6e4', r);
-    const chips = Object.entries(pv.ways).filter(([, v]) => v);
-    const rc = Math.max(7, z * 0.115);
-    this.upright(gx, gy, (ux, uy) => {
-      let x = iso ? ux - r : ux - z * 0.16;
-      for (const [id, v] of chips) {
-        const way = v < 0 && id !== 'wall' ? { colour: LOSS.colour, ink: LOSS.ink } : WAY[id];
-        ctx.save();
-        ctx.font = font(rc * 1.05);
-        const w = Math.max(rc * 2, ctx.measureText(signed(v)).width + rc * 0.8);
-        ctx.restore();
-        tag(x + w / 2, uy + r + rc + 2, signed(v), way.colour, way.ink, rc);
-        x += w + 2;
-      }
-    });
-  }
-
-  /** A drop of water, point up, in azure. */
-  drop(x, y, r) {
-    const ctx = this.ctx;
-    ctx.save();
-    ctx.beginPath();
-    ctx.moveTo(x, y - r * 1.5);
-    ctx.bezierCurveTo(x + r * 1.1, y - r * 0.2, x + r, y + r, x, y + r);
-    ctx.bezierCurveTo(x - r, y + r, x - r * 1.1, y - r * 0.2, x, y - r * 1.5);
-    ctx.fillStyle = WAY.water.colour;
-    ctx.fill();
-    ctx.lineWidth = 1.5;
-    ctx.strokeStyle = '#fff1d6';
     ctx.stroke();
     ctx.restore();
   }

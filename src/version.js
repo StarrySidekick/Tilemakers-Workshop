@@ -2,7 +2,7 @@
 // copy in version.json goes out of step and the page starts crying wolf.
 export const VERSION = {
   "version": "0.47.0",
-  "build": 61,
+  "build": 62,
   "date": "2026-11-27",
-  "label": "Starà: a camera set free, and a piece that settles the best way"
+  "label": "Starà: nothing on the piece being placed, and one turn button"
 };

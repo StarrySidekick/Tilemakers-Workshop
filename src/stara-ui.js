@@ -57,7 +57,8 @@
 //     there is one); dragged back onto the tray, it goes back in your hand;
 //   - a TAP on the table puts it there; a tap on it still turns it;
 //   - two TURN buttons: one floating beside the staged piece, one in the tray
-//     beside the hand, which turns the piece whether it is in hand or down;
+//     beside the hand, which turns the piece whether it is in hand or down
+//     (later that day only the tray's: see below);
 //   - the seal sets in about 0.6 s, not 1;
 //   - the table is open (there is no border), and the screen keeps the whole
 //     city in view as it grows, easing out to it after each piece;
@@ -78,6 +79,14 @@
 //     the city worth most, turning itself if that is what it takes
 //     (Stara.bestAt); dragged, it still goes exactly where it is put, and
 //     the turn buttons still turn it a quarter where it sits.
+//
+// And then: "Take out all of the stuff that's like on the tile while it's
+// being placed, like all the point labels and like the rotate button being
+// near it. We only need the rotate button separately. Also, the rotate
+// button is like very hacky looking at the moment." So nothing is drawn on a
+// staged piece but its outline and the seal (render.js, drawCityHints), and
+// there is one turn button, in the tray, redrawn as a roundel in the menu's
+// hand.
 //
 // Giardino (2026-11-22) plays on the same screen: a garden wall for the
 // castle (garden.js), no sizes, the week under the title, and a SEED PACKET
@@ -254,11 +263,18 @@ export class StaraUI {
       const el = e.target?.nodeType === 1 ? e.target : e.target?.parentElement;
       if (this.on && el?.closest?.('#stage')) e.preventDefault();
     });
-    // The two turn buttons (the seventh pass): beside the staged piece, and in the tray.
-    for (const id of ['staraTurn', 'staraRotate']) {
-      $(id).addEventListener('pointerdown', (e) => e.stopPropagation());
-      $(id).onclick = (e) => { e.preventDefault(); this.turn(1); };
-    }
+    // The turn button, in the tray (one since 2026-11-27: "we only need the
+    // rotate button separately"): it turns the piece held up, in hand or on
+    // the table, and its arrow swings a quarter as it does.
+    const rotate = $('staraRotate');
+    rotate.addEventListener('pointerdown', (e) => e.stopPropagation());
+    rotate.onclick = (e) => {
+      e.preventDefault();
+      if (!this.turn(1)) return;
+      rotate.classList.remove('spin');
+      void rotate.offsetWidth;            // restart the swing
+      rotate.classList.add('spin');
+    };
     $('staraMenu').onclick = () => this.togglePanel();
     $('staraAgain').onclick = () => this.h.newGame(this.game.mode);
     $('staraShare').onclick = () => this.share();
@@ -768,42 +784,10 @@ export class StaraUI {
     return true;
   }
 
-  /**
-   * The turn button beside the staged piece: just off its upper right
-   * corner (its upper left, if that would leave the screen), and hidden
-   * while nothing is staged or a piece is being dragged.
-   */
+  /** The turn button in the tray: there while there is a piece to turn. */
   placeTurn() {
-    const btn = $('staraTurn');
-    const g = this.game, p = this.h.pending();
-    const show = this.on && g.phase === 'place' && !!p && !this.held?.dragging && !this.press?.dragging;
+    const g = this.game;
     $('staraRotate').hidden = !(this.on && g.phase === 'place' && g.tile);
-    if (!show) { btn.hidden = true; return; }
-    const cells = this.pendingCells();
-    const r = this.h.renderer;
-    const stage = $('stage').getBoundingClientRect(), cv = r.canvas.getBoundingClientRect();
-    // The piece's outline on the screen, whichever way the table is seen
-    // (in the isometric view its squares are diamonds): the button goes
-    // off its upper right, or its upper left if that would leave the screen.
-    let x0 = Infinity, x1 = -Infinity, y0 = Infinity;
-    for (const c of cells) {
-      for (const [a, b] of [[0, 0], [1, 0], [1, 1], [0, 1]]) {
-        const [px, py] = r.toScreen(c.x + a, c.y + b);
-        x0 = Math.min(x0, px); x1 = Math.max(x1, px); y0 = Math.min(y0, py);
-      }
-    }
-    const ox = cv.left - stage.left, oy = cv.top - stage.top;
-    const top = $('staraTop').getBoundingClientRect().height + 4;
-    let sx = x1 + ox + 6, sy = y0 + oy - 22;
-    if (sx + 48 > stage.width) {
-      // In the isometric view the squares to the left of a piece are the
-      // city behind it, so the button goes over the piece instead.
-      const over = r.angled && y0 + oy - 56 >= top;
-      if (over) { sx = (x0 + x1) / 2 + ox - 23; sy = y0 + oy - 56; } else sx = x0 + ox - 50;
-    }
-    btn.style.left = `${Math.round(sx)}px`;
-    btn.style.top = `${Math.round(Math.max(sy, top))}px`;
-    btn.hidden = false;
   }
 
   /** Is this pointer over the tray (where a piece goes back into the hand)? */

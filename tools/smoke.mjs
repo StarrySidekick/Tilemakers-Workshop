@@ -1120,14 +1120,19 @@ await page.selectOption('#tilesPerTurn', '1');
     return {
       on: !!pv, fits: p?.fits, squares: pv ? pv.cells.length : 0, want: g.m.held.cells.length,
       inTray: !!held && getComputedStyle(held).display !== 'none',
-      button: !!document.getElementById('staraGo'), turn: !document.getElementById('staraTurn').hidden,
+      button: !!document.getElementById('staraGo'), beside: !!document.getElementById('staraTurn'),
     };
   });
   if (!staged.on || !staged.fits) problems.push(`a lit square did not stage the piece where it fits: ${JSON.stringify(staged)}`);
   else if (staged.squares !== staged.want) problems.push(`a piece of ${staged.want} squares staged on ${staged.squares}`);
   if (staged.inTray) problems.push('the staged piece is still in the tray');
   if (staged.button) problems.push('the seal button is still on the page: a hold seals now');
-  if (!staged.turn) problems.push('no turn button beside the staged piece');
+  // Nothing beside or on it but its outline (2026-11-27: "take out all of
+  // the stuff that's like on the tile ... like all the point labels and
+  // like the rotate button being near it"): no button floats by it, and the
+  // renderer has no pay to draw over it.
+  if (staged.beside) problems.push('a turn button still floats beside the staged piece');
+  if (await page.evaluate(() => typeof window.LAB.renderer.drawWays === 'function')) problems.push('the pay is still drawn over the staged piece');
   // The card of the place held up under the hand in the colours of the ways,
   // the plan under the title, and what the staged piece would pay.
   const city = await page.evaluate(() => {
@@ -1147,19 +1152,19 @@ await page.selectOption('#tilesPerTurn', '1');
   if (!city.day.includes(String(city.par))) problems.push(`the plan's worth is not under the title: "${city.day}"`);
   if (city.gain == null || city.total !== city.score + city.gain || city.ways !== city.gain) problems.push(`the staged piece's gain does not add up: ${JSON.stringify(city)}`);
 
-  // The turn button beside it turns it in place, about the square it is held by.
+  // The turn button in the tray turns it in place, about the square it is held by.
   const pinned = await page.evaluate(() => {
     const p = window.LAB.renderer.pending;
     const cells = window.LAB.stara.pendingCells();
     return { rot: p.rot, x: p.ax, y: p.ay, cells: cells.map((c) => `${c.x},${c.y}`) };
   });
-  await page.click('#staraTurn');
+  await page.click('#staraRotate');
   await page.waitForTimeout(80);
   const turnedOn = await page.evaluate(() => {
     const p = window.LAB.renderer.pending;
     return { rot: p.rot, cells: window.LAB.stara.pendingCells().map((c) => `${c.x},${c.y}`), size: window.LAB.game.board.size };
   });
-  if (turnedOn.rot === pinned.rot) problems.push('the turn button beside the piece did not turn it');
+  if (turnedOn.rot === pinned.rot) problems.push('the turn button in the tray did not turn the staged piece');
   if (staged.want > 1 && !turnedOn.cells.some((k) => pinned.cells.includes(k))) problems.push('the piece did not turn about a square of its own');
 
   // Dragged across the table it goes where it is put, fitting or not, and
@@ -1169,7 +1174,7 @@ await page.selectOption('#tilesPerTurn', '1');
   await page.mouse.move(grab.x, grab.y);
   await page.mouse.down();
   for (let k = 1; k <= 6; k++) { await page.mouse.move(grab.x + (z * 2 * k) / 6, grab.y + (z * k) / 6); await page.waitForTimeout(20); }
-  const mid = await page.evaluate(() => ({ turn: !document.getElementById('staraTurn').hidden, sealing: !!window.LAB.renderer.sealing }));
+  const mid = await page.evaluate(() => ({ sealing: !!window.LAB.renderer.sealing }));
   await page.mouse.up();
   await page.waitForTimeout(100);
   const dragged = await page.evaluate(() => {
@@ -1179,7 +1184,7 @@ await page.selectOption('#tilesPerTurn', '1');
   if (!dragged.on) problems.push('a drag on the staged piece put it back in the hand');
   else if (dragged.cells.join(';') === turnedOn.cells.join(';')) problems.push('a drag did not move the staged piece');
   if (dragged.laid) problems.push('a drag laid the piece');
-  if (mid.turn || mid.sealing) problems.push(`while dragging, the turn button showed or a seal began: ${JSON.stringify(mid)}`);
+  if (mid.sealing) problems.push('while dragging, a seal began');
 
   // Back on a lit square: a hold let go of early lays nothing, a tap turns.
   const lit2Key = await page.evaluate(() => [...window.LAB.game.m.litSquares()][0]);
@@ -1313,7 +1318,7 @@ await page.selectOption('#tilesPerTurn', '1');
 
   if (errors.length) problems.push(errors[0].split('\n')[0]);
   if (problems.length) { failures++; console.log(`  ✗ starà on a phone: ${problems.join(' · ')}`); }
-  else console.log(`  ✓ starà on a phone     open table at ${screen.tile}px a square; three in hand, both turn buttons, staged whole, dragged, early let-go lays nothing, 0.6 s seal, card drag and back, lift for a point, ways, plan, sizes, charter, replay`);
+  else console.log(`  ✓ starà on a phone     open table at ${screen.tile}px a square; three in hand, one turn button and nothing on the staged piece, staged whole, dragged, early let-go lays nothing, 0.6 s seal, card drag and back, lift for a point, ways, plan, sizes, charter, replay`);
   await page.setViewportSize({ width: 1280, height: 820 });
 }
 
@@ -1447,9 +1452,8 @@ for (const mode of ['stara5', 'giardino']) {
   });
   await tp.mouse.click(lit.x, lit.y);
   await tp.waitForTimeout(150);
-  const staged = await tp.evaluate(() => ({ on: !!window.LAB.renderer.pending, cells: window.LAB.stara.pendingCells().map((c) => `${c.x},${c.y}`), turn: !document.getElementById('staraTurn').hidden }));
+  const staged = await tp.evaluate(() => ({ on: !!window.LAB.renderer.pending, cells: window.LAB.stara.pendingCells().map((c) => `${c.x},${c.y}`) }));
   if (!staged.on || !staged.cells.includes(lit.key)) problems.push(`a tap on lit square ${lit.key} in isometric staged ${JSON.stringify(staged)}`);
-  if (!staged.turn) problems.push('no turn button beside the staged piece in isometric');
   // A tap on a roof: lay a few pieces, then aim at the front house's roof.
   const roof = await tp.evaluate(async () => {
     const { project } = await import('./src/lowpoly.js');
