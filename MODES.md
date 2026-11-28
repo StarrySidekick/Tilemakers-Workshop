@@ -2075,6 +2075,21 @@ seen moving; and **the turn buttons still turn it a quarter where it sits**,
 so a way that scores less now (for a plan) can still be chosen and sealed.
 "Best" is the city's worth just after, the same number the score is.
 
+**Nothing on the piece being placed, and one turn button** (the same
+evening: *"Take out all of the stuff that's like on the tile while it's being
+placed, like all the point labels and like the rotate button being near it.
+We only need the rotate button separately. Also, the rotate button is like
+very hacky looking at the moment."*). A staged piece now shows only itself,
+its outline (red where it does not fit) and, while held, the seal: the pay by
+way that the sixth pass drew over it (the coloured rings, the drops of water,
+the wall's black bars, the +n on each house and the wax tag of the whole
+difference) is gone from the board, and so is the turn button that floated
+beside it. The card under the hand still says what the place earns, and the
+scores still rise once it is sealed. The one turn button is in the tray,
+redrawn as a roundel in the menu's hand (a parchment disc ruled in ink, a
+fine inner ring, a centred quarter-turn arrow with a solid head, TURN under
+it), and its arrow swings a quarter when it is pressed.
+
 **What makes it read as the N64** (`src/lowpoly.js`, WebGL with no library,
 in the spirit of `relief.html`): few polygons with flat faces (a house is a
 box and a gabled roof, a tower an octagon and a cone); Gouraud light, one sun

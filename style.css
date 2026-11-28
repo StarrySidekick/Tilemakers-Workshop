@@ -1167,29 +1167,46 @@ body.stara #stage, body.stara #stage * {
   filter: url(#staraHand) drop-shadow(0 4px 6px rgba(20, 8, 0, 0.5));
 }
 
-/* Turning the piece (the seventh pass, 2026-11-27: "we should probably have
-   the rotate button ... an additional rotate button somewhere on the bottom").
-   One floats beside the piece staged on the table; the other sits in the tray
-   beside the hand. A parchment roundel, the same hand as the menu's. */
-.staraTurn {
-  position: absolute;
-  width: 40px; height: 40px;
+/* Turning the piece. The seventh pass (2026-11-27) had two buttons, one
+   floating beside the staged piece; "we only need the rotate button
+   separately ... the rotate button is like very hacky looking", so there is
+   one, in the tray beside the hand: a roundel drawn in the same hand as the
+   menu's (a parchment disc ruled in ink, bent by #staraHand), a fine inner
+   ring, the arrow a quarter turn clockwise with a solid head, centred, and
+   its name under it. Pressed, the arrow swings a quarter into place. */
+#stara .staraRotate {
+  position: relative;
+  justify-self: center;
+  display: grid;
+  justify-items: center;
+  gap: 2px;
+  width: 48px;
   padding: 0;
   border: 0;
-  border-radius: 50%;
-  background: var(--s-parch) url('assets/paper.png') center / 90px;
-  box-shadow: 0 0 0 2px var(--s-ink), 0 4px 8px rgba(20, 8, 0, 0.5);
+  background: none;
   color: var(--s-ink);
   cursor: pointer;
   touch-action: manipulation;
-  z-index: 6;
+  pointer-events: auto;
+  filter: drop-shadow(0 3px 4px rgba(20, 8, 0, 0.55));
 }
-.staraTurn[hidden] { display: none; }
-.staraTurn svg { width: 26px; height: 26px; fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; filter: url(#staraHand); }
-.staraTurn:active { transform: translateY(1px) rotate(25deg); }
-.staraTurn.inTray { position: relative; justify-self: center; width: 46px; height: 46px; }
-.staraTurn.inTray[hidden] { display: block; visibility: hidden; }
-#stara .staraTurn { pointer-events: auto; }
+#stara .staraRotate[hidden] { display: grid; visibility: hidden; }
+.staraRotate svg { width: 46px; height: 46px; overflow: visible; filter: url(#staraHand); }
+.staraRotate .ring { fill: var(--s-parch); stroke: var(--s-ink); stroke-width: 2.2; }
+.staraRotate .inner { fill: none; stroke: var(--s-ink); stroke-width: 0.9; opacity: 0.4; }
+.staraRotate .arc { fill: none; stroke: var(--s-ink); stroke-width: 2.7; stroke-linecap: round; }
+.staraRotate .head { fill: var(--s-ink); stroke: var(--s-ink); stroke-width: 1.2; stroke-linejoin: round; }
+.staraRotate .glyph { transform-box: view-box; transform-origin: 22px 22px; }
+.staraRotate.spin .glyph { animation: staraQuarter 280ms cubic-bezier(0.3, 1.35, 0.5, 1); }
+@keyframes staraQuarter { from { transform: rotate(-90deg); } to { transform: rotate(0deg); } }
+.staraRotate .lbl {
+  font: 700 9.5px/1 'Cinzel', ui-serif, serif;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--s-cream);
+  text-shadow: 0 1px 2px rgba(20, 8, 0, 0.85);
+}
+#stara .staraRotate:active svg { transform: translateY(1px); }
 
 .staraCaption {
   min-height: 1.3em;
@@ -1366,6 +1383,7 @@ body.garden .staraCaption, body.city .staraCaption { display: grid; font-size: 1
 @media (prefers-reduced-motion: reduce) {
   .staraCard.pop, .staraCharter, .staraEnd, .staraScore.bump { animation: none; }
   .staraCard canvas { transition: none; animation: none; }
+  .staraRotate.spin .glyph { animation: none; }
 }
 
 /* Nothing fits: the line takes the card's place under the hand. */

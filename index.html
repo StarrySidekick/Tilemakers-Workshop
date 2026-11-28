@@ -112,11 +112,6 @@
           <small>Tilt 90° looks straight down; less looks more from the side. Turn is the side you look from.</small>
         </div>
 
-        <!-- Turn the piece staged on the table: it sits beside the piece. -->
-        <button id="staraTurn" class="staraTurn" hidden title="Turn it" aria-label="Turn the piece">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19 12a7 7 0 1 1-2.05-4.95"/><path d="M19.5 3.5v4.4h-4.4"/></svg>
-        </button>
-
         <!-- Once the day is over: the architect's plan on the table, and the way back. -->
         <div id="staraPlanBar" class="staraPlanBar" hidden>
           <span id="staraPlanText">The architect's plan.</span>
@@ -134,8 +129,18 @@
             <!-- Your hand: three pieces in the city, one plant in the garden. -->
             <div id="staraCards" class="staraCards"></div>
             <!-- Turn the piece held up, in hand or on the table. -->
-            <button id="staraRotate" class="staraTurn inTray" title="Turn it" aria-label="Turn the piece">
-              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19 12a7 7 0 1 1-2.05-4.95"/><path d="M19.5 3.5v4.4h-4.4"/></svg>
+            <!-- Turn the piece a quarter, in hand or on the table: a roundel in
+                 the menu's hand, its arrow a quarter turn clockwise. -->
+            <button id="staraRotate" class="staraRotate" title="Turn the piece a quarter" aria-label="Turn the piece">
+              <svg viewBox="0 0 44 44" aria-hidden="true">
+                <circle class="ring" cx="22" cy="22" r="19"/>
+                <circle class="inner" cx="22" cy="22" r="15.4"/>
+                <g class="glyph">
+                  <path class="arc" d="M15.64 28.36 A9 9 0 1 1 28.36 28.36"/>
+                  <path class="head" d="M24.9 31.9 L32.1 30.4 L26.2 24.6 Z"/>
+                </g>
+              </svg>
+              <span class="lbl">Turn</span>
             </button>
           </div>
           <div id="staraCaption" class="staraCaption"></div>
